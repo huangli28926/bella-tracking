@@ -83,6 +83,135 @@ function completeStage(paths, state, id, note) {
   return saveState(paths, state)
 }
 
+function stageDone(state, id) {
+  return !!(state && state.stages && state.stages[id] && state.stages[id].status === 'done')
+}
+
+function firstPendingConfirm(queueInfo) {
+  const list = (queueInfo && queueInfo.queue) || []
+  return list.find(item => item && item.needsConfirm && !item.confirmed && !(item.event && item.event.deferred)) || null
+}
+
+function firstPendingEvent(paths) {
+  const impl = readJson(paths.implPath, { events: [] })
+  const events = Array.isArray(impl.events) ? impl.events : []
+  return events.find(item => item && item.status !== 'existing') || events[0] || null
+}
+
+function resolveNextTask(paths, state, landing, validation, accept, queueInfo) {
+  const queue = queueInfo || loadConfirmQueue(paths)
+  const pendingConfirm = firstPendingConfirm(queue)
+  const acceptDone = !!(accept && accept.ok)
+  const artifactsReady = !!(landing && landing.artifactsReady)
+  const queueCleared = !!(landing && landing.queueCleared)
+  const validationOk = !!(validation && validation.ok)
+  const stageAComplete = acceptDone || (artifactsReady && validationOk && queueCleared)
+  const stageBComplete = acceptDone || (stageAComplete && stageDone(state, 'B'))
+
+  if (acceptDone) {
+    return null
+  }
+
+  if (!artifactsReady) {
+    const pending = firstPendingEvent(paths)
+    const subject = pending && pending.evtId ? { evtId: String(pending.evtId) } : {}
+    const missing = Array.isArray(landing && landing.missing) ? landing.missing : []
+    const missingDiagrams = Array.isArray(landing && landing.missingDiagrams) ? landing.missingDiagrams : []
+    return {
+      id: missing.length || missingDiagrams.length ? 'A_PREPARE_ARTIFACTS' : 'A_ANALYZE_EVENT',
+      stage: 'A',
+      executor: missing.length || missingDiagrams.length ? 'script' : 'agent',
+      status: 'ready',
+      subject,
+      inputs: missing.length || missingDiagrams.length
+        ? ['events.json', 'adaptor.json', 'impl.json', '落库.html', '_raw/images']
+        : ['events.json', 'adaptor.json', 'impl.json', '_raw/images'],
+      outputs: missing.length || missingDiagrams.length
+        ? ['events.json', 'adaptor.json', 'impl.json', '落库.html']
+        : ['impl.json'],
+      completionCondition: missing.length || missingDiagrams.length
+        ? [
+          'events.json/adaptor.json/impl.json/落库.html exist',
+          'every event has a non-empty _raw/images/{evtId}.png'
+        ]
+        : [
+          'impl.json contains analyzed events in docIndex order',
+          'validate-impl has no errors',
+          'needsConfirm queue is cleared'
+        ],
+      blockingReason: null
+    }
+  }
+
+  if (!validationOk) {
+    return {
+      id: 'A_VALIDATE_IMPL',
+      stage: 'A',
+      executor: 'script',
+      status: 'blocked',
+      subject: {},
+      inputs: ['impl.json', 'events.json', 'adaptor.json'],
+      outputs: ['impl.json'],
+      completionCondition: ['validate-impl errors = 0'],
+      blockingReason: validation && validation.message ? validation.message : 'validate-impl has errors'
+    }
+  }
+
+  if (queue && queue.pendingCount > 0 && pendingConfirm) {
+    return {
+      id: 'B_CONFIRM_EVENT',
+      stage: 'B',
+      executor: 'user',
+      status: 'ready',
+      subject: { evtId: String(pendingConfirm.evtId || '') },
+      inputs: ['impl.json'],
+      outputs: ['impl.json', '_raw/field-memory.json'],
+      completionCondition: ['confirmed=true or deferred=true'],
+      blockingReason: null
+    }
+  }
+
+  if (!stageBComplete) {
+    return {
+      id: 'B_CONFIRM_FULL_PAGE',
+      stage: 'B',
+      executor: 'user',
+      status: 'ready',
+      subject: {},
+      inputs: ['落库.html', '_raw/workflow.json'],
+      outputs: ['_raw/workflow.json'],
+      completionCondition: ['用户确认进入 C'],
+      blockingReason: null
+    }
+  }
+
+  if (!stageDone(state, 'C')) {
+    return {
+      id: 'C_WRITE_IMPL',
+      stage: 'C',
+      executor: 'agent',
+      status: 'ready',
+      subject: {},
+      inputs: ['events.json', 'adaptor.json', 'impl.json', 'accept-chain.json'],
+      outputs: ['业务源码', 'impl.json.accept', 'accept-chain.json'],
+      completionCondition: ['impl.accept complete', 'accept-chain has no pending blockers'],
+      blockingReason: null
+    }
+  }
+
+  return {
+    id: 'D_RUN_ACCEPT',
+    stage: 'D',
+    executor: 'script',
+    status: 'ready',
+    subject: {},
+    inputs: ['impl.json.accept', 'accept-chain.json'],
+    outputs: ['accept/*.json', 'accept/*.html', '终稿.html'],
+    completionCondition: ['run-accept generated a non-plan report'],
+    blockingReason: null
+  }
+}
+
 function runNode(script, args, repoRoot) {
   const argv = [scriptPath(script)].concat(args)
   const result = spawnSync(process.execPath, argv, {
@@ -166,15 +295,21 @@ function countConfirmed(paths) {
 
 function validationSummary(paths, args, repoRoot) {
   if (!fileOk(paths.implPath) || !fileOk(paths.eventsPath)) {
-    return { ok: false, errors: 0, warnings: 0, message: 'missing impl/events' }
+    return { ok: false, errors: 0, warnings: 0, message: 'missing impl/events', issues: [] }
   }
   try {
     const result = validateFiles(paths, args, repoRoot)
     const errors = result.issues.filter(item => item.severity === 'error').length
     const warnings = result.issues.filter(item => item.severity === 'warn').length
-    return { ok: errors === 0, errors, warnings, message: `errors=${errors} warnings=${warnings}` }
+    return {
+      ok: errors === 0,
+      errors,
+      warnings,
+      message: `errors=${errors} warnings=${warnings}`,
+      issues: result.issues || []
+    }
   } catch (error) {
-    return { ok: false, errors: 1, warnings: 0, message: String(error.message || error) }
+    return { ok: false, errors: 1, warnings: 0, message: String(error.message || error), issues: [] }
   }
 }
 
@@ -197,38 +332,57 @@ function buildStatus(paths, args, repoRoot) {
   const landing = inspectLanding(paths)
   const validation = validationSummary(paths, args, repoRoot)
   const accept = acceptSummary(paths)
+  const queueInfo = loadConfirmQueue(paths)
+  const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo)
+  const stageAComplete = !!(accept.ok || (landing.artifactsReady && validation.ok && landing.readyForCPreflight))
+  const stageBComplete = !!(accept.ok || (stageAComplete && stageDone(state, 'B')))
+  const stageCComplete = !!(accept.ok || (stageBComplete && stageDone(state, 'C')))
   const stageStatus = {
     A: {
       name: stageName('A'),
-      done: landing.artifactsReady,
-      gate: landing.artifactsReady
+      done: stageAComplete,
+      gate: stageAComplete
         ? `events/adaptor/impl ready; events=${landing.eventCount}`
         : (landing.reasons.join('; ') || 'need path A')
     },
     B: {
       name: stageName('B'),
-      done: landing.queueCleared,
-      gate: landing.needA
+      done: stageBComplete,
+      gate: !stageAComplete
         ? 'blocked: need A'
-        : (confirmed.total ? `${confirmed.confirmed} confirmed, pending=${confirmed.leftover}` : 'need impl events')
+        : (landing.needB
+          ? `${confirmed.confirmed} confirmed, pending=${confirmed.leftover}`
+          : (stageBComplete ? 'full-page confirmed; ready for C' : 'need full-page confirmation'))
     },
     C: {
       name: stageName('C'),
-      done: !!(state.stages && state.stages.C && state.stages.C.status === 'done'),
-      gate: landing.needA
+      done: stageCComplete,
+      gate: !stageAComplete
         ? 'blocked: need A then B'
         : (landing.needB
           ? 'blocked: need B'
+          : (!stageBComplete
+            ? 'blocked: need full-page confirmation'
           : (validation.ok ? `impl valid; located=${confirmed.located}/${confirmed.total}; need 进入 C` : validation.message))
+          )
     },
     D: {
       name: stageName('D'),
-      done: !!(state.stages && state.stages.D && state.stages.D.status === 'done') || accept.ok,
+      done: !!accept.ok,
       gate: accept.message
     }
   }
-  const next = STAGES.find(id => !stageStatus[id].done) || ''
-  return { state, stageStatus, next, validation, accept, landing, paths }
+  const next = nextTask ? nextTask.stage : ''
+  return {
+    state,
+    stageStatus,
+    next,
+    nextTask,
+    validation,
+    accept,
+    landing,
+    paths
+  }
 }
 
 function printStatus(status) {
@@ -237,6 +391,12 @@ function printStatus(status) {
     const item = status.stageStatus[id]
     console.log(`${item.done ? 'DONE' : 'TODO'} ${id} ${item.name}: ${item.gate}`)
   })
+  if (status.nextTask) {
+    const subject = status.nextTask.subject && status.nextTask.subject.evtId
+      ? ` evt=${status.nextTask.subject.evtId}`
+      : ''
+    console.log(`NextTask: ${status.nextTask.id} [${status.nextTask.stage}] ${status.nextTask.executor}${subject}`)
+  }
   console.log(`Next: ${status.next ? `${status.next} ${stageName(status.next)}` : 'complete'}`)
 }
 
@@ -252,7 +412,6 @@ function runStage(paths, args, repoRoot, state, id) {
   if (id === 'A') {
     runNode('extract/dump-excel.js', [excelArg], repoRoot)
     runNode('extract/render-html.js', [excelArg], repoRoot)
-    completeStage(paths, state, 'A', 'dump + render complete')
     return
   }
   if (id === 'D') {
@@ -352,6 +511,7 @@ function main() {
   if (args.json) {
     console.log(JSON.stringify({
       next: status.next,
+      nextTask: status.nextTask,
       stages: status.stageStatus,
       validation: status.validation,
       accept: status.accept,
@@ -385,4 +545,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildStatus, inspectLanding, inspectMissingList, gateStage, gateH }
+module.exports = {
+  buildStatus,
+  inspectLanding,
+  inspectMissingList,
+  gateStage,
+  gateH,
+  resolveNextTask
+}

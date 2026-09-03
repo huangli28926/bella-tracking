@@ -22,6 +22,22 @@
         }
       }
     },
+    "nextTask": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["id", "stage", "executor", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "stage": { "enum": ["A", "B", "C", "D", "E", "F", "7", "H"] },
+        "executor": { "enum": ["script", "agent", "user"] },
+        "status": { "enum": ["ready", "blocked"] },
+        "subject": { "type": "object" },
+        "inputs": { "type": "array", "items": { "type": "string" } },
+        "outputs": { "type": "array", "items": { "type": "string" } },
+        "completionCondition": { "type": "array", "items": { "type": "string" } },
+        "blockingReason": { "type": ["string", "null"] }
+      }
+    },
     "issues": {
       "type": "array",
       "items": {
