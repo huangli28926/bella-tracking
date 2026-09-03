@@ -1,0 +1,61 @@
+{
+  "id": "lianjia-ulog-v3",
+  "sdkVersion": "3.9.0",
+  "scriptIncludes": ["dig-log/static/v3/lianjiaUlog.js"],
+  "global": "$ULOG",
+  "method": "send",
+  "signature": ["evtId", "payload", "callback?", "target?"],
+  "payloadKeys": ["event", "pid", "uicode", "action"],
+  "requiredPayloadKeys": ["pid", "event", "evt", "uicode"],
+  "hook": {
+    "global": "$ULOG",
+    "method": "send",
+    "evtIdArg": 0,
+    "payloadArg": 1
+  },
+  "reportUrlIncludes": [
+    "dig.lianjia.com/alliance.gif",
+    "dig.lianjia.com/check.gif"
+  ],
+  "callStyles": [
+    {
+      "id": "sdk-send",
+      "kind": "sdk-direct",
+      "detect": { "call": "$ULOG.send(" },
+      "snippet": "window.$ULOG.send('{{evtId}}', {\n  event: '{{eventType}}',\n  pid: '{{pid}}',\n  uicode: '{{uicode}}',\n  action: {{action}}\n})"
+    },
+    {
+      "id": "sdk-sendModuleClick",
+      "kind": "sdk-helper",
+      "eventType": "Module_Click",
+      "detect": { "call": "$ULOG.sendModuleClick(" },
+      "snippet": "window.$ULOG.sendModuleClick('{{evtId}}', {\n  pid: '{{pid}}',\n  uicode: '{{uicode}}',\n  action: {{action}}\n})"
+    },
+    {
+      "id": "sdk-sendModuleView",
+      "kind": "sdk-helper",
+      "eventType": "Module_View",
+      "detect": { "call": "$ULOG.sendModuleView(" },
+      "snippet": "window.$ULOG.sendModuleView('{{evtId}}', {\n  pid: '{{pid}}',\n  uicode: '{{uicode}}',\n  action: {{action}}\n})"
+    },
+    {
+      "id": "sdk-sendPageView",
+      "kind": "sdk-helper",
+      "eventType": "Page_View",
+      "detect": { "call": "$ULOG.sendPageView(" },
+      "snippet": "window.$ULOG.sendPageView({\n  pid: '{{pid}}',\n  uicode: '{{uicode}}',\n  action: {{action}}\n})"
+    },
+    {
+      "id": "lianjia-track-send",
+      "kind": "sdk-class",
+      "detect": { "call": "LIANJIA_TRACK", "method": ".send(" },
+      "snippet": "track.send('{{evtId}}', '{{eventType}}', {{action}})"
+    },
+    {
+      "id": "dom-attr",
+      "kind": "dom-attr",
+      "detect": { "class": ["CLICKDATA", "VIEWDATA"], "attr": ["data-click-evtid", "data-view-evtid"] },
+      "snippet": "<!-- DOM 声明式：class={{domClass}} data-*-evtid={{evtId}} data-action=... ；路径 C 须用户确认后再改 HTML -->"
+    }
+  ]
+}

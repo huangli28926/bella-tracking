@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>埋点矫正汇总</title>
+  <style>
+    :root {
+      --ink: #1b2320;
+      --paper: #f3efe6;
+      --paper-2: #fbf8f2;
+      --line: #d9d0c3;
+      --accent: #c45c26;
+      --ok: #2f6f62;
+      --warn: #a15c12;
+      --danger: #9b2c2c;
+      --sidebar: #161d1b;
+      --mono: Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { font-family: var(--sans); background: var(--paper); color: var(--ink); }
+    .app {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: 100%;
+    }
+    .side {
+      background: var(--sidebar);
+      color: #e8e2d6;
+      padding: 22px 16px 28px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      max-height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+    .brand {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #b7c4be;
+      margin-bottom: 8px;
+    }
+    .side h1 {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 6px;
+      line-height: 1.35;
+    }
+    .meta {
+      font-size: 11px;
+      color: #9aa89f;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      word-break: break-all;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      background: #212926;
+      border: 1px solid #2c3833;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat b { display: block; font-size: 18px; color: #f4efe6; }
+    .stat span { font-size: 11px; color: #93a198; }
+    .stat.ok b { color: #9ed0c4; }
+    .stat.warn b { color: #efc37a; }
+    .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .filters button {
+      border: 1px solid #3a4742;
+      background: transparent;
+      color: #d7ddd8;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .filters button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .nav {
+      overflow: auto;
+      flex: 1;
+      margin: 0 -8px;
+      padding: 0 8px;
+    }
+    .nav-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: #e8e2d6;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    .nav-item:hover, .nav-item.active { background: #2a3531; color: #fff; }
+    .nav-item .row1 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .nav-item .name {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #9aa89f;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #2a2f2d;
+    }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.pending { background: #6b736e; }
+    .main {
+      padding: 24px 28px 64px;
+      min-width: 0;
+    }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .top h2 { margin: 0; font-size: 20px; font-weight: 650; }
+    .top .sub { margin-top: 6px; font-size: 12px; color: #7d756a; line-height: 1.6; }
+    .links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .links a {
+      display: inline-block;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .links a.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .banner {
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .banner.ok { background: #e1f0eb; border: 1px solid #9ed0c4; color: var(--ok); }
+    .banner.warn { background: #fff4e5; border: 1px solid #efc37a; color: var(--warn); }
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+    th {
+      background: #efe8dc;
+      font-size: 12px;
+      font-weight: 650;
+      color: #7d756a;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    tr.highlight td { background: #fff4e5; }
+    col.fit { width: 1%; }
+    col.grow { width: auto; }
+    th.fit, td.fit {
+      white-space: nowrap;
+      width: 1%;
+    }
+    th.grow, td.grow {
+      width: auto;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .chip {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .chip.ok { background: #e1f0eb; color: var(--ok); }
+    .chip.warn { background: #fff4e5; color: var(--warn); }
+    .chip.pending { background: #f0ece4; color: #7d756a; }
+    .reasons { margin: 0; padding-left: 18px; color: #7d756a; }
+    code { font-family: var(--mono); font-size: 12px; }
+    .empty {
+      padding: 28px 16px;
+      text-align: center;
+      color: #7d756a;
+      font-size: 13px;
+    }
+    .nav .empty { padding: 16px 8px; text-align: left; color: #9aa89f; }
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .side { position: relative; max-height: none; min-height: 0; }
+      .nav { max-height: 280px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">Tracking Review</div>
+      <h1 id="title">埋点矫正汇总</h1>
+      <div class="meta" id="meta"></div>
+      <div class="stats" id="stats"></div>
+      <div class="filters" id="filters"></div>
+      <div class="nav" id="nav"></div>
+    </aside>
+    <main class="main">
+      <div class="top">
+        <div>
+          <h2>矫正结果</h2>
+          <div class="sub" id="subtitle"></div>
+        </div>
+        <div class="links" id="links"></div>
+      </div>
+      <div id="banner"></div>
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col class="fit" />
+            <col class="fit" />
+            <col class="fit" />
+            <col class="fit" />
+            <col class="grow" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="fit">evtId</th>
+              <th class="fit">事件</th>
+              <th class="fit">类型</th>
+              <th class="fit">状态</th>
+              <th class="grow">待确认原因</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>当前筛选下没有事件</div>
+      </div>
+    </main>
+  </div>
+  <script id="review-data" type="application/json">__REVIEW_JSON__</script>
+  <script>
+    (function () {
+      var report = JSON.parse(document.getElementById('review-data').textContent);
+      var summary = report.summary || {};
+      var events = report.events || [];
+      var filter = 'all';
+      var selectedId = '';
+
+      function esc(v) {
+        return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      function statusOf(event) {
+        var review = event.review || {};
+        if (review.confirmed) return 'confirmed';
+        if (review.needsConfirm) return 'pending';
+        return 'none';
+      }
+      function matchFilter(event) {
+        var review = event.review || {};
+        if (filter === 'needs') return !!review.needsConfirm;
+        if (filter === 'confirmed') return !!review.confirmed;
+        if (filter === 'pending') return !!review.needsConfirm && !review.confirmed;
+        return true;
+      }
+      function chipHtml(event) {
+        var review = event.review || {};
+        if (review.confirmed) return '<span class="chip ok">已确认</span>';
+        if (review.needsConfirm) return '<span class="chip warn">待确认</span>';
+        return '<span class="chip pending">无需打断</span>';
+      }
+      function reasonsHtml(event) {
+        var reasons = (event.review || {}).reasons || [];
+        if (!reasons.length) return '-';
+        return '<ul class="reasons">' + reasons.map(function (r) {
+          return '<li>' + esc(r) + '</li>';
+        }).join('') + '</ul>';
+      }
+      function visibleEvents() {
+        return events.filter(matchFilter);
+      }
+
+      document.getElementById('title').textContent = (report.slug || '埋点') + ' · 矫正汇总';
+      document.getElementById('meta').innerHTML =
+        esc(report.excelPath || '') + '<br/>生成时间 ' +
+        esc((report.generatedAt || '').replace('T', ' ').slice(0, 19));
+      document.getElementById('subtitle').textContent =
+        '共 ' + (summary.total || 0) + ' 条事件，曾需确认 ' + (summary.needsConfirmCount || 0) +
+        ' 条，仍待处理 ' + (summary.pendingCount || 0) + ' 条';
+
+      var banner = document.getElementById('banner');
+      if (summary.done) {
+        banner.className = 'banner ok';
+        banner.textContent = '全部需确认项已处理完成。可进入写码阶段（路径 C）。';
+      } else {
+        banner.className = 'banner warn';
+        banner.textContent = '仍有 ' + (summary.pendingCount || 0) + ' 条待确认。可继续运行 confirm-sweep 或在落库页补确认。';
+      }
+
+      document.getElementById('stats').innerHTML =
+        '<div class="stat"><b>' + (summary.total || 0) + '</b><span>全部事件</span></div>' +
+        '<div class="stat warn"><b>' + (summary.needsConfirmCount || 0) + '</b><span>曾需确认</span></div>' +
+        '<div class="stat ok"><b>' + (summary.confirmedCount || 0) + '</b><span>已确认</span></div>' +
+        '<div class="stat' + ((summary.pendingCount || 0) ? ' warn' : '') + '"><b>' +
+          (summary.pendingCount || 0) + '</b><span>仍待处理</span></div>';
+
+      var implName = (report.htmlPath || '').split('/').pop() || '';
+      document.getElementById('links').innerHTML =
+        (implName ? '<a class="primary" href="./' + esc(implName) + '">打开落库页</a>' : '') +
+        '<a href="./_raw/' + esc(report.slug || '') + '.impl.json">impl.json</a>';
+
+      function bindClicks(root, attr, handler) {
+        root.querySelectorAll('[' + attr + ']').forEach(function (el) {
+          el.onclick = function () { handler(el.getAttribute(attr)); };
+        });
+      }
+
+      function renderFilters() {
+        var items = [
+          ['all', '全部'],
+          ['needs', '曾需确认'],
+          ['confirmed', '已确认'],
+          ['pending', '待处理']
+        ];
+        document.getElementById('filters').innerHTML = items.map(function (item) {
+          return '<button type="button" data-filter="' + item[0] + '"' +
+            (filter === item[0] ? ' class="active"' : '') + '>' + item[1] + '</button>';
+        }).join('');
+        bindClicks(document.getElementById('filters'), 'data-filter', function (value) {
+          filter = value;
+          renderList();
+        });
+      }
+
+      function renderList() {
+        var list = visibleEvents();
+        document.getElementById('nav').innerHTML = list.map(function (event) {
+          var status = statusOf(event);
+          var dot = status === 'confirmed' ? 'ok' : (status === 'pending' ? 'warn' : 'pending');
+          return '<button type="button" class="nav-item' + (selectedId === String(event.evtId) ? ' active' : '') +
+            '" data-evt="' + esc(event.evtId) + '">' +
+            '<div class="row1"><span class="dot ' + dot + '"></span>' + esc(event.evtId) + '</div>' +
+            '<div class="name">' + esc(event.eventName || '-') + '</div>' +
+            '</button>';
+        }).join('') || '<div class="empty">当前筛选下没有事件</div>';
+
+        document.getElementById('rows').innerHTML = list.map(function (event) {
+          return '<tr id="row-' + esc(event.evtId) + '" data-evt="' + esc(event.evtId) + '"' +
+            (selectedId === String(event.evtId) ? ' class="highlight"' : '') + '>' +
+            '<td class="fit"><code>' + esc(event.evtId) + '</code></td>' +
+            '<td class="fit">' + esc(event.eventName || '-') + '</td>' +
+            '<td class="fit">' + esc(event.kind === 'click' ? '点击' : '曝光') + '</td>' +
+            '<td class="fit">' + chipHtml(event) + '</td>' +
+            '<td class="grow">' + reasonsHtml(event) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var empty = document.getElementById('empty');
+        empty.hidden = list.length > 0;
+        document.querySelector('table').hidden = list.length === 0;
+
+        bindClicks(document.getElementById('nav'), 'data-evt', selectEvt);
+        bindClicks(document.getElementById('rows'), 'data-evt', selectEvt);
+      }
+
+      function selectEvt(evtId) {
+        selectedId = String(evtId || '');
+        renderList();
+        var row = document.getElementById('row-' + selectedId);
+        if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      renderFilters();
+      renderList();
+    }());
+  </script>
+</body>
+</html>

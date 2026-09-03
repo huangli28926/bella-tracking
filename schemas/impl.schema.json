@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "impl.schema.json",
+  "title": "Tracking implementation document",
+  "type": "object",
+  "required": ["events"],
+  "properties": {
+    "generatedAt": { "type": "string" },
+    "excelPath": { "type": "string" },
+    "slug": { "type": "string" },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": ["evtId"],
+      "not": { "required": ["uicode"] },
+      "properties": {
+        "evtId": { "type": "string" },
+        "status": { "enum": ["pending", "existing", "located", "unresolved"] },
+        "accepted": { "type": "boolean" },
+        "confirmed": { "type": "boolean" },
+        "targetFile": { "type": "string" },
+        "functionName": { "type": "string" },
+        "lifecycle": { "enum": ["onClick", "useEffect", "IntersectionObserver", "pageLoad", ""] },
+        "pageKey": { "type": "string" },
+        "styleId": { "type": "string" },
+        "entryUrlTemplate": { "type": "string" },
+        "insertHint": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "uicodeConflict": { "type": "string" },
+        "code": { "type": "string" },
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/parameter" }
+        },
+        "accept": { "$ref": "#/$defs/accept" },
+        "unresolved": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(请确认埋点位置|请确认参数 .+ 的取值)$" }
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string" },
+        "docDesc": { "type": "string" },
+        "expression": { "type": "string" },
+        "valueKind": { "enum": ["expression", "prompt", ""] },
+        "sourcePath": { "type": "string" },
+        "confidence": { "enum": ["high", "medium", "low", ""] },
+        "hint": {
+          "type": "object",
+          "properties": {
+            "images": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "note": { "type": "string" },
+            "api": {
+              "type": "object",
+              "properties": {
+                "url": { "type": "string" },
+                "field": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "accept": {
+      "type": "object",
+      "not": {
+        "properties": {
+          "expect": { "required": ["uicode"] }
+        }
+      },
+      "properties": {
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "navigatesAway": { "type": "boolean" },
+        "assertParams": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dataDeps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dataDep" }
+        }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["click", "scrollIntoView", "waitVisible", "pageLoad"] },
+        "by": { "enum": ["text", "testid", "css", "role", ""] },
+        "value": { "type": "string" },
+        "alternates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "preconditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["click", "scrollIntoView", "waitVisible", "waitApi", "waitUrl", "pageLoad"] },
+        "by": { "enum": ["text", "testid", "css", "role", ""] },
+        "value": { "type": "string" },
+        "alternates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "urlIncludes": { "type": "string" },
+        "why": { "type": "string" }
+      }
+    },
+    "dataDep": {
+      "type": "object",
+      "required": ["paramKey", "from"],
+      "properties": {
+        "paramKey": { "type": "string" },
+        "from": { "enum": ["api", "url", "user", "page"] },
+        "queryKey": { "type": "string" },
+        "expression": { "type": "string" },
+        "sourcePath": { "type": "string" },
+        "api": {
+          "type": "object",
+          "properties": {
+            "urlIncludes": { "type": "string" },
+            "field": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

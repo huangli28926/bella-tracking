@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{TITLE}}</title>
+  <style>
+    :root {
+      --ink: #1f2329;
+      --ink-soft: #4e5969;
+      --paper: #f4f0e8;
+      --line: #ebe6dc;
+      --accent: #c45c26;
+      --ok: #2f6f62;
+      --warn: #c45c26;
+      --danger: #b42318;
+      --card: #fff;
+      --muted: #86909c;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--sans);
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+    .container { max-width: 1120px; margin: 0 auto; padding: 28px 20px 56px; }
+    h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
+    h2 { margin: 28px 0 12px; font-size: 16px; font-weight: 600; }
+    h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 4px; word-break: break-all; }
+    .meta-line { color: var(--muted); font-size: 12px; margin: 0 0 20px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.04);
+    }
+    .stat-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .stat-icon svg { width: 20px; height: 20px; }
+    .stat-icon.orange { background: #fff1e9; color: #c45c26; }
+    .stat-icon.brown { background: #f4ebe3; color: #8a5a3b; }
+    .stat-icon.green { background: #e8f4f0; color: #2f6f62; }
+    .stat-icon.blue { background: #eaf2ff; color: #3b6fd8; }
+    .stat-card .label { font-size: 12px; color: var(--muted); }
+    .stat-card .value { font-size: 26px; font-weight: 700; line-height: 1.15; color: var(--ink); }
+    .filter-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.04);
+    }
+    .search-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .search-wrap {
+      flex: 1;
+      position: relative;
+    }
+    .search-wrap svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 14px 10px 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fafafa;
+      color: var(--ink);
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(196, 92, 38, 0.12);
+    }
+    .btn-ghost, .btn-more {
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 13px;
+      color: var(--ink);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-ghost:hover, .btn-more:hover { background: #f7f4ee; }
+    .btn-more {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-more svg { width: 14px; height: 14px; }
+    .filter-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 10px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .field select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .more-row { display: none; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+    .more-row.open { display: grid; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 22px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #fff4ec;
+      color: var(--accent);
+    }
+    .chip button { border: 0; background: none; cursor: pointer; color: inherit; font-size: 12px; padding: 0; }
+    .clear-all { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; }
+    .status-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      background: #f6f3ed;
+      padding: 4px;
+      border-radius: 12px;
+    }
+    .status-tab {
+      border: 0;
+      background: transparent;
+      padding: 6px 12px;
+      border-radius: 9px;
+      font-size: 13px;
+      color: var(--ink-soft);
+      cursor: pointer;
+    }
+    .status-tab.active { background: #fff; color: var(--accent); font-weight: 600; box-shadow: 0 1px 4px rgba(31,35,41,.06); }
+    .status-tab .n { color: var(--muted); font-weight: 500; margin-left: 4px; }
+    .status-help {
+      margin: 12px 0 0;
+      padding: 12px 14px;
+      background: #faf8f4;
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--ink-soft);
+      line-height: 1.7;
+    }
+    .status-help .row { margin: 0 0 6px; }
+    .status-help .row:last-child { margin: 0; }
+    .status-help .status-tag { margin-right: 8px; vertical-align: middle; }
+    .page-block {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .page-block[hidden] { display: none; }
+    .page-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .page-summary::-webkit-details-marker { display: none; }
+    .summary-left, .summary-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .summary-left { flex: 1; }
+    .page-summary::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(-45deg);
+      margin-right: 2px;
+      flex-shrink: 0;
+    }
+    .page-block[open] .page-summary::before {
+      transform: rotate(45deg);
+      border-color: var(--accent);
+    }
+    .route-full { font-weight: 600; font-size: 14px; word-break: break-all; }
+    .route-short { font-size: 13px; }
+    .status-tag {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .status-pending { background: #fff7e6; color: #d46b08; }
+    .status-risk { background: #fff1f0; color: #cf1322; }
+    .status-empty { background: #f5f5f5; color: #8c8c8c; }
+    .status-done { background: #e8f4f0; color: #2f6f62; }
+    .count-badge {
+      font-size: 12px;
+      background: #f3f0ea;
+      color: var(--ink-soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .page-body { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+    .page-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      padding: 12px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .page-meta strong { color: var(--ink); font-weight: 600; }
+    .empty { margin: 12px 0; font-size: 13px; }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--card);
+    }
+    .data-table th, .data-table td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 9px 10px;
+      vertical-align: middle;
+    }
+    .data-table th {
+      background: #f7f4ee;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: auto;
+      max-height: 480px;
+    }
+    .table-wrap .data-table { border: none; }
+    .table-wrap thead th { position: sticky; top: 0; z-index: 1; box-shadow: 0 1px 0 var(--line); }
+    .event-row[hidden], .edge-row[hidden], .edge-detail-row[hidden] { display: none; }
+    .muted { color: var(--muted); }
+    code {
+      font-size: 12px;
+      background: #f3f0ea;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--mono);
+    }
+    .evt-id { font-weight: 600; color: var(--ink); font-family: var(--mono); }
+    .type-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .type-page-view { background: #e1f0eb; color: var(--ok); }
+    .type-page-leave { background: #efe8dc; color: var(--muted); }
+    .type-module-view { background: #e1f0eb; color: var(--ok); }
+    .type-module-click { background: #f4ead6; color: var(--accent); }
+    .type-other { background: #f8eaea; color: var(--danger); }
+    .file-cell { max-width: 280px; }
+    .file-short { font-size: 12px; color: var(--muted); word-break: break-all; }
+    .arrow-cell { text-align: center; color: var(--muted); width: 32px; font-weight: 600; }
+    .route-tag { font-weight: 600; }
+    .route-full-hint { display: block; font-size: 11px; margin-top: 2px; word-break: break-all; }
+    .via-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #e1f0eb;
+      color: var(--ok);
+    }
+    .section-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .section-hint {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      background: #f7f4ee;
+      border-radius: 8px;
+      line-height: 1.6;
+    }
+    .edge-details {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .edge-details summary {
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      background: #f7f4ee;
+      list-style: none;
+    }
+    .edge-details summary::-webkit-details-marker { display: none; }
+    .edge-details .data-table { border: none; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .list-foot { text-align: center; color: var(--muted); font-size: 13px; margin: 16px 0 8px; }
+    @media (max-width: 900px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .filter-row, .more-row.open { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .route-short { display: none; }
+      .route-full-hint { display: none; }
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>bella-tracking_v4</h1>
+      <p class="subtitle">{{SUBTITLE}}</p>
+      <p class="meta-line">生成于 {{GENERATED_AT}}</p>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 8h10M7 12h6"/></svg>
+        </div>
+        <div><div class="label">页面与埋点</div><div class="value">{{PAGE_COUNT}}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon brown">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M15 3v5h5"/></svg>
+        </div>
+        <div><div class="label">埋点总数</div><div class="value">{{EVENT_COUNT}}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5 10.5 16M16 7.5 13.5 16"/></svg>
+        </div>
+        <div><div class="label">路由数</div><div class="value">{{PAGE_COUNT}}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12H4"/><path d="M12 4v16"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>
+        </div>
+        <div><div class="label">组件数</div><div class="value">{{FILE_COUNT}}</div></div>
+      </div>
+    </div>
+
+    <div class="filter-card">
+      <div class="search-row">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+          <input type="search" class="search-input" id="page-filter" placeholder="搜索路由、事件 ID、类型、文件路径…" autocomplete="off" />
+        </div>
+        <button type="button" class="btn-ghost" id="reset-filters">重置</button>
+      </div>
+      <div class="filter-row">
+        <div class="field">
+          <label>分类</label>
+          <select id="f-category">
+            <option value="">全部…</option>
+            <option value="click">仅 Click</option>
+            <option value="view">仅 View</option>
+            <option value="mixed">混合</option>
+            <option value="none">无埋点</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>事件类型</label>
+          <select id="f-type">
+            <option value="">全部…</option>
+            {{EVENT_TYPE_OPTIONS}}
+          </select>
+        </div>
+        <div class="field">
+          <label>路由层级</label>
+          <select id="f-level">
+            <option value="">全部…</option>
+            <option value="1">1 级</option>
+            <option value="2">2 级</option>
+            <option value="3">3 级及以上</option>
+          </select>
+        </div>
+        <div class="field">
+          <label title="Page_View / Page_Disappear 允许相同 evtId；其 uicode 不可跨页或同类型重复。模块事件重复 evtId 仍为有风险。">状态</label>
+          <select id="f-status" title="无数据=0埋点；待确认=缺 uicode/pageName；有风险=模块 evtId 重复，或 Page_View/Page_Disappear 的 uicode 重复；已完成=其余">
+            <option value="">全部…</option>
+            <option value="pending">待确认</option>
+            <option value="risk">有风险</option>
+            <option value="empty">无数据</option>
+            <option value="done">已完成</option>
+          </select>
+        </div>
+        <button type="button" class="btn-more" id="toggle-more">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          更多筛选
+        </button>
+      </div>
+      <div class="more-row" id="more-row">
+        <div class="field">
+          <label>pid</label>
+          <select id="f-pid">
+            <option value="">全部…</option>
+            {{PID_OPTIONS}}
+          </select>
+        </div>
+        <div class="field">
+          <label>封装</label>
+          <select id="f-style">
+            <option value="">全部…</option>
+            {{STYLE_OPTIONS}}
+          </select>
+        </div>
+        <div class="field">
+          <label>列表</label>
+          <button type="button" class="btn-ghost" id="expand-all">全部展开</button>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button type="button" class="btn-ghost" id="collapse-all">全部折叠</button>
+        </div>
+      </div>
+      <div class="chips">
+        <span>已选条件：</span>
+        <span id="chip-list"></span>
+        <button type="button" class="clear-all" id="clear-chips">清空</button>
+      </div>
+      <div class="status-tabs" id="status-tabs">
+        <button type="button" class="status-tab active" data-status="" title="显示全部路由">全部</button>
+        <button type="button" class="status-tab" data-status="pending" title="有埋点，但 uicode 或 pageName 缺失">待确认 <span class="n">{{STATUS_PENDING}}</span></button>
+        <button type="button" class="status-tab" data-status="risk" title="模块 evtId 重复，或页面级 uicode 重复">有风险 <span class="n">{{STATUS_RISK}}</span></button>
+        <button type="button" class="status-tab" data-status="empty" title="该路由未扫描到任何埋点">无数据 <span class="n">{{STATUS_EMPTY}}</span></button>
+        <button type="button" class="status-tab" data-status="done" title="有埋点，信息完整且无重复风险">已完成 <span class="n">{{STATUS_DONE}}</span></button>
+      </div>
+      <div class="status-help">
+        <div class="row"><span class="status-tag status-pending">待确认</span>该路由已扫到埋点，但 pageName 或 uicode 为「-」，元数据不完整，需要人工核对。</div>
+        <div class="row"><span class="status-tag status-risk">有风险</span>Module_Click / Module_View 等出现重复 evtId；或 Page_View / Page_Disappear 的 uicode 在同页同类型重复、或被多个路由共用。Page_View / Page_Disappear 的 evtId 允许重复。</div>
+        <div class="row"><span class="status-tag status-empty">无数据</span>该路由组件树里没有扫到任何埋点调用。</div>
+        <div class="row"><span class="status-tag status-done">已完成</span>有埋点，pageName 与 uicode 都有值，且不满足上面的重复风险条件。</div>
+      </div>
+    </div>
+
+    <div id="page-list">{{PAGE_LIST}}</div>
+    <p class="list-foot" id="list-foot">共 {{PAGE_COUNT}} 项</p>
+
+    <h2>页面跳转（{{EDGE_COUNT}}）</h2>
+    <div class="section-card">
+      <h3>路由关系（去重）</h3>
+      <p class="section-hint">
+        同一对「来源页 → 目标页」合并为一行。<strong>触发次数</strong>表示代码中有几处会发起该跳转。展开下方明细可查看具体文件与行号。
+      </p>
+      <div class="toolbar">
+        <input type="search" class="search-input" id="edge-filter" placeholder="搜索来源 / 目标路由…" autocomplete="off" style="padding-left:14px" />
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>来源</th><th></th><th>目标</th><th>方式</th><th>触发次数</th></tr>
+        </thead>
+        <tbody id="edge-group-body">{{EDGE_GROUPS}}</tbody>
+      </table>
+      <details class="edge-details">
+        <summary>跳转代码位置明细（{{EDGE_DETAIL_COUNT}} 条）</summary>
+        <table class="data-table">
+          <thead>
+            <tr><th>来源</th><th></th><th>目标</th><th>方式</th><th>代码位置</th></tr>
+          </thead>
+          <tbody id="edge-detail-body">{{EDGE_DETAILS}}</tbody>
+        </table>
+      </details>
+    </div>
+  </div>
+  <script>
+    (function () {
+      function normalize(text) {
+        return String(text || '').toLowerCase().trim()
+      }
+      function hasToken(attr, value) {
+        if (!value) return true
+        var parts = String(attr || '').split('|')
+        return parts.indexOf(value) !== -1
+      }
+
+      var qInput = document.getElementById('page-filter')
+      var fCategory = document.getElementById('f-category')
+      var fType = document.getElementById('f-type')
+      var fLevel = document.getElementById('f-level')
+      var fStatus = document.getElementById('f-status')
+      var fPid = document.getElementById('f-pid')
+      var fStyle = document.getElementById('f-style')
+      var chipList = document.getElementById('chip-list')
+      var listFoot = document.getElementById('list-foot')
+      var labels = {
+        category: { click: '仅 Click', view: '仅 View', mixed: '混合', none: '无埋点' },
+        status: { pending: '待确认', risk: '有风险', empty: '无数据', done: '已完成' },
+        level: { '1': '1 级', '2': '2 级', '3': '3 级及以上' }
+      }
+
+      function currentFilters() {
+        return {
+          q: normalize(qInput && qInput.value),
+          category: fCategory.value,
+          type: fType.value,
+          level: fLevel.value,
+          status: fStatus.value,
+          pid: fPid.value,
+          style: fStyle.value
+        }
+      }
+
+      function renderChips(f) {
+        var items = []
+        if (f.q) items.push(['q', '搜索', f.q])
+        if (f.category) items.push(['category', '分类', labels.category[f.category] || f.category])
+        if (f.type) items.push(['type', '类型', f.type])
+        if (f.level) items.push(['level', '层级', labels.level[f.level] || f.level])
+        if (f.status) items.push(['status', '状态', labels.status[f.status] || f.status])
+        if (f.pid) items.push(['pid', 'pid', f.pid])
+        if (f.style) items.push(['style', '封装', f.style])
+        chipList.innerHTML = items.map(function (it) {
+          return '<span class="chip">' + it[1] + ' ' + it[2] +
+            ' <button type="button" data-clear="' + it[0] + '">×</button></span>'
+        }).join('')
+      }
+
+      function applyPageFilters() {
+        var f = currentFilters()
+        var shown = 0
+        document.querySelectorAll('.page-block').forEach(function (block) {
+          var text = normalize(block.getAttribute('data-search'))
+          var match = (!f.q || text.indexOf(f.q) !== -1) &&
+            (!f.category || block.getAttribute('data-category') === f.category) &&
+            (!f.level || block.getAttribute('data-level') === f.level) &&
+            (!f.status || block.getAttribute('data-status') === f.status) &&
+            hasToken(block.getAttribute('data-types'), f.type) &&
+            hasToken(block.getAttribute('data-pids'), f.pid) &&
+            hasToken(block.getAttribute('data-styles'), f.style)
+          if (f.q && match) {
+            block.querySelectorAll('.event-row').forEach(function (row) {
+              var rt = normalize(row.getAttribute('data-search'))
+              row.hidden = rt.indexOf(f.q) === -1 && text.indexOf(f.q) === -1
+            })
+          } else {
+            block.querySelectorAll('.event-row').forEach(function (row) { row.hidden = false })
+          }
+          block.hidden = !match
+          if (match) shown += 1
+        })
+        renderChips(f)
+        if (listFoot) listFoot.textContent = '共 ' + shown + ' 项'
+        document.querySelectorAll('.status-tab').forEach(function (tab) {
+          tab.classList.toggle('active', tab.getAttribute('data-status') === f.status)
+        })
+      }
+
+      function bindFilter(inputId, rowSelector) {
+        var input = document.getElementById(inputId)
+        if (!input) return
+        input.addEventListener('input', function () {
+          var q = normalize(input.value)
+          document.querySelectorAll(rowSelector).forEach(function (row) {
+            var text = normalize(row.getAttribute('data-search'))
+            row.hidden = !!(q && text.indexOf(q) === -1)
+          })
+        })
+      }
+
+      ;[qInput, fCategory, fType, fLevel, fStatus, fPid, fStyle].forEach(function (el) {
+        if (!el) return
+        el.addEventListener('input', applyPageFilters)
+        el.addEventListener('change', applyPageFilters)
+      })
+
+      document.getElementById('status-tabs').addEventListener('click', function (e) {
+        var tab = e.target.closest('.status-tab')
+        if (!tab) return
+        fStatus.value = tab.getAttribute('data-status') || ''
+        applyPageFilters()
+      })
+
+      document.getElementById('chip-list').addEventListener('click', function (e) {
+        var key = e.target.getAttribute('data-clear')
+        if (!key) return
+        if (key === 'q') qInput.value = ''
+        if (key === 'category') fCategory.value = ''
+        if (key === 'type') fType.value = ''
+        if (key === 'level') fLevel.value = ''
+        if (key === 'status') fStatus.value = ''
+        if (key === 'pid') fPid.value = ''
+        if (key === 'style') fStyle.value = ''
+        applyPageFilters()
+      })
+
+      function resetAll() {
+        qInput.value = ''
+        fCategory.value = ''
+        fType.value = ''
+        fLevel.value = ''
+        fStatus.value = ''
+        fPid.value = ''
+        fStyle.value = ''
+        applyPageFilters()
+      }
+      document.getElementById('reset-filters').addEventListener('click', resetAll)
+      document.getElementById('clear-chips').addEventListener('click', resetAll)
+      document.getElementById('toggle-more').addEventListener('click', function () {
+        document.getElementById('more-row').classList.toggle('open')
+      })
+
+      bindFilter('edge-filter', '.edge-row')
+      bindFilter('edge-filter', '.edge-detail-row')
+
+      var expandBtn = document.getElementById('expand-all')
+      var collapseBtn = document.getElementById('collapse-all')
+      if (expandBtn) {
+        expandBtn.addEventListener('click', function () {
+          document.querySelectorAll('.page-block').forEach(function (block) { block.open = true })
+        })
+      }
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', function () {
+          document.querySelectorAll('.page-block').forEach(function (block) { block.open = false })
+        })
+      }
+
+      applyPageFilters()
+    })();
+  </script>
+</body>
+</html>

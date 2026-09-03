@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-result.schema.json",
+  "title": "bella-tracking agent task result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "stage", "status", "artifacts", "issues"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "stage": { "enum": ["menu", "A", "B", "C", "D", "E", "F", "7", "H"] },
+    "status": { "enum": ["completed", "blocked", "needs_user_input", "failed"] },
+    "nextAction": { "enum": ["none", "choose_entry", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "fix_validation", "retry"] },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": { "enum": ["events", "adaptor", "impl", "landing_html", "review_html", "accept_chain", "accept_json", "accept_html", "final_html", "workflow", "diagnostic", "missing_list"] },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+          "evtId": { "type": "string" },
+          "field": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

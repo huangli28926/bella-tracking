@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>埋点终稿</title>
+  <style>
+    :root {
+      --ink: #1b2320;
+      --ink-soft: #3d4a45;
+      --muted: #7d756a;
+      --paper: #f3efe6;
+      --paper-2: #fbf8f2;
+      --card: #ffffff;
+      --line: #d9d0c3;
+      --sidebar: #161d1b;
+      --accent: #c45c26;
+      --ok: #2f6f62;
+      --ok-bg: #e1f0eb;
+      --fail: #9b2c2c;
+      --fail-bg: #f8eaea;
+      --skip: #a15c12;
+      --skip-bg: #f4ead6;
+      --warn: #a15c12;
+      --warn-bg: #f4ead6;
+      --impl: #2f6f62;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      --shadow: 0 12px 40px rgba(27, 35, 32, 0.06);
+      --r: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: 100%;
+    }
+    .side {
+      background: var(--sidebar);
+      color: #e8e2d6;
+      padding: 22px 16px 28px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+    }
+    .brand {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #b7c4be;
+      margin-bottom: 8px;
+    }
+    .side h1 {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 6px;
+      line-height: 1.35;
+    }
+    .meta {
+      font-size: 11px;
+      color: #9aa89f;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      word-break: break-all;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      background: #212926;
+      border: 1px solid #2c3833;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat b { display: block; font-size: 18px; color: #f4efe6; }
+    .stat span { font-size: 11px; color: #93a198; }
+    .stat.ok b { color: #9ed0c4; }
+    .stat.fail b { color: #f0c7a8; }
+    .stat.warn b { color: #efc37a; }
+    .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .filters button {
+      border: 1px solid #3a4742;
+      background: transparent;
+      color: #d7ddd8;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .filters button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .nav {
+      overflow: auto;
+      flex: 1;
+      margin: 0 -8px;
+      padding: 0 8px;
+    }
+    .nav-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: #e8e2d6;
+      padding: 10px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    .nav-item:hover, .nav-item.active { background: #2a3531; color: #fff; }
+    .nav-item .row1 {
+      display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px;
+    }
+    .nav-item .name {
+      margin-top: 4px; font-size: 12px; color: #9aa89f; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: #2a2f2d;
+    }
+    .dot.pass { background: var(--ok); }
+    .dot.fail { background: var(--fail); }
+    .dot.skip { background: var(--skip); }
+    .dot.warn { background: var(--warn); }
+    .dot.none { background: #2a2f2d; }
+    .main {
+      padding: 24px 28px 64px;
+      min-width: 0;
+    }
+    .top {
+      display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .top h2 { margin: 0; font-size: 20px; font-weight: 650; }
+    .top .sub { margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .links a {
+      text-decoration: none; font-size: 12px; color: var(--accent);
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      padding: 7px 12px;
+    }
+    .links a:hover { border-color: var(--line); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .card.fail { border-color: #e8c4c4; }
+    .card-head {
+      display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
+      flex-wrap: wrap; padding: 16px 18px; background: #fff;
+      border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .card.fail .card-head { background: #f8eaea; }
+    .eid {
+      font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1.1;
+    }
+    .ename { font-size: 16px; font-weight: 650; margin-left: 10px; }
+    .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .badge {
+      display: inline-flex; align-items: center;
+      border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+    }
+    .badge.pass { background: var(--ok-bg); color: var(--ok); }
+    .badge.fail { background: var(--fail-bg); color: var(--fail); }
+    .badge.skip { background: var(--skip-bg); color: var(--skip); }
+    .badge.warn { background: var(--warn-bg); color: var(--warn); }
+    .badge.none { background: #efe8dc; color: var(--muted); }
+    .badge.kind { background: #efe8dc; color: var(--accent); }
+    .badge.impl { background: #e1f0eb; color: var(--impl); }
+    .desc { margin-top: 8px; font-size: 13px; color: var(--muted); line-height: 1.55; }
+    .meta-grid {
+      display: grid; grid-template-columns: 1fr;
+      gap: 8px; flex: 0 1 360px; min-width: 0;
+    }
+    .meta-row {
+      display: grid; grid-template-columns: 108px minmax(0, 1fr);
+      gap: 8px 12px; align-items: start;
+    }
+    .meta-lab {
+      font-size: 11px; color: var(--muted); line-height: 1.45; white-space: nowrap;
+    }
+    .meta-val {
+      font-size: 12px; font-family: var(--mono); font-weight: 600;
+      line-height: 1.45; word-break: break-all; overflow-wrap: anywhere;
+    }
+    .card-body { padding: 16px 18px 18px; display: none; }
+    .card.open .card-body { display: block; }
+    .fold {
+      width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
+      background: #efe8dc; color: var(--muted); display: grid; place-items: center;
+      font-size: 11px; flex-shrink: 0; transition: transform .15s ease;
+    }
+    .card.open .fold { transform: rotate(0deg); }
+    .card:not(.open) .fold { transform: rotate(-90deg); }
+    .sec {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper-2);
+      padding: 14px 14px 12px;
+    }
+    .sec:first-child { margin-top: 0; }
+    .sec-h {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 650; margin-bottom: 10px;
+    }
+    .sec-h .ico {
+      width: 22px; height: 22px; border-radius: 6px; background: #efe8dc; color: var(--accent);
+      display: grid; place-items: center; font-size: 11px;
+    }
+    .grid2 {
+      display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 12px;
+    }
+    .shots {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    }
+    .shot-url {
+      display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px;
+      padding: 8px 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    }
+    .shot-url code {
+      flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px;
+      line-height: 1.55; word-break: break-all; overflow-wrap: anywhere;
+    }
+    .shot-url button {
+      flex-shrink: 0; border: 1px solid var(--line); background: #fff; border-radius: 8px;
+      padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    .shot-box {
+      border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff;
+    }
+    .shot-lab {
+      font-size: 11px; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line);
+      background: #efe8dc;
+    }
+    .shot-box img {
+      display: block; width: 100%; max-height: 260px; object-fit: contain; cursor: zoom-in;
+      background: #fff;
+    }
+    .shot-ph {
+      padding: 40px 8px; text-align: center; color: var(--muted); font-size: 11px;
+    }
+    pre {
+      margin: 0; background: #12181a; color: #e7eee9; padding: 12px; border-radius: 8px;
+      overflow: auto; font-size: 12px; line-height: 1.5; font-family: var(--mono);
+    }
+    .kv {
+      display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; font-size: 12px;
+    }
+    .kv .k { color: var(--muted); font-family: var(--mono); }
+    .kv .v { font-family: var(--mono); word-break: break-all; }
+    table.params {
+      width: 100%; border-collapse: collapse; font-size: 12px; background: #fff;
+      border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    }
+    table.params th {
+      text-align: left; padding: 8px 10px; background: #efe8dc; color: var(--muted);
+      font-weight: 600; border-bottom: 1px solid var(--line);
+    }
+    table.params td {
+      padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top;
+      font-family: var(--mono); word-break: break-all;
+    }
+    table.params tr.err td { background: #f8eaea; }
+    table.params tr.warn td { background: #f4ead6; }
+    table.params .soft { font-family: var(--sans); color: var(--muted); }
+    table.params .enum-wrap { margin: 6px 0 0; }
+    table.params .enum-lab {
+      display: block; font-size: 11px; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px;
+    }
+    table.params .enum-text {
+      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+      font-family: var(--mono); color: var(--ink); line-height: 1.5;
+    }
+    table.params .empty-tag {
+      display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+      background: var(--warn-bg); color: var(--warn); font-size: 11px; font-family: var(--sans);
+    }
+    .steps { list-style: none; margin: 0; padding: 0; }
+    .steps li {
+      display: flex; gap: 10px; align-items: flex-start;
+      margin-bottom: 8px; font-size: 13px; color: var(--ink-soft); line-height: 1.5;
+    }
+    .steps .n {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); color: #fff; font-size: 12px; font-weight: 650;
+      display: grid; place-items: center;
+    }
+    .warn {
+      margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+      background: var(--warn-bg); color: var(--warn); font-size: 12px; line-height: 1.5;
+    }
+    .warn.empty-params { background: var(--warn-bg); border: 1px solid #e4d3b0; }
+    .empty { padding: 48px; text-align: center; color: var(--muted); }
+    .lightbox {
+      display: none; position: fixed; inset: 0; background: rgba(22, 29, 27, .5);
+      z-index: 40; align-items: center; justify-content: center; padding: 24px;
+    }
+    .lightbox.on { display: flex; }
+    .lightbox img {
+      max-width: min(960px, 96vw); max-height: 88vh; border-radius: 10px; background: #fff;
+    }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .side { position: relative; max-height: none; min-height: 0; }
+      .grid2, .shots { grid-template-columns: 1fr; }
+      .meta-grid { flex: 1 1 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">加载中…</div>
+  <div class="lightbox" id="lightbox"></div>
+  <script>
+    window.__REPORT__ = __REPORT_JSON__;
+    (function () {
+      var report = window.__REPORT__ || {};
+      var filter = 'all';
+      var openMap = {};
+      var activeId = '';
+
+      function esc(v) {
+        return String(v == null ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      function fmtTime(iso) {
+        if (!iso) return '-';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        function pad(n) { return n < 10 ? '0' + n : '' + n; }
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+          ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+      function httpLabel(http) {
+        if (!http) return '';
+        var statusPart = '';
+        if (http.matched && http.status) {
+          statusPart = String(http.status) + (http.statusText ? ' ' + http.statusText : '');
+        }
+        if (http.ok) return statusPart || '200 OK';
+        if (http.reasonZh) {
+          return (statusPart ? statusPart + ' · ' : '') + http.reasonZh;
+        }
+        if (http.error) return http.error;
+        return '未捕获上报请求';
+      }
+      function httpBadgeClass(http) {
+        if (!http) return 'none';
+        if (http.ok) return 'pass';
+        return 'fail';
+      }
+      function fmtVal(v) {
+        if (v === undefined) return '—';
+        if (v === null) return 'null';
+        if (typeof v === 'string') return v;
+        try { return JSON.stringify(v); } catch (e) { return String(v); }
+      }
+      function hasEnumText(text) {
+        var s = String(text == null ? '' : text).replace(/[\s\u3000]/g, '');
+        if (!s) return false;
+        var low = s.toLowerCase();
+        return low !== '无' && low !== '-' && low !== '—' && low !== 'null' && low !== 'none';
+      }
+      function enumBlock(text) {
+        if (!hasEnumText(text)) return '';
+        var body = esc(String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
+        return '<div class="enum-wrap"><span class="enum-lab">枚举值</span><div class="enum-text">' + body + '</div></div>';
+      }
+      function acceptStatus(item) {
+        return (item.accept && item.accept.status) || 'none';
+      }
+      function outcomeCat(item) {
+        return item.outcomeCategory || (item.accept && item.accept.outcomeCategory) || '';
+      }
+      function statusLabel(s) {
+        if (s === 'pass') return '验收通过';
+        if (s === 'fail') return '验收失败';
+        if (s === 'skip') return '验收跳过';
+        return '未验收';
+      }
+      function catLabel(item) {
+        var cat = outcomeCat(item);
+        if (cat === 'missing') return '未落地';
+        if (cat === 'unverifiable') return '有埋点但验不了';
+        if (cat === 'pathSkip') return '路径跳过';
+        if (cat === 'fail') return '验收失败';
+        if (cat === 'pass') return '验收通过';
+        if (cat === 'plan') return '仅计划';
+        return statusLabel(acceptStatus(item));
+      }
+      function implLabel(s) {
+        if (s === 'existing') return '已落地';
+        if (s === 'located') return '已定位';
+        if (s === 'unresolved') return '未找到';
+        return '待分析';
+      }
+      function kindLabel(item) {
+        var t = item.eventType || '';
+        if (t === 'Module_Click') return '点击';
+        if (t === 'Module_View') return '曝光';
+        if (t === 'Page_View') return '页面展现';
+        if (t === 'Page_Disapper') return '页面关闭';
+        if (item.kind === 'click' || (item.eventTypeZh || '').indexOf('点击') !== -1) return '点击';
+        if (item.kind === 'view' || (item.eventTypeZh || '').indexOf('曝光') !== -1) return '曝光';
+        return item.eventTypeZh || item.eventType || '-';
+      }
+      function isMissing(item) {
+        return outcomeCat(item) === 'missing';
+      }
+      function filtered() {
+        return (report.events || []).filter(function (item) {
+          var s = acceptStatus(item);
+          if (filter === 'pass') return s === 'pass';
+          if (filter === 'fail') return s === 'fail';
+          if (filter === 'pathSkip') return outcomeCat(item) === 'pathSkip';
+          if (filter === 'unverifiable') return outcomeCat(item) === 'unverifiable';
+          if (filter === 'missing') return isMissing(item) || outcomeCat(item) === 'missing';
+          if (filter === 'needConfirm') {
+            return item.accept && item.accept.emptyParams && item.accept.emptyParams.length;
+          }
+          if (filter === 'Module_View' || filter === 'Module_Click' ||
+              filter === 'Page_View' || filter === 'Page_Disapper') {
+            return item.eventType === filter;
+          }
+          return true;
+        });
+      }
+      function shot(src, lab) {
+        if (!src) {
+          return '<div class="shot-box"><div class="shot-lab">' + esc(lab) + '</div><div class="shot-ph">无图</div></div>';
+        }
+        return '<div class="shot-box"><div class="shot-lab">' + esc(lab) + '</div>' +
+          '<img src="' + esc(src) + '" alt="' + esc(lab) + '" data-zoom="' + esc(src) + '" /></div>';
+      }
+      function paramRows(item) {
+        var params = (item.impl && item.impl.parameters) || [];
+        if (!params.length) {
+          return '<div class="shot-ph">无参数</div>';
+        }
+        var rows = params.map(function (p) {
+          var fired = p.firedValue;
+          var hasDiff = !!p.diff;
+          var isEmpty = !!p.empty;
+          var expected = p.diff && p.diff.expected !== undefined ? p.diff.expected : undefined;
+          var rowCls = hasDiff ? 'err' : (isEmpty ? 'warn' : '');
+          var doc = ((item.params || []).find(function (d) { return d && d.key === p.key; }) || {});
+          return '<tr class="' + rowCls + '">' +
+            '<td>' + esc(p.key) + '<div class="soft">' + esc(p.docDesc || '') + '</div>' +
+            enumBlock(doc.enumText) + '</td>' +
+            '<td>' + esc(p.expression || '—') +
+              (p.valueKind === 'prompt' ? '<div class="soft">备注（写码提示词）</div>' : '') +
+              '<div class="soft">' + esc(p.sourcePath || '') +
+              (p.confidence ? ' · ' + esc(p.confidence) : '') + '</div></td>' +
+            '<td>' + esc(fmtVal(fired)) +
+              (isEmpty ? '<span class="empty-tag">未取到值</span>' : '') +
+              (hasDiff ? '<div class="soft">期望 ' + esc(fmtVal(expected)) + '</div>' : '') +
+            '</td></tr>';
+        }).join('');
+        return '<table class="params"><thead><tr>' +
+          '<th>参数</th><th>表达式或备注 / 来源</th><th>实发值</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>';
+      }
+      function stepsHtml(item) {
+        var steps = (item.accept && item.accept.steps) || [];
+        if (!steps.length) return '<div class="shot-ph">无触发步骤</div>';
+        return '<ol class="steps">' + steps.map(function (s, i) {
+          return '<li><span class="n">' + (i + 1) + '</span><span>' + esc(s) + '</span></li>';
+        }).join('') + '</ol>';
+      }
+      function notesHtml(item) {
+        var notes = [];
+        if (item.impl && item.impl.uicodeConflict) {
+          notes.push('uicode 冲突：' + item.impl.uicodeConflict);
+        }
+        ;(item.impl && item.impl.unresolved || []).forEach(function (n) { notes.push(n); });
+        if (item.accept && item.accept.skipReason) {
+          notes.push('跳过原因：' + item.accept.skipReason);
+        } else if (item.accept && (item.accept.failExplain || item.accept.failFactsZh || item.accept.reasonZh)) {
+          notes.push(item.accept.failExplain || item.accept.failFactsZh || item.accept.reasonZh);
+        } else if (item.accept && item.accept.reason) {
+          notes.push(item.accept.reason);
+        }
+        if (item.accept && item.accept.http && item.accept.http.matched === false
+            && String(item.accept.reason || '').indexOf('未捕获到埋点上报 GIF') === -1) {
+          notes.push('未捕获到埋点上报 GIF。请确认页面是否已引入 dig-log SDK（lianjiaUlog.js），并排查脚本未加载、被拦截或未真正发出。');
+        }
+        if (item.accept && item.accept.emptyParams && item.accept.emptyParams.length) {
+          notes.push('以下参数未取到值，请人工确认：' + item.accept.emptyParams.join('、'));
+        }
+        if (!notes.length) return '';
+        var isFail = item.accept && item.accept.status === 'fail';
+        var cls = (item.accept && item.accept.emptyParams && item.accept.emptyParams.length && !isFail)
+          ? 'warn empty-params' : 'warn';
+        return '<div class="' + cls + '">' + notes.map(esc).join('<br/>') + '</div>';
+      }
+      function cardHtml(item, open) {
+        var s = acceptStatus(item);
+        var impl = item.impl || {};
+        var acc = item.accept || {};
+        var code = impl.code || '';
+        return '<article class="card ' + s + (open ? ' open' : '') + '" id="evt-' + esc(item.evtId) + '" data-eid="' + esc(item.evtId) + '">' +
+          '<div class="card-head" data-toggle="' + esc(item.evtId) + '">' +
+            '<div style="flex:1;min-width:0">' +
+              '<div class="title-row">' +
+                '<span class="eid">' + esc(item.evtId) + '</span>' +
+                '<span class="ename">' + esc(item.eventName || '') + '</span>' +
+              '</div>' +
+              '<div class="badges">' +
+                '<span class="badge ' + s + '">' + esc(catLabel(item)) + '</span>' +
+                (acc.http ? '<span class="badge ' + httpBadgeClass(acc.http) + '">HTTP ' + esc(httpLabel(acc.http)) + '</span>' : '') +
+                (acc.emptyParams && acc.emptyParams.length
+                  ? '<span class="badge warn">空值待确认</span>' : '') +
+                '<span class="badge kind">' + esc(kindLabel(item)) + '</span>' +
+                '<span class="badge impl">' + esc(implLabel(impl.status)) + '</span>' +
+              '</div>' +
+              '<div class="desc">' + esc(acc.eventDesc || ((item.pageName || '') + ' · ' + (item.eventTypeZh || ''))) + '</div>' +
+              notesHtml(item) +
+            '</div>' +
+            '<div class="meta-grid">' +
+              '<div class="meta-row"><div class="meta-lab">uicode</div><div class="meta-val">' + esc(item.uicode || '-') + '</div></div>' +
+              '<div class="meta-row"><div class="meta-lab">pid</div><div class="meta-val">' + esc(item.pid || '-') + '</div></div>' +
+              '<div class="meta-row"><div class="meta-lab">落点</div><div class="meta-val">' + esc(impl.targetFile || (acc.code && acc.code.file) || '-') + '</div></div>' +
+              '<div class="meta-row"><div class="meta-lab">函数 / 生命周期</div><div class="meta-val">' +
+                esc(impl.functionName || (acc.code && acc.code.functionName) || '-') +
+                ' / ' + esc(impl.lifecycle || (acc.code && acc.code.lifecycle) || '-') +
+              '</div></div>' +
+            '</div>' +
+            '<div class="fold">▾</div>' +
+          '</div>' +
+          '<div class="card-body">' +
+            '<div class="grid2">' +
+              '<div class="sec">' +
+                '<div class="sec-h"><span class="ico">图</span>需求示意 vs 验收实拍</div>' +
+                (acc.pageUrl
+                  ? '<div class="shot-url"><code>' + esc(acc.pageUrl) + '</code>' +
+                    '<button type="button" data-copy-url="' + esc(acc.pageUrl) + '">复制 URL</button></div>'
+                  : '') +
+                '<div class="shots">' +
+                  shot(acc.screenshot, '验收实拍') +
+                  shot(item.diagramSrc || acc.diagramSrc, '需求示意图') +
+                  shot(acc.pageScreenshot, '完整页面') +
+                '</div>' +
+              '</div>' +
+              '<div class="sec">' +
+                '<div class="sec-h"><span class="ico">径</span>触发步骤</div>' +
+                stepsHtml(item) +
+              '</div>' +
+            '</div>' +
+            '<div class="sec">' +
+              '<div class="sec-h"><span class="ico">码</span>埋点写法</div>' +
+              '<pre>' + esc(code || '// 无埋点片段') + '</pre>' +
+              (impl.insertHint ? '<div class="warn" style="margin-top:10px">插入提示：' + esc(impl.insertHint) + '</div>' : '') +
+            '</div>' +
+            '<div class="sec">' +
+              '<div class="sec-h"><span class="ico">参</span>参数：表达式 / 来源 / 实发</div>' +
+              paramRows(item) +
+              (acc.fired ? '<div style="margin-top:10px" class="kv">' +
+                '<div class="k">上报类型</div><div class="v">' + esc(acc.fired.eventType || '-') + '</div>' +
+                '<div class="k">实发 uicode</div><div class="v">' + esc(acc.fired.uicode || '-') + '</div>' +
+                '<div class="k">实发 pid</div><div class="v">' + esc(acc.fired.pid || '-') + '</div>' +
+                '<div class="k">上报接口状态</div><div class="v">' + esc(acc.http ? httpLabel(acc.http) : '-') + '</div>' +
+                (acc.http && acc.http.url
+                  ? '<div class="k">上报 URL</div><div class="v">' + esc(acc.http.url) + '</div>'
+                  : '') +
+              '</div>' : '') +
+            '</div>' +
+          '</div>' +
+        '</article>';
+      }
+      function navHtml(list) {
+        return list.map(function (item) {
+          var s = acceptStatus(item);
+          var hasEmpty = item.accept && item.accept.emptyParams && item.accept.emptyParams.length;
+          var dot = s === 'fail' ? 'fail' : (hasEmpty ? 'warn' : s);
+          return '<button type="button" class="nav-item' + (activeId === item.evtId ? ' active' : '') +
+            '" data-nav="' + esc(item.evtId) + '">' +
+            '<div class="row1"><span class="dot ' + dot + '"></span>' + esc(item.evtId) + '</div>' +
+            '<div class="name">' + esc(item.eventName || '') + '</div>' +
+          '</button>';
+        }).join('');
+      }
+      function render() {
+        var summary = report.summary || {};
+        var list = filtered();
+        var slug = report.slug || '埋点终稿';
+        var app = document.getElementById('app');
+        app.innerHTML =
+          '<aside class="side">' +
+            '<div class="brand">TRACKING FINAL</div>' +
+            '<h1>' + esc(slug) + '</h1>' +
+            '<div class="meta">验收 ' + esc(fmtTime(report.acceptGeneratedAt)) +
+              '<br/>终稿 ' + esc(fmtTime(report.generatedAt)) +
+              (report.seedUrl ? '<br/>seed ' + esc(report.seedUrl) : '') +
+            '</div>' +
+            '<div class="stats">' +
+              '<div class="stat"><b>' + (summary.total || 0) + '</b><span>全部</span></div>' +
+              '<div class="stat ok"><b>' + (summary.pass || 0) + '</b><span>通过</span></div>' +
+              '<div class="stat fail"><b>' + (summary.fail || 0) + '</b><span>失败</span></div>' +
+              '<div class="stat fail"><b>' + (summary.missing || 0) + '</b><span>未落地</span></div>' +
+              '<div class="stat warn"><b>' + (summary.unverifiable || 0) + '</b><span>验不了</span></div>' +
+              '<div class="stat warn"><b>' + (summary.pathBlockerSkip || 0) + '</b><span>路径跳过</span></div>' +
+              '<div class="stat warn"><b>' + (summary.needConfirm || 0) + '</b><span>空值待确认</span></div>' +
+            '</div>' +
+            '<div class="filters">' +
+              '<button type="button" data-filter="all"' + (filter === 'all' ? ' class="active"' : '') + '>全部</button>' +
+              '<button type="button" data-filter="pass"' + (filter === 'pass' ? ' class="active"' : '') + '>通过</button>' +
+              '<button type="button" data-filter="fail"' + (filter === 'fail' ? ' class="active"' : '') + '>失败</button>' +
+              '<button type="button" data-filter="missing"' + (filter === 'missing' ? ' class="active"' : '') + '>未落地</button>' +
+              '<button type="button" data-filter="unverifiable"' + (filter === 'unverifiable' ? ' class="active"' : '') + '>验不了</button>' +
+              '<button type="button" data-filter="pathSkip"' + (filter === 'pathSkip' ? ' class="active"' : '') + '>路径跳过</button>' +
+              '<button type="button" data-filter="needConfirm"' + (filter === 'needConfirm' ? ' class="active"' : '') + '>待确认</button>' +
+              '<button type="button" data-filter="Module_View"' + (filter === 'Module_View' ? ' class="active"' : '') + '>曝光</button>' +
+              '<button type="button" data-filter="Module_Click"' + (filter === 'Module_Click' ? ' class="active"' : '') + '>点击</button>' +
+              '<button type="button" data-filter="Page_View"' + (filter === 'Page_View' ? ' class="active"' : '') + '>页面展现</button>' +
+              '<button type="button" data-filter="Page_Disapper"' + (filter === 'Page_Disapper' ? ' class="active"' : '') + '>页面关闭</button>' +
+            '</div>' +
+            '<div class="nav">' + navHtml(list) + '</div>' +
+          '</aside>' +
+          '<main class="main">' +
+            '<div class="top">' +
+              '<div>' +
+                '<h2>埋点终稿</h2>' +
+                '<div class="sub">一次真实验收的结果快照（含失败与跳过，不要求全绿才生成）。共 ' + list.length +
+                  ' 条（当前筛选）' +
+                  ((summary.missing || 0) ? '；未落地 ' + summary.missing : '') +
+                  ((summary.unverifiable || 0) ? '；有埋点但验不了 ' + summary.unverifiable : '') +
+                  ((summary.pathBlockerSkip || 0) ? '；路径跳过 ' + summary.pathBlockerSkip : '') +
+                  ((summary.fail || 0) ? '；失败 ' + summary.fail : '') +
+                  ((summary.needConfirm || 0) ? '；空值待确认 ' + summary.needConfirm : '') +
+                  '。</div>' +
+              '</div>' +
+              '<div class="links">' +
+                '<a href="./' + esc(slug) + '-落库.html">落库文档</a>' +
+                '<a href="./accept/' + esc(slug) + '-验收.html">验收报告</a>' +
+              '</div>' +
+            '</div>' +
+            (list.length
+              ? list.map(function (item) {
+                  var open = openMap[item.evtId] === true ||
+                    (openMap[item.evtId] == null && (
+                      acceptStatus(item) === 'fail' ||
+                      outcomeCat(item) === 'pathSkip' ||
+                      outcomeCat(item) === 'unverifiable' ||
+                      outcomeCat(item) === 'missing' ||
+                      (item.accept && item.accept.emptyParams && item.accept.emptyParams.length)
+                    ));
+                  return cardHtml(item, open);
+                }).join('')
+              : '<div class="empty">当前筛选下无事件</div>') +
+          '</main>';
+
+        app.querySelectorAll('[data-filter]').forEach(function (btn) {
+          btn.onclick = function () {
+            var next = btn.getAttribute('data-filter');
+            filter = (filter === next && next !== 'all') ? 'all' : next;
+            render();
+          };
+        });
+        app.querySelectorAll('[data-nav]').forEach(function (btn) {
+          btn.onclick = function () {
+            var id = btn.getAttribute('data-nav');
+            activeId = id;
+            openMap[id] = true;
+            render();
+            var el = document.getElementById('evt-' + id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          };
+        });
+        app.querySelectorAll('[data-toggle]').forEach(function (head) {
+          head.onclick = function () {
+            var id = head.getAttribute('data-toggle');
+            var cur = openMap[id];
+            if (cur == null) {
+              openMap[id] = acceptStatus((report.events || []).find(function (e) { return e.evtId === id; }) || {}) !== 'fail';
+            } else {
+              openMap[id] = !cur;
+            }
+            render();
+          };
+        });
+        app.querySelectorAll('img[data-zoom]').forEach(function (img) {
+          img.onclick = function (e) {
+            e.stopPropagation();
+            var box = document.getElementById('lightbox');
+            box.className = 'lightbox on';
+            box.innerHTML = '<img src="' + esc(img.getAttribute('data-zoom')) + '" alt="" />';
+          };
+        });
+        app.querySelectorAll('[data-copy-url]').forEach(function (btn) {
+          btn.onclick = function (e) {
+            e.stopPropagation();
+            var url = btn.getAttribute('data-copy-url') || '';
+            if (!url) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(function () {
+                btn.textContent = '已复制';
+                setTimeout(function () { btn.textContent = '复制 URL'; }, 1600);
+              }, function () {
+                btn.textContent = '复制失败';
+              });
+            }
+          };
+        });
+      }
+      document.getElementById('lightbox').onclick = function () {
+        this.className = 'lightbox';
+        this.innerHTML = '';
+      };
+      render();
+    })();
+  </script>
+</body>
+</html>

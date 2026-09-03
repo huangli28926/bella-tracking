@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bella-tracking · 埋点落库 + 关键验收</title>
+  <style>
+    :root {
+      --ink: #1b2320;
+      --ink-soft: #3d4a45;
+      --paper: #f3efe6;
+      --paper-2: #fbf8f2;
+      --line: #d9d0c3;
+      --accent: #c45c26;
+      --accent-2: #2f6f62;
+      --warn: #a15c12;
+      --danger: #9b2c2c;
+      --ok: #2f6f62;
+      --sidebar: #161d1b;
+      --code: #12181a;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .side {
+      background: var(--sidebar);
+      color: #e8e2d6;
+      padding: 22px 14px 28px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #b7c4be;
+      margin-bottom: 6px;
+    }
+    .side h1 {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 8px;
+      line-height: 1.35;
+    }
+    .side .meta {
+      font-size: 12px;
+      color: #9aa89f;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .nav a {
+      display: block;
+      text-decoration: none;
+      color: #cfd8d2;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+    .nav a:hover { background: #222b28; color: #fff; }
+    .nav a.active { background: #2a3531; color: #fff; }
+    .nav .group {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #7f8f87;
+      margin: 14px 10px 6px;
+    }
+    .main { padding: 32px 40px 64px; max-width: 920px; }
+    .hero {
+      background: linear-gradient(145deg, #fbf8f2 0%, #efe8dc 55%, #e8dfd0 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 28px 28px 24px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -40px;
+      top: -50px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(196,92,38,0.18), transparent 70%);
+      pointer-events: none;
+    }
+    .hero .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .hero h2 {
+      margin: 0 0 10px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--ink-soft);
+      max-width: 58ch;
+      font-size: 15px;
+    }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid var(--line);
+      color: var(--ink-soft);
+    }
+    section {
+      margin-bottom: 36px;
+      scroll-margin-top: 24px;
+    }
+    section > h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .card {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+    }
+    .card h4 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .card p, .card li { font-size: 14px; color: var(--ink-soft); }
+    .card ul, .card ol { margin: 8px 0 0; padding-left: 1.2em; }
+    .card li + li { margin-top: 4px; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .route-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .route-table th, .route-table td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .route-table th {
+      background: #ebe4d8;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: var(--ink-soft);
+      font-weight: 650;
+    }
+    .route-table tr:last-child td { border-bottom: 0; }
+    .path-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      margin-right: 8px;
+    }
+    .path-badge.b { background: #3a6ea5; }
+    .path-badge.c { background: var(--accent-2); }
+    .path-badge.d { background: #6b4c9a; }
+    .path-badge.e { background: var(--warn); }
+    .path-badge.f { background: #4b6b3c; }
+    .ban-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .ban-list li {
+      position: relative;
+      padding: 10px 12px 10px 36px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .ban-list li:last-child { border-bottom: 0; }
+    .ban-list li::before {
+      content: "✕";
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      color: var(--danger);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .prio {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .prio span {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #ebe4d8;
+      color: var(--ink);
+      font-family: var(--mono);
+    }
+    .prio span.muted { opacity: 0.55; text-decoration: line-through; }
+    .steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 10px 12px 10px 44px;
+      border-bottom: 1px dashed var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .steps li:last-child { border-bottom: 0; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ebe4d8;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+    }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .tag.do { background: #e1f0eb; color: var(--ok); }
+    .tag.deliver { background: #efe4d8; color: var(--accent); }
+    .tag.stop { background: #f3e0e0; color: var(--danger); }
+    .tag.pre { background: #e4eaf3; color: #3a6ea5; }
+    code, .mono {
+      font-family: var(--mono);
+      font-size: 12.5px;
+    }
+    code.inline {
+      background: #ebe4d8;
+      padding: 1px 6px;
+      border-radius: 5px;
+      color: var(--ink);
+    }
+    .code-block {
+      position: relative;
+      background: var(--code);
+      color: #e7eee9;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0 0;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid #3a4742;
+      background: #212926;
+      color: #d7ddd8;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--sans);
+    }
+    .copy-btn:hover { background: #2a3531; }
+    .tree {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: #c9d4ce;
+      background: var(--code);
+      border-radius: 12px;
+      padding: 16px 18px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .legend i {
+      font-style: normal;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #ebe4d8;
+      color: var(--ink-soft);
+    }
+    .refs a {
+      color: var(--accent-2);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(47,111,98,0.35);
+    }
+    .refs a:hover { color: var(--accent); }
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      background: var(--sidebar);
+      color: #f4efe6;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 20;
+      display: none;
+    }
+    @media (max-width: 860px) {
+      .app { grid-template-columns: 1fr; }
+      .side {
+        position: relative;
+        height: auto;
+        max-height: none;
+      }
+      .main { padding: 24px 18px 48px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .hero h2 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">Cursor Skill</div>
+      <h1>bella-tracking</h1>
+      <div class="meta">埋点落库 + 关键验收<br />真相源：impl.json</div>
+      <nav class="nav" id="nav">
+        <div class="group">总览</div>
+        <a href="#overview">Overview</a>
+        <a href="#when">何时启用</a>
+        <a href="#forbid">硬性禁止</a>
+        <div class="group">路径</div>
+        <a href="#path-a">A · 落库文档</a>
+        <a href="#path-b">B · 人工矫正</a>
+        <a href="#path-c">C · 写业务埋点</a>
+        <a href="#path-d">D · 关键验收</a>
+        <a href="#path-e">E · 空值自修复</a>
+        <a href="#path-f">F · 历史埋点</a>
+        <div class="group">约定</div>
+        <a href="#scripts">脚本速查</a>
+        <a href="#artifacts">产物约定</a>
+        <a href="#adaptor">SDK / 封装</a>
+        <a href="#impl">impl.json</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="hero" id="overview">
+        <div class="eyebrow">bella-tracking</div>
+        <h2>埋点落库 + 关键验收</h2>
+        <p>
+          判断由<strong>当前对话模型</strong>完成（看示意图、搜代码、追参数）。
+          脚本只做 dump / 渲染 / 建链 / 跑验收。真相源是 <code class="inline">impl.json</code>，不要只改 HTML。
+          公司统一的是 dig-log SDK（<code class="inline">$ULOG.send</code>）。项目二次封装（如某仓的 <code class="inline">sendLog</code>）<strong>不写进 Skill</strong>，进仓后探测，跟随落点文件。
+        </p>
+        <div class="pill-row">
+          <span class="pill">Excel → 落库 HTML</span>
+          <span class="pill">SDK + 项目封装</span>
+          <span class="pill">Playwright 关键路径</span>
+          <span class="pill">空值自修复</span>
+          <span class="pill">历史埋点关系</span>
+        </div>
+      </div>
+
+      <section>
+        <h3>详细规则（按需读）</h3>
+        <div class="card refs">
+          <ul>
+            <li><a href="reference/REFERENCE.html#sdk">公司 SDK 档案</a> — 1.3.0 / v3</li>
+            <li><a href="reference/REFERENCE.html#adaptor">调用适配</a> — 二次封装探测与写码规则</li>
+            <li><a href="reference/REFERENCE.html#chain">关键路径验收规则</a> — 字段与引擎职责</li>
+            <li><a href="reference/REFERENCE.html#assert">验收断言规则</a> — 空值与自修复分类</li>
+            <li><a href="reference/history-tracking.md">历史埋点静态扫描</a> — 路由 / 调用 / 跳转</li>
+          </ul>
+          <p style="margin:12px 0 0;font-size:13px;">可读合订：<a href="reference/REFERENCE.html">reference/REFERENCE.html</a>。从用户消息取 <code class="inline">--excel=</code> 路径。仓库根执行脚本。</p>
+        </div>
+      </section>
+
+      <section id="when">
+        <h3>何时启用</h3>
+        <table class="route-table">
+          <thead>
+            <tr><th>用户意图</th><th>走路径</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>给 xlsx / 生成落库文档 / 埋点写法 / 参数来源</td>
+              <td><span class="path-badge">A</span>落库文档</td>
+            </tr>
+            <tr>
+              <td>矫正文档 / 改表达式 / 上传提示图 / 填接口字段</td>
+              <td><span class="path-badge b">B</span>人工矫正</td>
+            </tr>
+            <tr>
+              <td>按落库写业务埋点（须明确确认）</td>
+              <td><span class="path-badge c">C</span>写业务埋点</td>
+            </tr>
+            <tr>
+              <td>关键路径验收 / 自动验收 / plan</td>
+              <td><span class="path-badge d">D</span>关键验收</td>
+            </tr>
+            <tr>
+              <td>自修复 / 修空值 / 诊断空值</td>
+              <td><span class="path-badge e">E</span>空值自修复</td>
+            </tr>
+            <tr>
+              <td>梳理历史埋点 / 历史埋点关系 / 扫描已有埋点</td>
+              <td><span class="path-badge f">F</span>历史埋点关系</td>
+            </tr>
+            <tr>
+              <td>生成终稿</td>
+              <td>D 真实验收后自动；或重跑 <code class="inline">render-final.js</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="forbid">
+        <h3>硬性禁止</h3>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <ul class="ban-list">
+            <li>用文档「页面名称」过滤事件或当落点页面</li>
+            <li>编造 <code class="inline">props.xxx</code> / <code class="inline">window.xxx</code>（<code class="inline">window.__user</code> 除外）</li>
+            <li>把某个项目的封装名（如 <code class="inline">sendLog</code>）写进 Skill 或当成全公司标准</li>
+            <li>在没有该封装的仓里发明封装；为了统一把旧页 SDK 直调改成封装</li>
+            <li><strong>改写文档 uicode</strong>：只从 Excel → <code class="inline">events.json</code> 读取；禁止写入 <code class="inline">impl.json</code>、禁止落库页编辑、禁止用现网旧值覆盖。不一致只填 <code class="inline">uicodeConflict</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>定位证据优先级</h4>
+          <p>给埋点找「落在哪段代码」时，按下列顺序取证（先硬后软）。页面名称不可靠，禁止当依据。</p>
+          <ol class="steps">
+            <li><strong>代码里已有这个 evtId</strong> — 最硬，直接对账</li>
+            <li><strong>hint.api</strong> — 人工标过接口字段</li>
+            <li><strong>提示图 / hint.note</strong> — 人工矫正线索</li>
+            <li><strong>示意图上的可见文案</strong> — 和 JSX 文案对上</li>
+            <li><strong>事件名称</strong> — 文档里的名字，辅助搜</li>
+            <li><strong>uicode</strong> — 只当 SDK payload.uicode（值必须抄 <code class="inline">events.json</code>），不当「找文件」依据</li>
+            <li><strong>页面名称</strong> — 禁止当依据（Excel 页面名常和真实路由对不上）</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="path-a">
+        <h3><span class="path-badge">A</span>落库文档</h3>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="tag do">先做</span></h4>
+            <ol class="steps">
+              <li><code class="inline">dump-excel.js --excel=...</code>（需网络下示意图；同时写出 <code class="inline">_raw/adaptor.json</code>）。不要把此时空 HTML 交给用户。</li>
+              <li>读 <code class="inline">_raw/{文档名}.events.json</code>。click / view <strong>一起</strong>按 <code class="inline">docIndex</code> 分析，不分两批。</li>
+              <li>读 <code class="inline">_raw/adaptor.json</code> 与 <code class="inline">reference/call-adaptor.md</code>。<code class="inline">code</code> 按 adaptor 的 styleId 渲染，不要默认 sendLog。</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h4><span class="tag deliver">交付 / 停</span></h4>
+            <p><span class="tag deliver">交付</span><code class="inline">{文档名}-落库.html</code> + 已填落点/参数的 <code class="inline">impl.json</code>。打断时把当前 evt 的服务 URL 发给用户（页面已打开）。</p>
+            <p style="margin-top:10px;"><span class="tag stop">停</span>每条 needsConfirm 在 <code class="inline">confirm-event --wait</code> 上停，不要攒到最后再出交互界面。全部分析完后若还有未 confirmed，停在 B 扫尾。未明确说改业务源码前不进入路径 C。</p>
+            <p style="margin-top:10px;font-size:13px;">不要等全部事件写完才开服务。写回后立刻重渲 HTML；若该条 needsConfirm，跑 <code class="inline">confirm-event.js --evt=... --if-needed --wait</code>。第一次打断拉起 serve-impl，后续只换 URL。全部参数 high 且落点明确的条不打断（medium / low 须人工确认）。</p>
+          </div>
+        </div>
+        <div class="card">
+          <h4>逐条事件</h4>
+          <ol class="steps">
+            <li><code class="inline">Read</code> <code class="inline">_raw/images/{evtId}.png</code>（无图则打开 <code class="inline">diagramUrl</code>）。</li>
+            <li>有 <code class="inline">hint.images</code> 再 <code class="inline">Read</code> 提示图；<code class="inline">hint.note</code> / <code class="inline">hint.api</code> 作线索。</li>
+            <li><code class="inline">Grep</code> <code class="inline">adaptor.sourceRoots</code> 的 evtId。已有调用 → <code class="inline">status: existing</code>，对账参数，styleId 跟该文件。</li>
+            <li>未命中：用示意图可见文案 + 事件名称搜源码。页面名称只当原文备注。</li>
+            <li><code class="inline">uicode</code> <strong>原样抄</strong> <code class="inline">_raw/{文档名}.events.json</code> 同 evtId 的值写入 SDK payload / snippet。禁止改写、禁止按路由猜。落点路由与文档 uicode 不一致 → 只填 <code class="inline">uicodeConflict</code>。</li>
+            <li>定 <code class="inline">targetFile</code> / <code class="inline">functionName</code> / <code class="inline">lifecycle</code>（click→onClick；view→useEffect 或 IntersectionObserver）。</li>
+            <li><code class="inline">styleId</code>：fileStyle[targetFile] &gt; 同目录最常见 &gt; defaultStyleId &gt; sdk-send。用对应 snippet 填 code。</li>
+            <li>参数解析顺序：已有 expression（及 valueKind）→ hint.api → hint 图/note + 示意图 → 仓级惯例 → 同文件已有埋点 → 按「用途说明」追变量。抄不到：expression 留空，<code class="inline">confidence: low</code>，列入 unresolved。落库页可填 JS 或备注（<code class="inline">valueKind: prompt</code>），备注给路径 C 当写码提示词。</li>
+            <li>按 evtId 合并写回 <code class="inline">_raw/{文档名}.impl.json</code>。<strong>不要覆盖 hint / confirmed。</strong></li>
+            <li>写回后立刻重渲 HTML。若该条 <code class="inline">needsConfirm</code> 且尚未 confirmed：跑 <code class="inline">confirm-event.js --excel=... --evt={evtId} --if-needed --wait</code>。用户勾选「已确认」并保存后继续下一条。全部参数 high 且落点明确的条不打断（medium / low 须人工确认）。</li>
+          </ol>
+          <p style="margin-top:10px;font-size:13px;"><code class="inline">needsConfirm</code>：status 为 unresolved/pending、unresolved[] 非空、缺 targetFile、任一参数 expression 为空或 confidence 为 low/medium、有 uicodeConflict。任一命中即打断。medium 不写入 unresolved[]。expression 可填 JS 或自然语言备注。</p>
+        </div>
+      </section>
+
+      <section id="path-b">
+        <h3><span class="path-badge b">B</span>人工矫正（扫尾）</h3>
+        <div class="card">
+          <p>只处理 A 未打断、或打断后仍未 <code class="inline">confirmed</code> 的条。若已全部确认，B 自动完成。</p>
+          <ol class="steps">
+            <li><code class="inline">confirm-event.js --excel=... --evt={第一条未确认} --wait</code>，或 <code class="inline">serve-impl.js --excel=... --evt=...</code>（默认 http://127.0.0.1:3920，自动打开浏览器；<code class="inline">--no-open</code> 可关掉）。</li>
+            <li>让用户在<strong>服务里的</strong> HTML 矫正，不要只开本地文件（静态只读）。确认过的事件勾选「已确认」，写入 <code class="inline">confirmed</code>。</li>
+            <li>保存后以磁盘 <code class="inline">impl.json</code> 为准；后续路径只读该 JSON。合并写回不要覆盖 <code class="inline">confirmed</code>。</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="path-c">
+        <h3><span class="path-badge c">C</span>写业务埋点</h3>
+        <div class="card">
+          <p><span class="tag pre">前置</span>用户明确确认改业务源码（<code class="inline">adaptor.sourceRoots</code>）。</p>
+          <ol class="steps">
+            <li>按矫正后的 <code class="inline">impl.json</code> 写调用：用该事件的 styleId / 落点文件已有写法。DOM 声明式须再确认。<code class="inline">uicode</code> 必须抄 <code class="inline">events.json</code>，禁止沿用现网旧值。<code class="inline">valueKind === 'prompt'</code> 时把 expression 当写码提示词，禁止当 JS 粘贴；写出真实表达式后回写 <code class="inline">impl.expression</code>。</li>
+            <li>写完后由模型根据代码补全 <code class="inline">pageKey</code> + <code class="inline">accept</code>（trigger / preconditions≈sharedSteps / navigatesAway / dataDeps）。读 <code class="inline">reference/accept-chain-rules.md</code>。</li>
+            <li>不要让用户填配置文件；不要在 skill 脚本写死业务 locator。</li>
+            <li>跑 <code class="inline">build-accept-chain.js</code>（可选 <code class="inline">--write-impl</code> 仅规范化已有 accept）。检查同页聚类、navigatesAway 拆 path、pending 缺 pageKey/trigger → 模型补 impl.json 后再建链。</li>
+          </ol>
+          <p style="margin-top:12px;"><span class="tag deliver">交付</span>代码 diff + 更新后的 <code class="inline">impl.json.accept</code>。</p>
+        </div>
+      </section>
+
+      <section id="path-d">
+        <h3><span class="path-badge d">D</span>关键验收</h3>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="tag do">先做</span></h4>
+            <ol class="steps">
+              <li>确认 impl.json 已有 pageKey + accept.trigger；缺则先补再 build-accept-chain。</li>
+              <li><code class="inline">--plan-only</code> 把路径给用户看。</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h4><span class="tag deliver">交付</span></h4>
+            <ul>
+              <li><code class="inline">accept/{文档名}-验收.html</code>（含 fired.action）</li>
+              <li>真实验收后生成 <code class="inline">{文档名}-终稿.html</code>；可用 render-final 重跑</li>
+              <li>plan-only 不生成终稿</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h4>确认后跑</h4>
+          <ol class="steps">
+            <li><code class="inline">run-accept.js</code>（可 <code class="inline">--evt=</code> 精点）。</li>
+            <li>根目录 <code class="inline">.env</code>：baseUrl=origin，seedUrl=完整 path+query（禁止删减）。每条 path 都 goto(seed) 再点到子页。</li>
+            <li>先让用户选择 Playwright 设备：<code class="inline">--device=mobile</code>（iPhone 13）或 <code class="inline">--device=pc</code>（桌面视口）；未选择不启动浏览器。遇登录页先登录，态写入 <code class="inline">docs/tracking/.auth/storage.json</code> 复用。</li>
+            <li>报告每条两图：accept/shots/{evtId}.png + _raw/images/{evtId}.png。</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h4>断言要点</h4>
+          <ul>
+            <li>必须发出：evtId + eventType；<code class="inline">uicode</code> 以文档为准，有 expect 则必须一致（空上报也 fail）。</li>
+            <li><code class="inline">'-'</code> / 空 / 缺失 → 不判 fail，写入 emptyParams，summary.needConfirm 提醒人工确认。</li>
+            <li>plan-only 的 skip 不算失败。</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="path-e">
+        <h3><span class="path-badge e">E</span>空值自修复</h3>
+        <div class="card">
+          <p><span class="tag pre">触发</span>用户说「自修复 / 修空值 / 诊断空值」，或 needConfirm &gt; 0 且用户要求处理。</p>
+          <ol class="steps">
+            <li><code class="inline">diagnose-empty.js</code> → 读 <code class="inline">accept/{文档名}-空值修复.json</code>。</li>
+            <li>对每条 issues[]：对照 targetFile 真实埋点调用、落库 expression/sourcePath/hint、验收 fired，校正 category（脚本仅为启发式）。</li>
+            <li><strong>默认可写</strong>：impl.json 的 expression / sourcePath / accept.dataDeps|waitApis。写完按需建链、精点重跑、更新验收与终稿。</li>
+            <li><strong>禁止擅自改</strong>业务源码：needs_prop_plumb / needs_product_decision 只填方案交用户。</li>
+            <li>data_genuinely_empty：标注可忽略，不改代码。</li>
+            <li><strong>最多 2 轮</strong>；仍空则停，剩余标人工项。</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="path-f">
+        <h3><span class="path-badge f">F</span>历史埋点关系</h3>
+        <div class="card">
+          <p><span class="tag pre">触发</span>用户说「梳理历史埋点 / 历史埋点关系 / 扫描已有埋点」。</p>
+          <ol class="steps">
+            <li>仓库根执行 <code class="inline">scan-history-tracking.js</code>。<strong>不读</strong> <code class="inline">.env</code> seedUrl。</li>
+            <li>探测 adaptor → 扫路由表 + 封装 / <code class="inline">$ULOG.send</code> + <code class="inline">history.push</code>。</li>
+            <li>写出 <code class="inline">docs/historyTracking/YYYY/MMDD_HHmmss.html</code>（另存同名 <code class="inline">_raw/*.json</code>）。</li>
+            <li>把绝对路径和 <code class="inline">file://</code> URL 发给用户。<code class="inline">--open</code> 可用系统浏览器打开。</li>
+          </ol>
+          <p style="margin-top:10px;"><span class="tag stop">交付</span>HTML 关系图（页面与埋点 + 页面跳转）。不改业务源码。</p>
+        </div>
+      </section>
+
+      <section id="scripts">
+        <h3>脚本速查</h3>
+        <div class="card">
+          <p style="margin:0 0 10px;font-size:13px;color:var(--ink-soft);">&lt;skillDir&gt; = 当前加载的本 Skill 目录（SKILL.md 所在目录）。仓库根执行。脚本按阶段分子目录：lib/ 基础设施、extract/ 落库、confirm/ 矫正、accept/ 验收、history/ 历史埋点、workflow/ 编排。</p>
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>node &lt;skillDir&gt;/scripts/extract/dump-excel.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/extract/detect-adaptor.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/extract/render-html.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/confirm/serve-impl.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/confirm/serve-impl.js --excel=docs/2.3埋点需求文档.xlsx --evt=95936
+# 默认自动打开浏览器；--no-open 可关掉；3920 占用时试到 3930；同 slug 已在跑则复用
+node &lt;skillDir&gt;/scripts/confirm/confirm-event.js --excel=docs/2.3埋点需求文档.xlsx --evt=95936 --if-needed --wait
+node &lt;skillDir&gt;/scripts/accept/build-accept-chain.js --excel=docs/2.3埋点需求文档.xlsx --write-impl
+node &lt;skillDir&gt;/scripts/accept/run-accept.js --excel=docs/2.3埋点需求文档.xlsx --plan-only
+node &lt;skillDir&gt;/scripts/accept/run-accept.js --excel=docs/2.3埋点需求文档.xlsx --evt=12344
+node &lt;skillDir&gt;/scripts/accept/diagnose-empty.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/accept/render-final.js --excel=docs/2.3埋点需求文档.xlsx
+node &lt;skillDir&gt;/scripts/history/scan-history-tracking.js
+node &lt;skillDir&gt;/scripts/history/scan-history-tracking.js --open</div>
+          <p style="margin:14px 0 6px;font-size:13px;color:var(--ink-soft);">Playwright（优先本机 Chrome，channel=chrome）：</p>
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>npm i -D playwright --prefix &lt;skillDir&gt; --registry=https://registry.npmjs.org</div>
+        </div>
+      </section>
+
+      <section id="artifacts">
+        <h3>产物约定</h3>
+        <div class="tree">docs/tracking/impl/{文档名}/
+├── _raw/{文档名}.events.json
+├── _raw/{文档名}.impl.json
+├── _raw/adaptor.json
+├── _raw/accept-chain.json
+├── _raw/workflow.json
+├── _raw/serve.json
+├── _raw/images/{evtId}.png
+├── _raw/hints/{evtId}/{paramKey}.png
+├── _raw/apis.json
+├── {文档名}-落库.html
+├── {文档名}-终稿.html
+└── accept/
+    ├── {文档名}-验收.json
+    ├── {文档名}-验收.html
+    ├── {文档名}-空值修复.json
+    └── shots/{evtId}.png
+
+历史埋点关系（路径 F）：
+docs/historyTracking/YYYY/MMDD_HHmmss.html
+docs/historyTracking/YYYY/_raw/MMDD_HHmmss.json</div>
+      </section>
+
+      <section id="adaptor">
+        <h3>SDK / 二次封装</h3>
+        <div class="card">
+          <p>Skill 只认识公司 SDK。验收 hook <code class="inline">$ULOG.send</code>。业务写法跟落点文件走。</p>
+          <ol class="steps">
+            <li>HTML / ejs 脚本 URL → <code class="inline">sdk/lianjia-ulog-1.3.json</code> 或 <code class="inline">sdk/lianjia-ulog-v3.json</code></li>
+            <li>谁 export 且转调 <code class="inline">$ULOG.send(变量, …)</code> → 二次封装</li>
+            <li>写码：targetFile 已有写法 &gt; 同目录 &gt; defaultStyleId &gt; SDK 直调</li>
+            <li>禁止在没有封装的仓里发明封装名</li>
+          </ol>
+          <p style="margin-top:10px;font-size:13px;">可选锁定：<code class="inline">docs/tracking/adaptor.json</code> 或 <code class="inline">.tracking/adaptor.json</code>（只覆盖 sdkId / defaultStyleId）。</p>
+        </div>
+      </section>
+
+      <section id="impl">
+        <h3>impl.json 约定</h3>
+        <div class="card">
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>{
+  "events": [
+    {
+      "evtId": "95936",
+      "status": "existing",
+      "accepted": false,
+      "targetFile": "client/src/pages/priceV2/HomeV2/components/stats/DealRangeCard/index.jsx",
+      "functionName": "handleViewRefClick",
+      "lifecycle": "onClick",
+      "pageKey": "homeV2",
+      "styleId": "wrapper-sendLog",
+      "entryUrlTemplate": "/priceV2/homeV2?housedelCode=107114981089",
+      "insertHint": "点击「查看成交参考」时发送",
+      "evidence": ["示意图文案匹配 DealRangeCard", "代码已有封装调用 95936"],
+      "uicodeConflict": "",
+      "code": "sendLog('Module_Click', '95936', 'a_app', 'aiprice2/home', {\n  housedel_id: housedelCode || '-'\n})",
+      "parameters": [
+        {
+          "key": "housedel_id",
+          "docDesc": "房源id",
+          "expression": "housedelCode || '-'",
+          "valueKind": "expression",
+          "sourcePath": "URL query / 页面变量",
+          "confidence": "high",
+          "hint": {
+            "images": [],
+            "note": "",
+            "api": { "url": "", "field": "" }
+          }
+        }
+      ],
+      "accept": {
+        "trigger": {
+          "kind": "click",
+          "by": "testid",
+          "value": "homeV2-deal-range-view-ref",
+          "alternates": ["AI估价", "专家估价"],
+          "preconditions": []
+        },
+        "navigatesAway": false,
+        "assertParams": ["housedel_id"],
+        "dataDeps": [
+          { "paramKey": "housedel_id", "from": "url", "queryKey": "housedelCode" }
+        ]
+      },
+      "unresolved": []
+    }
+  ]
+}</div>
+          <div class="legend">
+            <i>status: existing · located · unresolved · pending</i>
+            <i>confidence: high 不打断；medium / low 或表达式为空须人工确认（medium 不写入 unresolved）</i>
+            <i>accepted 仅 existing 可 true</i>
+          </div>
+          <ul style="margin-top:14px;">
+            <li><code class="inline">styleId</code>：adaptor.styles[].id。上例 sendLog 来自探测，不是 Skill 内置</li>
+            <li><code class="inline">pageKey</code> + <code class="inline">accept</code>：模型按代码填写；build-accept-chain 只聚合/校验。缺 pageKey 或 accept.trigger.kind → pending</li>
+            <li><strong>禁止</strong>在 <code class="inline">impl.json</code> 写 <code class="inline">uicode</code> 字段；snippet / 业务调用里的 uicode 必须等于 <code class="inline">events.json</code> 同 evtId 的值，脚本会强制改回</li>
+            <li><code class="inline">hint</code>：人工矫正写入；<code class="inline">_raw/apis.json</code> 可手写接口目录供 HTML 下拉</li>
+            <li>找不到图/文件/参数：写入 unresolved，继续下一条，不用页面名称兜底</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">已复制</div>
+
+  <script>
+    (function () {
+      var toast = document.getElementById('toast');
+      var toastTimer;
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.style.display = 'none'; }, 1400);
+      }
+
+      document.querySelectorAll('.code-block[data-copy]').forEach(function (block) {
+        var btn = block.querySelector('.copy-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var text = block.textContent.replace(/^复制/, '').trim();
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              showToast('已复制');
+            });
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('已复制');
+          }
+        });
+      });
+
+      var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+      var sections = links.map(function (a) {
+        return document.querySelector(a.getAttribute('href'));
+      }).filter(Boolean);
+
+      function setActive() {
+        var y = window.scrollY + 80;
+        var current = sections[0];
+        sections.forEach(function (sec) {
+          if (sec.offsetTop <= y) current = sec;
+        });
+        links.forEach(function (a) {
+          a.classList.toggle('active', current && a.getAttribute('href') === '#' + current.id);
+        });
+      }
+      window.addEventListener('scroll', setActive, { passive: true });
+      setActive();
+    })();
+  </script>
+</body>
+</html>

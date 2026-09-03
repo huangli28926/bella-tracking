@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>埋点落库文档</title>
+  <style>
+    :root {
+      --ink: #1b2320;
+      --ink-soft: #3d4a45;
+      --paper: #f3efe6;
+      --paper-2: #fbf8f2;
+      --line: #d9d0c3;
+      --accent: #c45c26;
+      --accent-2: #2f6f62;
+      --warn: #a15c12;
+      --danger: #9b2c2c;
+      --ok: #2f6f62;
+      --sidebar: #161d1b;
+      --code: #12181a;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: 100%;
+    }
+    .side {
+      background: var(--sidebar);
+      color: #e8e2d6;
+      padding: 22px 16px 28px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+    .brand {
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #b7c4be;
+      margin-bottom: 8px;
+    }
+    .side h1 {
+      font-size: 20px;
+      font-weight: 650;
+      margin: 0 0 6px;
+      line-height: 1.35;
+    }
+    .meta {
+      font-size: 12px;
+      color: #9aa89f;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: #212926;
+      border: 1px solid #2c3833;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat b { display: block; font-size: 18px; color: #f4efe6; }
+    .stat span { font-size: 11px; color: #93a198; }
+    .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .filters button {
+      border: 1px solid #3a4742;
+      background: transparent;
+      color: #d7ddd8;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .filters button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .nav {
+      overflow: auto;
+      flex: 1;
+      margin: 0 -8px;
+      padding: 0 8px;
+    }
+    .nav button {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 10px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    .nav button:hover { background: #222b28; }
+    .nav button.active { background: #2a3531; }
+    .nav .evt { font-family: var(--mono); font-size: 12px; color: #f0c7a8; }
+    .nav .name { display: block; font-size: 13px; margin-top: 3px; }
+    .nav .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .chip {
+      font-size: 10px;
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: #2c3833;
+      color: #c9d4ce;
+    }
+    .chip.click { background: #3a2a22; color: #f0c7a8; }
+    .chip.view { background: #1f332e; color: #9ed0c4; }
+    .chip.warn { background: #3a2f18; color: #efc37a; }
+    .chip.ok { background: #1f332e; color: #9ed0c4; }
+    .chip.pending { background: #2a2f2d; color: #9aa89f; }
+    .chip.accepted { background: #1e3a4c; color: #8ec8e8; }
+    .chip.confirmed { background: #2a3a22; color: #b8e0a8; }
+    .accept-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .accept-toggle input { margin: 0; }
+    .main { padding: 28px 32px 48px; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .serve-pill {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #efe8dc;
+      color: #7d756a;
+    }
+    .serve-pill.on { background: #e1f0eb; color: var(--ok); }
+    .interrupt-banner {
+      background: #fff4e5;
+      border: 1px solid #efc37a;
+      color: var(--warn);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .interrupt-banner b { color: var(--accent); }
+    .param-card.needs-confirm {
+      border-color: #efc37a;
+      background: #fff8ee;
+      box-shadow: inset 3px 0 0 var(--warn);
+    }
+    table tr.needs-confirm td { background: #fff8ee; }
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      background: var(--sidebar);
+      color: #f4efe6;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 20;
+      display: none;
+    }
+    .fld, .fld-ta, .fld-sel {
+      width: 100%;
+      font: inherit;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 8px;
+      background: #fff;
+      color: var(--ink);
+    }
+    .fld-ta {
+      min-height: 76px;
+      font-family: var(--mono);
+      white-space: pre-wrap;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .fld-ta.code { min-height: 140px; background: var(--code); color: #e7eee9; }
+    body:not(.editing) .edit-only { display: none !important; }
+    body.editing span.read-only,
+    body.editing pre.read-only,
+    body.editing ul.read-only,
+    body.editing .note.read-only,
+    body.editing .alert.read-only { display: none !important; }
+    body.editing .fld, body.editing .fld-ta, body.editing .fld-sel {
+      font-size: 13px;
+      padding: 8px 10px;
+    }
+    body.editing .kv {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    body.editing .kv dt {
+      margin-top: 16px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: #7d756a;
+    }
+    body.editing .kv dt:first-child { margin-top: 0; }
+    body.editing .kv dd {
+      margin: 0;
+      min-width: 0;
+    }
+    body.editing .kv .fld,
+    body.editing .kv .fld-ta,
+    body.editing .kv .fld-sel {
+      margin-top: 6px;
+    }
+    .param-list { display: flex; flex-direction: column; gap: 14px; }
+    .param-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 14px 16px 16px;
+    }
+    .param-card > header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .param-card > header code {
+      font-family: var(--mono);
+      font-size: 13px;
+      background: #efe8dc;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .param-card > header .desc {
+      flex: 1;
+      font-size: 13px;
+      color: var(--ink-soft);
+      min-width: 0;
+    }
+    .enum-wrap { margin: 0 0 10px; }
+    .enum-lab {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: #7d756a;
+      margin-bottom: 4px;
+    }
+    .enum-text {
+      display: block;
+      padding: 8px 10px;
+      background: #efe8dc;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      color: var(--ink);
+      font-family: var(--mono);
+    }
+    td .enum-wrap { margin: 6px 0 0; }
+    .param-card > header .fld-sel { width: 96px; flex: none; }
+    .field-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: #7d756a;
+      margin: 0 0 10px;
+    }
+    .field-label .fld,
+    .field-label .fld-ta,
+    .field-label .fld-sel { margin-top: 5px; }
+    .fld-ta.fld-expr {
+      min-height: 92px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .field-label.expr-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .field-label.expr-head .kind-sel {
+      width: auto;
+      min-width: 148px;
+      margin: 0;
+      font-size: 12px;
+      letter-spacing: 0;
+    }
+    .expr-ph {
+      display: block;
+      width: 100%;
+      flex-basis: 100%;
+      margin-top: 6px;
+    }
+    .kind-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: #6b6358;
+      background: #efe8dc;
+    }
+    .hint-box {
+      margin-top: 4px;
+      padding: 12px;
+      background: #efe8dc;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+    .hint-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .hint-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .hint-thumbs figure { margin: 0; position: relative; }
+    .hint-thumbs .hint-del {
+      position: absolute; top: 4px; right: 4px;
+      padding: 0 6px; font-size: 11px; line-height: 18px;
+    }
+    .hint-thumbs img {
+      width: 96px;
+      height: 96px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #d2c8b8;
+      background: #fff;
+    }
+    .hint-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .hint-tip { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+    .memory-tip {
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      color: var(--accent-2);
+      background: #e7f2ee;
+      border-radius: 8px;
+    }
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      color: var(--ink-soft);
+      background: var(--paper-2);
+    }
+    .card {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(27, 35, 32, 0.06);
+    }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .head h2 { margin: 0 0 6px; font-size: 22px; }
+    .sub { color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(240px, 360px) minmax(0, 1fr);
+      gap: 0;
+    }
+    .shot {
+      padding: 18px;
+      border-right: 1px solid var(--line);
+      background: #ece6da;
+    }
+    .shot img {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid #d2c8b8;
+      background: #fff;
+      display: block;
+    }
+    .shot .ph {
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #7b7468;
+      border: 1px dashed #cbbfae;
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      font-size: 13px;
+    }
+    .shot a { color: var(--accent); font-size: 12px; word-break: break-all; }
+    .body { padding: 18px 22px 24px; }
+    .kv {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 8px 12px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .kv dt { color: #7d756a; }
+    .kv dd { margin: 0; word-break: break-all; }
+    .kv code { font-family: var(--mono); font-size: 12px; }
+    .note {
+      font-size: 12px;
+      color: #7d756a;
+      background: #efe8dc;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 0 0 14px;
+    }
+    .alert {
+      border-left: 3px solid var(--danger);
+      background: #f8eaea;
+      color: #7a2424;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .block-title {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7d756a;
+      margin: 18px 0 8px;
+    }
+    pre.code {
+      margin: 0;
+      background: var(--code);
+      color: #e7eee9;
+      border-radius: 12px;
+      padding: 14px 16px;
+      overflow-x: hidden;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      table-layout: fixed;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 8px 8px;
+      vertical-align: top;
+      overflow: hidden;
+    }
+    th:nth-child(1) { width: 12%; }
+    th:nth-child(2) { width: 14%; }
+    th:nth-child(3) { width: 30%; }
+    th:nth-child(4) { width: 32%; }
+    th:nth-child(5) { width: 12%; }
+    td code { font-family: var(--mono); font-size: 12px; }
+    td.code-expr {
+      width: 30%;
+    }
+    td.code-expr code,
+    td.source-path {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.55;
+    }
+    td.code-expr code { display: block; }
+    td.conf-cell {
+      width: 12%;
+      white-space: nowrap;
+    }
+    .conf {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 11px;
+    }
+    .conf.high { background: #e1f0eb; color: var(--ok); }
+    .conf.medium { background: #f4ead6; color: var(--warn); }
+    .conf.low { background: #f8eaea; color: var(--danger); }
+    ul.ev { margin: 6px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 13px; }
+    body.confirm-mode .side { display: none; }
+    body.confirm-mode .app { grid-template-columns: 1fr; }
+    body.confirm-mode .toolbar #btn-edit,
+    body.confirm-mode .toolbar #btn-export,
+    body.confirm-mode .toolbar #btn-save { display: none; }
+    body.confirm-mode .main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 24px 120px;
+    }
+    body.confirm-mode .shot {
+      position: sticky;
+      top: 16px;
+      align-self: start;
+    }
+    body.confirm-mode .shot img {
+      max-height: calc(100vh - 180px);
+      object-fit: contain;
+    }
+    body.confirm-mode .body { padding: 20px 22px 28px; }
+    body.confirm-mode .kv dd code {
+      display: inline-block;
+      word-break: break-all;
+    }
+    .wizard-bar {
+      background: #fff8ee;
+      border: 1px solid #efc37a;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .wizard-bar h3 { margin: 0 0 6px; font-size: 16px; color: var(--warn); }
+    .wizard-progress {
+      font-size: 12px;
+      color: #7d756a;
+      margin-bottom: 10px;
+    }
+    .wizard-reasons {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.7;
+    }
+    .focus-block {
+      background: #fff8ee;
+      border: 1px solid #efc37a;
+      border-radius: 14px;
+      padding: 16px 18px 18px;
+      margin-bottom: 18px;
+    }
+    .focus-block h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: var(--warn);
+    }
+    .focus-block .wizard-reasons { margin-bottom: 12px; }
+    .key-block { margin-bottom: 18px; }
+    .key-block.needs-confirm {
+      background: #fff8ee;
+      border: 1px solid #efc37a;
+      border-radius: 14px;
+      padding: 16px 18px 18px;
+    }
+    .aux-block {
+      margin-top: 8px;
+      padding-top: 20px;
+      border-top: 1px dashed var(--line);
+    }
+    .aux-block .block-title:first-child { margin-top: 0; }
+    .aux-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #7d756a;
+      cursor: pointer;
+      user-select: none;
+    }
+    details.aux-fold > summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7d756a;
+      margin: 0 0 12px;
+    }
+    details.aux-fold > summary::-webkit-details-marker { display: none; }
+    details.aux-fold > summary::before {
+      content: '▸ ';
+      color: var(--accent);
+    }
+    details.aux-fold[open] > summary::before { content: '▾ '; }
+    .wizard-footer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 12px 24px;
+      background: rgba(251, 248, 242, 0.96);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(6px);
+    }
+    .wizard-footer .btn { padding: 10px 18px; font-size: 13px; }
+    .wizard-footer .btn.primary { min-width: 140px; }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .side { position: relative; min-height: auto; }
+      .grid { grid-template-columns: 1fr; }
+      .shot { border-right: 0; border-bottom: 1px solid var(--line); }
+      .hint-grid { grid-template-columns: 1fr; }
+      .param-card > header { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">Tracking Impl</div>
+      <h1 id="title">埋点落库文档</h1>
+      <div class="meta" id="meta"></div>
+      <div class="stats">
+        <div class="stat"><b id="stat-all">0</b><span>全部事件</span></div>
+        <div class="stat"><b id="stat-impl">0</b><span>已分析</span></div>
+        <div class="stat"><b id="stat-click">0</b><span>点击</span></div>
+        <div class="stat"><b id="stat-view">0</b><span>曝光</span></div>
+        <div class="stat"><b id="stat-existing">0</b><span>已实现埋点</span></div>
+        <div class="stat"><b id="stat-confirmed">0</b><span>已确认</span></div>
+        <div class="stat"><b id="stat-accepted">0</b><span>验收通过</span></div>
+      </div>
+      <div class="filters" id="filters"></div>
+      <div class="nav" id="nav"></div>
+    </aside>
+    <main class="main">
+      <div class="toolbar">
+        <span class="serve-pill" id="serve-pill">静态只读</span>
+        <button type="button" class="btn" id="btn-edit" disabled>编辑模式</button>
+        <button type="button" class="btn primary edit-only" id="btn-save">保存矫正</button>
+        <button type="button" class="btn" id="btn-export">导出 impl 补丁</button>
+      </div>
+      <div class="interrupt-banner" id="interrupt-banner" hidden></div>
+      <div class="wizard-bar" id="wizard-bar" hidden>
+        <h3 id="wizard-title">矫正向导</h3>
+        <div class="wizard-progress" id="wizard-progress"></div>
+        <ul class="wizard-reasons" id="wizard-reasons"></ul>
+      </div>
+      <div id="main"></div>
+    </main>
+  </div>
+  <div class="wizard-footer" id="wizard-footer" hidden>
+    <button type="button" class="btn" id="btn-wizard-skip">跳过稍后处理</button>
+    <button type="button" class="btn primary" id="btn-wizard-confirm" disabled>确认并继续</button>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script id="report-data" type="application/json">__REPORT_JSON__</script>
+  <script>
+    (function () {
+      var report = JSON.parse(document.getElementById('report-data').textContent);
+      var filter = 'all';
+      var currentId = '';
+      var serving = false;
+      var editing = false;
+      var confirmMode = false;
+      var confirmQueue = null;
+      var apiList = [];
+      var pasteTarget = '';
+
+      function esc(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function hasEnumText(text) {
+        var s = String(text == null ? '' : text).replace(/[\s\u3000]/g, '');
+        if (!s) return false;
+        var low = s.toLowerCase();
+        return low !== '无' && low !== '-' && low !== '—' && low !== 'null' && low !== 'none';
+      }
+
+      function enumBlock(text) {
+        if (!hasEnumText(text)) return '';
+        var body = esc(String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
+        return '<div class="enum-wrap"><span class="enum-lab">枚举值</span><div class="enum-text">' + body + '</div></div>';
+      }
+
+      function toast(text) {
+        var el = document.getElementById('toast');
+        el.textContent = text;
+        el.style.display = 'block';
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+      }
+
+      function queryEvt() {
+        try {
+          var params = new URLSearchParams(location.search);
+          return String(params.get('evt') || params.get('evtId') || '').trim();
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function queryMode() {
+        try {
+          var params = new URLSearchParams(location.search);
+          return String(params.get('mode') || '').trim();
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function syncUrl(evtId) {
+        try {
+          var next = new URL(location.href);
+          if (evtId) next.searchParams.set('evt', String(evtId));
+          else next.searchParams.delete('evt');
+          if (confirmMode) next.searchParams.set('mode', 'confirm');
+          else next.searchParams.delete('mode');
+          history.replaceState(null, '', next.pathname + next.search + next.hash);
+        } catch (error) {}
+      }
+
+      function paramNeedsConfirm(impl) {
+        var expr = String((impl && impl.expression) || '').trim();
+        var confidence = String((impl && impl.confidence) || '').trim();
+        return !expr || confidence === 'low' || confidence === 'medium';
+      }
+
+      function updateInterruptBanner() {
+        var el = document.getElementById('interrupt-banner');
+        if (!el) return;
+        if (confirmMode) {
+          el.hidden = true;
+          return;
+        }
+        var evt = queryEvt();
+        var event = currentEvent();
+        var impl = (event && event.impl) || {};
+        var show = !!(evt && event && String(event.evtId) === String(evt) && !isConfirmed(impl));
+        el.hidden = !show;
+        if (show) {
+          el.innerHTML = '当前打断：<b>' + esc(evt) + '</b>。只确认埋点位置或参数取值，勾选后保存。';
+        }
+      }
+
+      function currentQueueItem() {
+        if (!confirmQueue || !confirmQueue.queue) return null;
+        return confirmQueue.queue.find(function (item) { return String(item.evtId) === String(currentId); }) || null;
+      }
+
+      function locationNeedsConfirm(impl) {
+        var status = (impl && impl.status) || 'pending';
+        if (status === 'unresolved' || status === 'pending') return true;
+        return !String((impl && impl.targetFile) || '').trim();
+      }
+
+      function eventConfirmReasons(event) {
+        var item = currentQueueItem();
+        if (item && item.reasons && item.reasons.length) return item.reasons;
+        var impl = (event && event.impl) || {};
+        var reasons = [];
+        if (locationNeedsConfirm(impl)) reasons.push('请确认埋点位置');
+        paramKeys(event || {}).forEach(function (key) {
+          var param = ((impl.parameters || []).find(function (row) { return row.key === key; })) || {};
+          if (paramNeedsConfirm(param)) reasons.push('请确认参数 ' + key + ' 的取值');
+        });
+        if (impl.uicodeConflict) reasons.push('请确认 uicode（文档与落点不一致）');
+        return reasons;
+      }
+
+      function renderWizard() {
+        var bar = document.getElementById('wizard-bar');
+        var footer = document.getElementById('wizard-footer');
+        if (!bar || !footer) return;
+        if (!confirmMode) {
+          bar.hidden = true;
+          footer.hidden = true;
+          document.body.classList.remove('confirm-mode');
+          return;
+        }
+        document.body.classList.add('confirm-mode');
+        bar.hidden = false;
+        footer.hidden = false;
+        var event = currentEvent();
+        var progress = (confirmQueue && confirmQueue.progress) || { label: '-', index: 0, total: 0 };
+        document.getElementById('wizard-title').textContent =
+          '矫正向导 · ' + (event ? esc(event.eventName || event.evtId) : currentId);
+        document.getElementById('wizard-progress').textContent =
+          '进度 ' + (progress.label || '-') + ' · 待处理 ' + ((confirmQueue && confirmQueue.pendingCount) || 0);
+        var reasons = eventConfirmReasons(event);
+        document.getElementById('wizard-reasons').innerHTML = reasons.length
+          ? reasons.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('')
+          : '<li>请核对埋点位置或参数后勾选确认</li>';
+        updateWizardConfirmBtn();
+      }
+
+      function updateWizardConfirmBtn() {
+        var btn = document.getElementById('btn-wizard-confirm');
+        if (!btn) return;
+        btn.disabled = !confirmedValue();
+      }
+
+      function fetchConfirmQueue() {
+        if (!serving || !confirmMode) return Promise.resolve(null);
+        var qs = currentId ? ('?evt=' + encodeURIComponent(String(currentId))) : '';
+        return fetch('/api/confirm-queue' + qs).then(function (res) {
+          return res.ok ? res.json() : Promise.reject();
+        }).then(function (data) {
+          if (!data || !data.ok) return null;
+          confirmQueue = data.queue || null;
+          if (data.progress) confirmQueue.progress = data.progress;
+          renderWizard();
+          return confirmQueue;
+        }).catch(function () {
+          confirmQueue = null;
+          renderWizard();
+          return null;
+        });
+      }
+
+      function navigateWizard(nextEvtId, reviewUrl) {
+        if (reviewUrl) {
+          location.href = reviewUrl;
+          return;
+        }
+        if (nextEvtId) {
+          currentId = nextEvtId;
+          syncUrl(currentId);
+          renderNav();
+          renderMain();
+          fetchConfirmQueue();
+          return;
+        }
+        toast('当前队列已处理完');
+        fetchConfirmQueue();
+      }
+
+      function statusLabel(status) {
+        if (status === 'existing') return '已落地';
+        if (status === 'located') return '已定位';
+        if (status === 'unresolved') return '待确认';
+        return '待分析';
+      }
+
+      function isAccepted(impl) {
+        return !!(impl && impl.accepted && impl.status === 'existing');
+      }
+
+      function isConfirmed(impl) {
+        return !!(impl && impl.confirmed);
+      }
+
+      function statusChip(event) {
+        var impl = event.impl || {};
+        if (impl.uicodeConflict || (impl.unresolved && impl.unresolved.length) || impl.status === 'unresolved') {
+          return 'warn';
+        }
+        if (impl.status === 'existing' || impl.status === 'located') return 'ok';
+        return 'pending';
+      }
+
+      function currentEvent() {
+        return (report.events || []).find(function (item) { return String(item.evtId) === String(currentId); });
+      }
+
+      function filtered() {
+        return (report.events || []).filter(function (event) {
+          if (filter === 'click') return event.kind === 'click';
+          if (filter === 'view') return event.kind === 'view';
+          if (filter === 'existing') return (event.impl || {}).status === 'existing';
+          if (filter === 'confirmed') return isConfirmed(event.impl || {});
+          if (filter === 'accepted') return isAccepted(event.impl || {});
+          if (filter === 'open') {
+            var impl = event.impl || {};
+            return impl.status === 'pending' || impl.status === 'unresolved'
+              || (impl.unresolved && impl.unresolved.length) || impl.uicodeConflict;
+          }
+          return true;
+        });
+      }
+
+      function overlayDraftImpl(event, draft) {
+        if (!event || !draft) return;
+        var impl = event.impl || {};
+        event.impl = impl;
+        ['status', 'accepted', 'confirmed', 'targetFile', 'functionName', 'lifecycle', 'insertHint', 'uicodeConflict', 'code', 'unresolved'].forEach(function (key) {
+          if (draft[key] !== undefined) impl[key] = draft[key];
+        });
+        var byKey = {};
+        (impl.parameters || []).forEach(function (item) { byKey[item.key] = item; });
+        (draft.parameters || []).forEach(function (d) {
+          var p = byKey[d.key];
+          if (!p) return;
+          p.expression = d.expression;
+          p.valueKind = d.valueKind;
+          p.sourcePath = d.sourcePath;
+          p.confidence = d.confidence;
+          p.hint = p.hint || {};
+          var dh = d.hint || {};
+          p.hint.note = dh.note;
+          p.hint.api = dh.api;
+        });
+      }
+
+      function applyReport(next, keepDraft) {
+        if (!next) return;
+        var draftImpl = null;
+        var draftId = currentId;
+        if (keepDraft) {
+          stashForm();
+          var cur = currentEvent();
+          if (cur && cur.impl) draftImpl = cur.impl;
+        }
+        report = next;
+        if (draftImpl) {
+          var event = (report.events || []).find(function (item) {
+            return String(item.evtId) === String(draftId);
+          });
+          overlayDraftImpl(event, draftImpl);
+        }
+        applyStats();
+        renderNav();
+        renderMain();
+      }
+
+      function fieldEl(name) {
+        return document.querySelector('[data-field="' + name + '"]');
+      }
+
+      function val(name) {
+        var el = fieldEl(name);
+        return el ? el.value : '';
+      }
+
+      function keepOrVal(name, fallback) {
+        return fieldEl(name) ? val(name) : fallback;
+      }
+
+      function acceptedValue() {
+        var status = val('status');
+        var el = document.querySelector('[data-field="accepted"]');
+        return status === 'existing' && !!(el && el.checked);
+      }
+
+      function confirmedValue() {
+        var el = document.querySelector('[data-field="confirmed"]');
+        return !!(el && el.checked);
+      }
+
+      function applyStats() {
+        document.getElementById('stat-all').textContent = report.eventCount || 0;
+        document.getElementById('stat-impl').textContent = report.implCount || 0;
+        document.getElementById('stat-click').textContent = report.clickCount || 0;
+        document.getElementById('stat-view').textContent = report.viewCount || 0;
+        document.getElementById('stat-existing').textContent = report.existingCount || 0;
+        document.getElementById('stat-confirmed').textContent = report.confirmedCount || 0;
+        document.getElementById('stat-accepted').textContent = report.acceptedCount || 0;
+      }
+
+      function paramVal(key, name) {
+        var sel = '[data-param="' + String(key).replace(/"/g, '\\"') + '"][data-pf="' + name + '"]';
+        var el = document.querySelector(sel);
+        return el ? el.value : '';
+      }
+
+      function collectPatch() {
+        var event = currentEvent();
+        if (!event) return null;
+        var impl = event.impl || {};
+        if (!editing) {
+          return { evtId: event.evtId };
+        }
+        var keys = paramKeys(event);
+        var parameters = keys.map(function (key) {
+          var prev = ((impl.parameters || []).find(function (item) { return item.key === key; })) || { key: key };
+          var prevHint = prev.hint || {};
+          var prevApi = prevHint.api || {};
+          var exprEl = document.querySelector('[data-param="' + String(key).replace(/"/g, '\\"') + '"][data-pf="expression"]');
+          var expr = exprEl ? paramVal(key, 'expression') : (prev.expression || '');
+          var kindEl = document.querySelector('[data-param="' + String(key).replace(/"/g, '\\"') + '"][data-pf="valueKind"]');
+          return {
+            key: key,
+            expression: expr,
+            valueKind: kindEl ? paramVal(key, 'valueKind') : inferValueKind(expr, prev.valueKind),
+            sourcePath: paramVal(key, 'sourcePath') || prev.sourcePath || '',
+            confidence: paramVal(key, 'confidence') || prev.confidence || '',
+            hint: {
+              note: paramVal(key, 'note') || prevHint.note || '',
+              api: {
+                url: paramVal(key, 'apiUrl') || prevApi.url || '',
+                field: paramVal(key, 'apiField') || prevApi.field || ''
+              }
+            }
+          };
+        });
+        return {
+          evtId: event.evtId,
+          status: val('status') || impl.status,
+          accepted: acceptedValue(),
+          confirmed: confirmedValue(),
+          targetFile: keepOrVal('targetFile', impl.targetFile || ''),
+          functionName: keepOrVal('functionName', impl.functionName || ''),
+          lifecycle: keepOrVal('lifecycle', impl.lifecycle || ''),
+          insertHint: keepOrVal('insertHint', impl.insertHint || ''),
+          uicodeConflict: keepOrVal('uicodeConflict', impl.uicodeConflict || ''),
+          code: keepOrVal('code', impl.code || ''),
+          unresolved: fieldEl('unresolved')
+            ? val('unresolved').split(/\n+/).map(function (item) { return item.trim(); }).filter(Boolean)
+            : (impl.unresolved || []),
+          parameters: parameters
+        };
+      }
+
+      function stashForm() {
+        if (!editing) return;
+        var patch = collectPatch();
+        if (!patch) return;
+        var event = currentEvent();
+        if (!event) return;
+        event.impl = event.impl || {};
+        event.impl.status = patch.status;
+        event.impl.accepted = !!patch.accepted;
+        event.impl.confirmed = !!patch.confirmed;
+        event.impl.targetFile = patch.targetFile;
+        event.impl.functionName = patch.functionName;
+        event.impl.lifecycle = patch.lifecycle;
+        event.impl.insertHint = patch.insertHint;
+        event.impl.uicodeConflict = patch.uicodeConflict;
+        event.impl.code = patch.code;
+        event.impl.unresolved = patch.unresolved;
+        var byKey = {};
+        (event.impl.parameters || []).forEach(function (item) { byKey[item.key] = item; });
+        patch.parameters.forEach(function (item) {
+          var prev = byKey[item.key] || { key: item.key, hint: {} };
+          prev.expression = item.expression;
+          prev.valueKind = item.valueKind;
+          prev.sourcePath = item.sourcePath;
+          prev.confidence = item.confidence;
+          prev.hint = prev.hint || {};
+          prev.hint.note = item.hint.note;
+          prev.hint.api = item.hint.api;
+          byKey[item.key] = prev;
+        });
+        event.impl.parameters = Object.keys(byKey).map(function (key) { return byKey[key]; });
+      }
+
+      function renderNav() {
+        var html = filtered().map(function (event) {
+          var active = String(event.evtId) === String(currentId) ? ' active' : '';
+          return '<button data-id="' + esc(event.evtId) + '" class="' + active + '">' +
+            '<span class="evt">' + esc(event.evtId) + '</span>' +
+            '<span class="name">' + esc(event.eventName || '-') + '</span>' +
+            '<span class="tags"><span class="chip ' + esc(event.kind) + '">' +
+            (event.kind === 'click' ? '点击' : '曝光') + '</span>' +
+            '<span class="chip ' + statusChip(event) + '">' + statusLabel((event.impl || {}).status) + '</span>' +
+            (isConfirmed(event.impl) ? '<span class="chip confirmed">已确认</span>' : '') +
+            (isAccepted(event.impl) ? '<span class="chip accepted">验收通过</span>' : '') +
+            '</span></button>';
+        }).join('');
+        document.getElementById('nav').innerHTML = html || '<div class="meta">无匹配事件</div>';
+      }
+
+      function paramKeys(event) {
+        var implParams = ((event.impl || {}).parameters) || [];
+        var keys = (event.params || []).map(function (item) { return item.key; });
+        implParams.forEach(function (item) {
+          if (keys.indexOf(item.key) === -1) keys.push(item.key);
+        });
+        return keys;
+      }
+
+      function hintThumbs(key, impl, canDelete) {
+        var srcs = (impl && impl.hintSrcs) || [];
+        var rels = ((impl && impl.hint && impl.hint.images) || []);
+        return srcs.map(function (src, idx) {
+          var rel = String(rels[idx] || '').split('?')[0];
+          var del = canDelete && rel
+            ? '<button type="button" class="btn hint-del" data-delhint="' + esc(key) + '" data-delrel="' + esc(rel) + '">删</button>'
+            : '';
+          return '<figure><img src="' + esc(src) + '" alt="' + esc(key) + ' 提示图" />' + del + '</figure>';
+        }).join('');
+      }
+
+      function hintReadBlock(key, impl) {
+        var hint = impl.hint || {};
+        var api = hint.api || {};
+        var srcs = impl.hintSrcs || [];
+        var hasHint = !!(hint.note || api.url || api.field || srcs.length);
+        if (!hasHint) return '';
+        var readBits = [];
+        if (hint.note) readBits.push(esc(hint.note));
+        if (api.url || api.field) readBits.push('<code>' + esc(api.url || '-') + '</code> / <code>' + esc(api.field || '-') + '</code>');
+        var thumbs = hintThumbs(key, impl, false);
+        return '<tr class="hint-row"><td colspan="5"><div class="hint-box">' +
+          '<div>' + (readBits.join(' · ') || '无提示图 / 接口字段') + '</div>' +
+          (thumbs ? '<div class="hint-thumbs">' + thumbs + '</div>' : '') +
+          '</div></td></tr>';
+      }
+
+      function hintEditBlock(key, impl) {
+        var hint = impl.hint || {};
+        var api = hint.api || {};
+        var srcs = impl.hintSrcs || [];
+        var thumbs = hintThumbs(key, impl, true);
+        return '<div class="hint-box">' +
+          '<div class="hint-grid">' +
+          '<label class="field-label">提示说明' +
+          '<input class="fld" data-param="' + esc(key) + '" data-pf="note" placeholder="头卡旁挂牌价 168万" value="' + esc(hint.note || '') + '" /></label>' +
+          '<label class="field-label">接口 url' +
+          '<input class="fld" list="api-url-list" data-param="' + esc(key) + '" data-pf="apiUrl" placeholder="/api/..." value="' + esc(api.url || '') + '" /></label>' +
+          '<label class="field-label">返回字段' +
+          '<input class="fld" data-param="' + esc(key) + '" data-pf="apiField" placeholder="listingPriceText" value="' + esc(api.field || '') + '" /></label>' +
+          '</div>' +
+          '<div class="hint-actions">' +
+          '<button type="button" class="btn" data-upload="' + esc(key) + '">上传 / 粘贴</button>' +
+          (srcs.length ? '<button type="button" class="btn" data-delhint="' + esc(key) + '">清空图</button>' : '') +
+          '<span class="hint-tip">可多选或连续粘贴多张</span>' +
+          '</div>' +
+          (thumbs ? '<div class="hint-thumbs">' + thumbs + '</div>' : '') +
+          '</div>';
+      }
+
+      function memoryNote(impl) {
+        if (!impl || !impl.fromMemory) return '';
+        var from = impl.fromEvtId ? '（来自 ' + esc(impl.fromEvtId) + '）' : '';
+        return '<div class="memory-tip">已回填上次确认值' + from + '，请确认后保存</div>';
+      }
+
+      function inferValueKind(text, explicit) {
+        var kind = String(explicit || '').trim();
+        if (kind === 'expression' || kind === 'prompt') return kind;
+        var s = String(text || '').trim();
+        if (!s) return '';
+        if (/[\u4e00-\u9fff]/.test(s)) return 'prompt';
+        if (/\s/.test(s) && !/[.?:=]|[|]{2}|&&|\?/.test(s)) return 'prompt';
+        return 'expression';
+      }
+
+      function valueKindSelect(key, kind) {
+        var current = kind === 'prompt' ? 'prompt' : 'expression';
+        return '<select class="fld-sel kind-sel" data-param="' + esc(key) + '" data-pf="valueKind">' +
+          '<option value="expression"' + (current === 'expression' ? ' selected' : '') + '>表达式</option>' +
+          '<option value="prompt"' + (current === 'prompt' ? ' selected' : '') + '>备注（给写码 AI）</option>' +
+          '</select>';
+      }
+
+      function confidenceSelect(key, conf) {
+        return '<select class="fld-sel" data-param="' + esc(key) + '" data-pf="confidence">' +
+          ['', 'high', 'medium', 'low'].map(function (item) {
+            return '<option value="' + item + '"' + (conf === item ? ' selected' : '') + '>' + (item || '未标') + '</option>';
+          }).join('') +
+          '</select>';
+      }
+
+      function paramRows(event, which) {
+        var implParams = ((event.impl || {}).parameters) || [];
+        var byKey = {};
+        implParams.forEach(function (item) { byKey[item.key] = item; });
+        var keys = paramKeys(event);
+        if (which === 'open') {
+          keys = keys.filter(function (key) { return paramNeedsConfirm(byKey[key] || {}); });
+        } else if (which === 'ok') {
+          keys = keys.filter(function (key) { return !paramNeedsConfirm(byKey[key] || {}); });
+        }
+        if (!keys.length) {
+          return which === 'all' ? '<div class="note">无额外 action 参数</div>' : '';
+        }
+        var datalist = which === 'ok' ? '' : ('<datalist id="api-url-list">' + apiList.map(function (item) {
+          return '<option value="' + esc(item.url || '') + '">' + esc(item.field || item.name || '') + '</option>';
+        }).join('') + '</datalist>');
+        if (editing) {
+          var cards = keys.map(function (key) {
+            var doc = (event.params || []).find(function (item) { return item.key === key; }) || {};
+            var impl = byKey[key] || {};
+            var conf = impl.confidence || '';
+            var desc = doc.desc || impl.docDesc || '-';
+            return '<article class="param-card hint-row' + (paramNeedsConfirm(impl) ? ' needs-confirm' : '') + '">' +
+              '<header><code>' + esc(key) + '</code><span class="desc">' + esc(desc) + '</span>' +
+              confidenceSelect(key, conf) + '</header>' +
+              enumBlock(doc.enumText) +
+              memoryNote(impl) +
+              '<label class="field-label expr-head">表达式或备注' +
+              valueKindSelect(key, inferValueKind(impl.expression, impl.valueKind)) +
+              '<textarea class="fld-ta fld-expr expr-ph" data-param="' + esc(key) + '" data-pf="expression" placeholder="可填 JS 表达式，或用一句话说明取值（写码时作为提示词）">' +
+              esc(impl.expression || '') + '</textarea></label>' +
+              '<label class="field-label">来源路径' +
+              '<input class="fld" data-param="' + esc(key) + '" data-pf="sourcePath" value="' +
+              esc(impl.sourcePath || '') + '" /></label>' +
+              hintEditBlock(key, impl) +
+              '</article>';
+          }).join('');
+          return datalist + '<div class="param-list">' + cards + '</div>';
+        }
+        var rows = keys.map(function (key) {
+          var doc = (event.params || []).find(function (item) { return item.key === key; }) || {};
+          var impl = byKey[key] || {};
+          var conf = impl.confidence || '';
+          var kind = inferValueKind(impl.expression, impl.valueKind);
+          var kindTag = kind === 'prompt' ? '<span class="kind-tag">备注</span>' : (kind === 'expression' ? '<span class="kind-tag">表达式</span>' : '');
+          var exprHtml = kind === 'prompt'
+            ? esc(impl.expression || '待确认')
+            : '<code>' + esc(impl.expression || '待确认') + '</code>';
+          return '<tr' + (paramNeedsConfirm(impl) ? ' class="needs-confirm"' : '') + '><td><code>' + esc(key) + '</code></td><td>' + esc(doc.desc || impl.docDesc || '-') +
+            enumBlock(doc.enumText) +
+            '</td><td class="code-expr">' + exprHtml + kindTag +
+            (impl.fromMemory ? '<div class="memory-tip">已回填上次确认值' + (impl.fromEvtId ? '（来自 ' + esc(impl.fromEvtId) + '）' : '') + '</div>' : '') +
+            '</td>' +
+            '<td class="source-path">' + esc(impl.sourcePath || '-') + '</td>' +
+            '<td class="conf-cell">' +
+            (conf ? '<span class="conf ' + esc(conf) + '">' + esc(conf) + '</span>' : '-') +
+            '</td></tr>' + hintReadBlock(key, impl);
+        }).join('');
+        return datalist +
+          '<table><thead><tr><th>key</th><th>文档说明</th><th>表达式或备注</th><th>来源路径</th><th>置信度</th></tr></thead><tbody>' +
+          rows + '</tbody></table>';
+      }
+
+      function renderMain() {
+        var event = currentEvent();
+        var root = document.getElementById('main');
+        if (!event) {
+          root.innerHTML = '<div class="empty">选择左侧事件查看落库详情</div>';
+          updateInterruptBanner();
+          return;
+        }
+        var impl = event.impl || {};
+        var shot = event.diagramSrc
+          ? '<img src="' + esc(event.diagramSrc) + '" alt="示意图 ' + esc(event.evtId) + '" />'
+          : '<div class="ph">文档未提供可用示意图' +
+            (event.diagramUrl ? '<br/><a href="' + esc(event.diagramUrl) + '" target="_blank" rel="noreferrer">打开原图</a>' : '') +
+            '</div>';
+        var evidence = (impl.evidence || []).map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('');
+        var reasons = eventConfirmReasons(event);
+        var needLocation = locationNeedsConfirm(impl);
+        var needUicode = !!String(impl.uicodeConflict || '').trim();
+        var openParams = paramRows(event, 'open');
+        var okParams = paramRows(event, 'ok');
+        var focusReasons = reasons.length
+          ? '<ul class="wizard-reasons">' + reasons.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ul>'
+          : '<div class="note">暂无待确认项，请核对后勾选确认。</div>';
+        var uicodeField = needUicode
+          ? '<label class="field-label">uicode 冲突' +
+            '<span class="read-only">' + esc(impl.uicodeConflict || '-') + '</span>' +
+            '<textarea class="fld-ta edit-only" data-field="uicodeConflict">' + esc(impl.uicodeConflict || '') + '</textarea></label>'
+          : '';
+        var focusBlock =
+          '<div class="focus-block">' +
+          '<h3>待确认</h3>' +
+          focusReasons +
+          uicodeField +
+          '<div class="read-only">' + (isConfirmed(impl) ? '已确认' : '未确认') + '</div>' +
+          '<label class="edit-only accept-toggle"><input type="checkbox" data-field="confirmed"' +
+          (isConfirmed(impl) ? ' checked' : '') +
+          ' /> 已确认落库内容</label>' +
+          (openParams ? '<div class="block-title">需核对的参数</div>' + openParams : '') +
+          '</div>';
+        var insertHintRow = confirmMode ? '' : (
+          '<dt>插入说明</dt><dd><span class="read-only">' + esc(impl.insertHint || '-') + '</span>' +
+          '<textarea class="fld-ta edit-only" data-field="insertHint">' + esc(impl.insertHint || '') + '</textarea></dd>'
+        );
+        var keyBlock = (confirmMode && !needLocation)
+          ? ''
+          : ('<div class="key-block' + (needLocation ? ' needs-confirm' : '') + '">' +
+          '<div class="block-title">' + (needLocation ? '请确认埋点位置' : '落点') + '</div>' +
+          '<dl class="kv">' +
+          '<dt>落点文件</dt><dd><span class="read-only">' + esc(impl.targetFile || '待定位') + '</span>' +
+          '<input class="fld edit-only" data-field="targetFile" value="' + esc(impl.targetFile || '') + '" /></dd>' +
+          '<dt>函数 / 时机</dt><dd><span class="read-only">' + esc(impl.functionName || '-') + (impl.lifecycle ? ' · ' + esc(impl.lifecycle) : '') + '</span>' +
+          '<div class="edit-only" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+          '<input class="fld" data-field="functionName" placeholder="函数名" value="' + esc(impl.functionName || '') + '" />' +
+          '<input class="fld" data-field="lifecycle" placeholder="onClick / useEffect" value="' + esc(impl.lifecycle || '') + '" /></div></dd>' +
+          insertHintRow +
+          '</dl></div>');
+        var auxBlock =
+          '<div class="aux-block">' +
+          '<details class="aux-fold"' + (confirmMode ? '' : ' open') + '>' +
+          '<summary>辅助信息 · 元数据 / 写法</summary>' +
+          '<div class="note">页面名称不可靠，仅摘录文档原文：' + esc(event.pageName || '-') +
+          '。uicode 只从埋点文档读取，禁止 AI / 人工修改。' +
+          (serving ? '' : ' 编辑/上传请先运行 serve-impl。') + '</div>' +
+          '<dl class="kv">' +
+          '<dt>pid / uicode</dt><dd><code>' + esc(event.pid || '-') + '</code> / <code>' + esc(event.uicode || '-') + '</code>' +
+          '<div class="note" style="margin:6px 0 0">uicode 来自 Excel，只读锁定。</div></dd>' +
+          '<dt>状态</dt><dd><span class="read-only">' + esc(statusLabel(impl.status)) + '</span>' +
+          '<select class="fld-sel edit-only" data-field="status">' +
+          [['pending', '待分析'], ['located', '已定位'], ['existing', '已落地'], ['unresolved', '待确认']].map(function (item) {
+            return '<option value="' + item[0] + '"' + (impl.status === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+          }).join('') + '</select></dd>' +
+          '<dt>验收</dt><dd><span class="read-only">' + (isAccepted(impl) ? '通过' : '未通过') + '</span>' +
+          '<label class="edit-only accept-toggle"><input type="checkbox" data-field="accepted"' +
+          (impl.status === 'existing' ? '' : ' disabled') +
+          (isAccepted(impl) ? ' checked' : '') +
+          ' /> 验收通过（需先已落地）</label></dd>' +
+          '<dt>曝光口径</dt><dd>' + esc((event.exposure && (event.exposure.ratio + ' / ' + event.exposure.mechanism)) || '-') + '</dd>' +
+          '</dl>' +
+          (evidence ? '<div class="block-title">定位依据</div><ul class="ev">' + evidence + '</ul>' : '') +
+          '<div class="block-title">埋点写法</div>' +
+          '<div class="note">保存时会把 snippet 里的 uicode 强制改回文档值。</div>' +
+          '<pre class="code read-only">' + esc(impl.code || '待分析') + '</pre>' +
+          '<textarea class="fld-ta code edit-only" data-field="code">' + esc(impl.code || '') + '</textarea>' +
+          '<div class="block-title">其余参数</div>' +
+          (okParams || '<div class="note">无已确认参数</div>') +
+          '</details></div>';
+        root.innerHTML =
+          '<article class="card"><div class="head"><div><h2>' + esc(event.eventName || event.evtId) +
+          '</h2><div class="sub">' + esc(event.eventType) + ' · evt_id ' + esc(event.evtId) +
+          '</div></div><div class="badges"><span class="chip ' + esc(event.kind) + '">' +
+          (event.kind === 'click' ? '点击' : '曝光') + '</span><span class="chip ' + statusChip(event) + '">' +
+          statusLabel(impl.status) + '</span>' +
+          (isConfirmed(impl) ? '<span class="chip confirmed">已确认</span>' : '') +
+          (isAccepted(impl) ? '<span class="chip accepted">验收通过</span>' : '') +
+          '</div></div><div class="grid"><div class="shot">' + shot +
+          (event.diagramUrl ? '<p><a href="' + esc(event.diagramUrl) + '" target="_blank" rel="noreferrer">文档原图</a></p>' : '') +
+          '</div><div class="body">' +
+          focusBlock + keyBlock + auxBlock +
+          '<input type="file" accept="image/*" id="hint-file" multiple hidden />' +
+          '</div></div></article>';
+        bindAcceptedToggle();
+        bindConfirmedToggle();
+        updateInterruptBanner();
+        renderWizard();
+        var activeBtn = document.querySelector('#nav button.active');
+        if (activeBtn && activeBtn.scrollIntoView) {
+          activeBtn.scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      function bindAcceptedToggle() {
+        var statusSel = document.querySelector('[data-field="status"]');
+        var acceptedBox = document.querySelector('[data-field="accepted"]');
+        if (!statusSel || !acceptedBox) return;
+        statusSel.addEventListener('change', function () {
+          var existing = statusSel.value === 'existing';
+          acceptedBox.disabled = !existing;
+          if (!existing) acceptedBox.checked = false;
+        });
+      }
+
+      function bindConfirmedToggle() {
+        var confirmedBox = document.querySelector('[data-field="confirmed"]');
+        if (!confirmedBox) return;
+        confirmedBox.addEventListener('change', updateWizardConfirmBtn);
+      }
+
+      function setFilter(next) {
+        stashForm();
+        filter = next;
+        Array.prototype.forEach.call(document.querySelectorAll('#filters button'), function (btn) {
+          btn.className = btn.getAttribute('data-filter') === filter ? 'active' : '';
+        });
+        var list = filtered();
+        if (!list.some(function (item) { return String(item.evtId) === String(currentId); })) {
+          currentId = list[0] ? list[0].evtId : '';
+        }
+        renderNav();
+        renderMain();
+      }
+
+      function setEditing(next) {
+        editing = !!next;
+        document.body.classList.toggle('editing', editing);
+        document.getElementById('btn-edit').textContent = editing ? '退出编辑' : '编辑模式';
+        renderMain();
+      }
+
+      function exportPatch() {
+        stashForm();
+        var event = currentEvent();
+        if (!event) return;
+        var blob = new Blob([JSON.stringify({ events: [{ evtId: event.evtId, impl: event.impl }] }, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (report.slug || 'impl') + '-' + event.evtId + '.patch.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      function postJson(path, payload) {
+        return fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok || !data.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+            return data;
+          });
+        });
+      }
+
+      function saveImpl(wizardAction) {
+        if (!serving) {
+          toast('请先运行 serve-impl');
+          return Promise.reject(new Error('offline'));
+        }
+        stashForm();
+        var patch = collectPatch();
+        if (!patch || !patch.evtId) return Promise.reject(new Error('no event'));
+        if (wizardAction === 'confirm' && !patch.confirmed) {
+          toast('请先勾选「已确认落库内容」');
+          return Promise.reject(new Error('need confirm'));
+        }
+        if (wizardAction) patch.wizardAction = wizardAction;
+        return postJson('/api/save-impl', patch).then(function (data) {
+          applyReport(data.report);
+          if (data.wizard && (data.wizard.action === 'confirm' || data.wizard.action === 'skip')) {
+            if (data.wizard.action === 'confirm') {
+              toast('已确认，进入下一条');
+            } else {
+              toast('已跳过，进入下一条');
+            }
+            navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
+            return data;
+          }
+          var saved = currentEvent();
+          if (saved && isConfirmed(saved.impl || {})) {
+            toast('已确认，分析将继续下一条');
+          } else {
+            toast('已写回 impl.json');
+          }
+          return data;
+        }).catch(function (err) {
+          toast(err.message || '保存失败');
+          throw err;
+        });
+      }
+
+      function imageFromClipboard(e) {
+        var items = e.clipboardData && e.clipboardData.items;
+        if (items) {
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].type && items[i].type.indexOf('image/') === 0) {
+              return items[i].getAsFile();
+            }
+          }
+        }
+        var files = e.clipboardData && e.clipboardData.files;
+        if (files) {
+          for (var j = 0; j < files.length; j++) {
+            if (files[j].type && files[j].type.indexOf('image/') === 0) {
+              return files[j];
+            }
+          }
+        }
+        return null;
+      }
+
+      function resolvePasteParam(e) {
+        var key = '';
+        var el = e.target;
+        if (el && el.getAttribute) key = el.getAttribute('data-param') || '';
+        if (!key) {
+          var row = el && el.closest && el.closest('.hint-row');
+          var btn = row && row.querySelector('[data-upload]');
+          if (btn) key = btn.getAttribute('data-upload') || '';
+        }
+        if (!key) key = pasteTarget || '';
+        var event = currentEvent();
+        var keys = event ? paramKeys(event) : [];
+        if (key && keys.indexOf(key) === -1) return '';
+        return key;
+      }
+
+      function uploadHint(paramKey, file) {
+        if (!serving) {
+          toast('请先运行 serve-impl');
+          return Promise.reject(new Error('offline'));
+        }
+        if (!paramKey || !file) return Promise.resolve();
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () {
+            postJson('/api/upload-hint', {
+              evtId: currentId,
+              paramKey: paramKey,
+              mime: file.type,
+              dataBase64: String(reader.result || '')
+            }).then(resolve).catch(reject);
+          };
+          reader.onerror = function () { reject(new Error('读图失败')); };
+          reader.readAsDataURL(file);
+        }).then(function (data) {
+          applyReport(data.report, true);
+          return data;
+        });
+      }
+
+      function uploadHints(paramKey, files) {
+        var list = Array.prototype.filter.call(files || [], function (file) {
+          return file && file.type && file.type.indexOf('image/') === 0;
+        });
+        if (!list.length) return;
+        var chain = Promise.resolve();
+        list.forEach(function (file) {
+          chain = chain.then(function () { return uploadHint(paramKey, file); });
+        });
+        chain.then(function () {
+          toast(list.length > 1 ? '已保存 ' + list.length + ' 张提示图' : '提示图已保存');
+        }).catch(function (err) {
+          toast(err.message || '上传失败');
+        });
+      }
+
+      function deleteHint(paramKey, imageRel) {
+        postJson('/api/delete-hint', { evtId: currentId, paramKey: paramKey, imageRel: imageRel || '' }).then(function (data) {
+          applyReport(data.report, true);
+          toast(imageRel ? '已删除该图' : '已清空提示图');
+        }).catch(function (err) {
+          toast(err.message || '删除失败');
+        });
+      }
+
+      function probeServer() {
+        fetch('/api/status').then(function (res) { return res.ok ? res.json() : Promise.reject(); }).then(function (data) {
+          serving = !!(data && data.ok);
+          var pill = document.getElementById('serve-pill');
+          pill.textContent = serving ? '本地服务已连接' : '静态只读';
+          pill.className = 'serve-pill' + (serving ? ' on' : '');
+          document.getElementById('btn-edit').disabled = !serving;
+          if (!serving) return null;
+          return fetch('/api/apis').then(function (res) { return res.json(); }).then(function (payload) {
+            apiList = (payload && payload.apis) || [];
+          }).catch(function () { apiList = []; });
+        }).catch(function () {
+          serving = false;
+          document.getElementById('btn-edit').disabled = true;
+        }).then(function () {
+          renderMain();
+          if (confirmMode) {
+            setEditing(true);
+            fetchConfirmQueue();
+          } else if (serving && queryEvt()) {
+            setEditing(true);
+          }
+        });
+      }
+
+      document.getElementById('title').textContent = (report.slug || '埋点落库文档');
+      document.getElementById('meta').innerHTML =
+        esc(report.excelPath || '') + '<br/>' + esc(report.sheetName || '') +
+        '<br/>生成时间 ' + esc((report.generatedAt || '').replace('T', ' ').slice(0, 19));
+      applyStats();
+      document.getElementById('filters').innerHTML =
+        '<button data-filter="all" class="active">全部</button>' +
+        '<button data-filter="click">点击</button>' +
+        '<button data-filter="view">曝光</button>' +
+        '<button data-filter="existing">已落地</button>' +
+        '<button data-filter="confirmed">已确认</button>' +
+        '<button data-filter="accepted">验收通过</button>' +
+        '<button data-filter="open">待确认</button>';
+      document.getElementById('filters').addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (btn) setFilter(btn.getAttribute('data-filter'));
+      });
+      document.getElementById('nav').addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        stashForm();
+        currentId = btn.getAttribute('data-id');
+        pasteTarget = '';
+        syncUrl(currentId);
+        renderNav();
+        renderMain();
+      });
+      document.getElementById('btn-edit').addEventListener('click', function () {
+        if (!serving) {
+          toast('请先运行 serve-impl');
+          return;
+        }
+        setEditing(!editing);
+      });
+      document.getElementById('btn-save').addEventListener('click', function () { saveImpl(''); });
+      document.getElementById('btn-wizard-confirm').addEventListener('click', function () {
+        saveImpl('confirm');
+      });
+      document.getElementById('btn-wizard-skip').addEventListener('click', function () {
+        saveImpl('skip');
+      });
+      document.getElementById('btn-export').addEventListener('click', exportPatch);
+      document.getElementById('main').addEventListener('click', function (e) {
+        var uploadBtn = e.target.closest('[data-upload]');
+        if (uploadBtn) {
+          var input = document.getElementById('hint-file');
+          if (!input) return;
+          pasteTarget = uploadBtn.getAttribute('data-upload') || '';
+          input.setAttribute('data-for', pasteTarget);
+          input.click();
+          return;
+        }
+        var delBtn = e.target.closest('[data-delhint]');
+        if (delBtn) {
+          deleteHint(delBtn.getAttribute('data-delhint'), delBtn.getAttribute('data-delrel') || '');
+          return;
+        }
+        var row = e.target.closest('.hint-row');
+        if (row) {
+          var armed = row.querySelector('[data-upload]');
+          if (armed) pasteTarget = armed.getAttribute('data-upload') || '';
+        }
+      });
+      document.getElementById('main').addEventListener('change', function (e) {
+        if (e.target && e.target.id === 'hint-file' && e.target.files && e.target.files.length) {
+          uploadHints(e.target.getAttribute('data-for'), e.target.files);
+          e.target.value = '';
+        }
+      });
+      document.getElementById('main').addEventListener('focusin', function (e) {
+        var el = e.target;
+        if (el && el.getAttribute && el.getAttribute('data-param')) {
+          pasteTarget = el.getAttribute('data-param') || '';
+        }
+      });
+      document.addEventListener('paste', function (e) {
+        if (!editing) return;
+        var file = imageFromClipboard(e);
+        if (!file) return;
+        e.preventDefault();
+        var paramKey = resolvePasteParam(e);
+        if (!paramKey) {
+          toast('请先点该参数的上传按钮，或把光标放在该参数提示框内再粘贴');
+          return;
+        }
+        uploadHints(paramKey, [file]);
+      });
+      var fromQuery = queryEvt();
+      confirmMode = queryMode() === 'confirm';
+      var firstId = (report.events && report.events[0] && report.events[0].evtId) || '';
+      currentId = fromQuery || firstId;
+      if (fromQuery && !(report.events || []).some(function (item) { return String(item.evtId) === String(fromQuery); })) {
+        currentId = firstId;
+      }
+      if (currentId) syncUrl(currentId);
+      renderNav();
+      renderMain();
+      probeServer();
+    }());
+  </script>
+</body>
+</html>

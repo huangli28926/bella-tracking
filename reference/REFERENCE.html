@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bella-tracking · 详细规则合订</title>
+  <style>
+    :root {
+      --ink: #1b2320;
+      --ink-soft: #3d4a45;
+      --paper: #f3efe6;
+      --paper-2: #fbf8f2;
+      --line: #d9d0c3;
+      --accent: #c45c26;
+      --accent-2: #2f6f62;
+      --warn: #a15c12;
+      --danger: #9b2c2c;
+      --ok: #2f6f62;
+      --sidebar: #161d1b;
+      --code: #12181a;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .side {
+      background: var(--sidebar);
+      color: #e8e2d6;
+      padding: 22px 14px 28px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #b7c4be;
+      margin-bottom: 6px;
+    }
+    .side h1 {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 8px;
+      line-height: 1.35;
+    }
+    .side .meta {
+      font-size: 12px;
+      color: #9aa89f;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .nav a {
+      display: block;
+      text-decoration: none;
+      color: #cfd8d2;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+    .nav a:hover { background: #222b28; color: #fff; }
+    .nav a.active { background: #2a3531; color: #fff; }
+    .nav .group {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #7f8f87;
+      margin: 14px 10px 6px;
+    }
+    .side-foot {
+      margin-top: auto;
+      padding-top: 16px;
+    }
+    .side-foot a {
+      display: block;
+      color: #9aa89f;
+      font-size: 12px;
+      text-decoration: none;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #2a3531;
+    }
+    .side-foot a:hover { color: #fff; background: #222b28; }
+    .main { padding: 32px 40px 64px; max-width: 920px; }
+    .hero {
+      background: linear-gradient(145deg, #fbf8f2 0%, #efe8dc 55%, #e8dfd0 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 28px 28px 24px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -40px;
+      top: -50px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(196,92,38,0.18), transparent 70%);
+      pointer-events: none;
+    }
+    .hero .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .hero h2 {
+      margin: 0 0 10px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--ink-soft);
+      max-width: 62ch;
+      font-size: 15px;
+    }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid var(--line);
+      color: var(--ink-soft);
+    }
+    section {
+      margin-bottom: 36px;
+      scroll-margin-top: 24px;
+    }
+    section > h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .card {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+    }
+    .card h4 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .card p, .card li { font-size: 14px; color: var(--ink-soft); }
+    .card ul, .card ol { margin: 8px 0 0; padding-left: 1.2em; }
+    .card li + li { margin-top: 4px; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .route-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .route-table th, .route-table td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .route-table th {
+      background: #ebe4d8;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: var(--ink-soft);
+      font-weight: 650;
+    }
+    .route-table tr:last-child td { border-bottom: 0; }
+    .ban-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .ban-list li {
+      position: relative;
+      padding: 10px 12px 10px 36px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .ban-list li:last-child { border-bottom: 0; }
+    .ban-list li::before {
+      content: "✕";
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      color: var(--danger);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 10px 12px 10px 44px;
+      border-bottom: 1px dashed var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .steps li:last-child { border-bottom: 0; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ebe4d8;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+    }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .tag.do { background: #e1f0eb; color: var(--ok); }
+    .tag.stop { background: #f3e0e0; color: var(--danger); }
+    .tag.warn { background: #f3ead8; color: var(--warn); }
+    .tag.pre { background: #e4eaf3; color: #3a6ea5; }
+    code, .mono {
+      font-family: var(--mono);
+      font-size: 12.5px;
+    }
+    code.inline {
+      background: #ebe4d8;
+      padding: 1px 6px;
+      border-radius: 5px;
+      color: var(--ink);
+    }
+    .code-block {
+      position: relative;
+      background: var(--code);
+      color: #e7eee9;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0 0;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid #3a4742;
+      background: #212926;
+      color: #d7ddd8;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--sans);
+    }
+    .copy-btn:hover { background: #2a3531; }
+    .notice {
+      border-left: 3px solid var(--warn);
+      background: #f7f0e4;
+    }
+    .refs a, .card a {
+      color: var(--accent-2);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(47,111,98,0.35);
+    }
+    .refs a:hover, .card a:hover { color: var(--accent); }
+    .src {
+      font-size: 11px;
+      color: #8a948e;
+      font-family: var(--mono);
+      margin: 0 0 10px;
+    }
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      background: var(--sidebar);
+      color: #f4efe6;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 20;
+      display: none;
+    }
+    @media (max-width: 860px) {
+      .app { grid-template-columns: 1fr; }
+      .side {
+        position: relative;
+        height: auto;
+        max-height: none;
+      }
+      .main { padding: 24px 18px 48px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .hero h2 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">Cursor Skill</div>
+      <h1>详细规则合订</h1>
+      <div class="meta">reference/*.md<br />与 SKILL 同套视觉</div>
+      <nav class="nav" id="nav">
+        <div class="group">总览</div>
+        <a href="#overview">Overview</a>
+        <a href="#split">已拆分说明</a>
+        <div class="group">SDK</div>
+        <a href="#sdk">公司 SDK 档案</a>
+        <a href="#sdk-130">1.3.0</a>
+        <a href="#sdk-v3">v3（3.9.0）</a>
+        <a href="#sdk-detect">探测</a>
+        <div class="group">调用适配</div>
+        <a href="#adaptor">二次封装</a>
+        <a href="#adaptor-layers">分层</a>
+        <a href="#adaptor-detect">探测顺序</a>
+        <a href="#adaptor-write">写码规则</a>
+        <a href="#adaptor-roots">源码根目录</a>
+        <div class="group">关键路径</div>
+        <a href="#chain">验收规则</a>
+        <a href="#chain-fields">必须写入的字段</a>
+        <a href="#chain-engine">引擎职责</a>
+        <a href="#chain-precise">精点约束</a>
+        <div class="group">断言</div>
+        <a href="#assert">验收断言</a>
+        <a href="#assert-params">关键参数</a>
+        <a href="#assert-empty">空值待确认</a>
+        <a href="#assert-fix">空值自修复</a>
+        <a href="#assert-env">运行环境</a>
+      </nav>
+      <div class="side-foot">
+        <a href="../SKILL.html">← 返回 SKILL.html</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="hero" id="overview">
+        <div class="eyebrow">bella-tracking / reference</div>
+        <h2>详细规则合订</h2>
+        <p>
+          Skill 正文只讲路径；细则在 <code class="inline">reference/</code>。
+          本页把 5 份 md 合成一份可读文档，文案与源文件一致。
+        </p>
+        <div class="pill-row">
+          <span class="pill">sdk-profiles</span>
+          <span class="pill">call-adaptor</span>
+          <span class="pill">accept-chain-rules</span>
+          <span class="pill">accept-assert</span>
+          <span class="pill">sendlog-style</span>
+        </div>
+      </div>
+
+      <section id="split">
+        <h3>已拆分（不要再把本仓 sendLog 当公司标准）</h3>
+        <p class="src">reference/sendlog-style.md</p>
+        <div class="card notice">
+          <p><code class="inline">sendLog</code> 只是某个项目对 <code class="inline">$ULOG.send</code> 的封装，由 <code class="inline">detect-adaptor.js</code> 扫出来，不写进 Skill。</p>
+          <ul>
+            <li><a href="#sdk"><code class="inline">reference/sdk-profiles.md</code></a> — 公司 SDK 1.3.0 / v3</li>
+            <li><a href="#adaptor"><code class="inline">reference/call-adaptor.md</code></a> — 二次封装探测与跟随落点文件</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="sdk">
+        <h3>公司 SDK 档案</h3>
+        <p class="src">reference/sdk-profiles.md</p>
+        <div class="card">
+          <p>Skill <strong>只认识贝壳 dig-log SDK</strong>。业务二次封装不写在这里，进仓后由 <code class="inline">detect-adaptor.js</code> 探测。</p>
+          <p style="margin-top:10px;">验收永远 hook SDK 主方法 <code class="inline">$ULOG.send(evtId, payload)</code>。v3 便捷方法 / <code class="inline">LIANJIA_TRACK.send</code> / 项目封装最终都会进这里。</p>
+        </div>
+      </section>
+
+      <section id="sdk-130">
+        <h3>1.3.0</h3>
+        <div class="card">
+          <p>脚本：<code class="inline">//s1.ljcdn.com/dig-log/static/1.3.0/lianjiaUlog.js</code></p>
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>window.$ULOG.send(evtId, payload, callback?)
+// payload 典型字段：event / pid / uicode / action</div>
+          <p style="margin-top:12px;">无便捷方法、无 DOM 声明式、无必填校验。档案：<code class="inline">sdk/lianjia-ulog-1.3.json</code>。</p>
+        </div>
+      </section>
+
+      <section id="sdk-v3">
+        <h3>v3（3.9.0）</h3>
+        <div class="card">
+          <p>脚本：<code class="inline">//s1.ljcdn.com/dig-log/static/v3/lianjiaUlog.js</code></p>
+          <p>底层仍是 <code class="inline">$ULOG.send(evtId, payload)</code>。额外：</p>
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>$ULOG.sendModuleClick(evtId, payload)  // event = Module_Click
+$ULOG.sendModuleView(evtId, payload)   // event = Module_View
+$ULOG.sendPageView(payload)            // evt = 1,3 ；event = Page_View
+new LIANJIA_TRACK(cfg).send(evtId, event, action)</div>
+          <p style="margin-top:12px;">DOM：<code class="inline">CLICKDATA</code> / <code class="inline">VIEWDATA</code> + <code class="inline">data-click-evtid</code> / <code class="inline">data-view-evtid</code>。缺 <code class="inline">pid</code> / <code class="inline">event</code> / <code class="inline">evt</code> / <code class="inline">uicode</code> 会 <code class="inline">console.error</code>。档案：<code class="inline">sdk/lianjia-ulog-v3.json</code>。</p>
+        </div>
+      </section>
+
+      <section id="sdk-detect">
+        <h3>探测</h3>
+        <div class="card">
+          <p>看 HTML / ejs 的 <code class="inline">&lt;script src&gt;</code> 是否包含 <code class="inline">scriptIncludes</code>。对不上则默认 1.3.0（hook 仍兼容，因为 v3 也走 <code class="inline">$ULOG.send</code>）。新版本只加 <code class="inline">sdk/*.json</code>，不改主流程。</p>
+        </div>
+      </section>
+
+      <section id="adaptor">
+        <h3>调用适配（二次封装）</h3>
+        <p class="src">reference/call-adaptor.md</p>
+        <div class="card">
+          <p>Skill 不写死 <code class="inline">sendLog</code> 或任何项目函数名。进仓后跑 <code class="inline">detect-adaptor.js</code>，读 <code class="inline">_raw/adaptor.json</code>。</p>
+        </div>
+      </section>
+
+      <section id="adaptor-layers">
+        <h3>分层</h3>
+        <table class="route-table">
+          <thead>
+            <tr><th>层</th><th>来源</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SDK</td>
+              <td><code class="inline">sdk/*.json</code></td>
+              <td>公司协议；验收 hook</td>
+            </tr>
+            <tr>
+              <td>调用适配</td>
+              <td>探测产物 <code class="inline">_raw/adaptor.json</code></td>
+              <td>这个仓 / 这个文件怎么调 SDK</td>
+            </tr>
+            <tr>
+              <td>落库 <code class="inline">code</code></td>
+              <td>按 adaptor 渲染</td>
+              <td>跟随落点文件，不跟随「全公司统一函数名」</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="adaptor-detect">
+        <h3>探测顺序</h3>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <ol class="steps">
+            <li>人工锁定 <code class="inline">docs/tracking/adaptor.json</code> 或 <code class="inline">.tracking/adaptor.json</code>（可无；只覆盖 <code class="inline">sdkId</code> / <code class="inline">defaultStyleId</code>）</li>
+            <li>HTML / ejs 脚本 URL → SDK 档案</li>
+            <li>源码里谁转调 <code class="inline">$ULOG.send(变量, …)</code> 且被 export → 二次封装（记下函数名、import 路径、参数映射）</li>
+            <li>每个业务文件统计：封装调用 vs SDK 直调 vs v3 便捷方法 vs DOM</li>
+            <li><code class="inline">defaultStyleId</code> = 全仓出现最多的写法</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="adaptor-write">
+        <h3>写码规则（跟随落点文件）</h3>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <ol class="steps">
+            <li><code class="inline">targetFile</code> 已有写法 → 用 <code class="inline">fileStyle[targetFile]</code></li>
+            <li>否则同目录最常见写法</li>
+            <li>否则 <code class="inline">defaultStyleId</code></li>
+            <li>再否则 SDK 直调 <code class="inline">$ULOG.send</code></li>
+            <li><span class="tag stop">禁止</span>在没有该封装的仓里生成封装名</li>
+            <li><span class="tag stop">禁止</span>为了统一把旧页直调改成封装</li>
+            <li>DOM 声明式（<code class="inline">CLICKDATA</code>）标 <code class="inline">styleId: dom-attr</code>，路径 C 须用户确认后再改 HTML</li>
+          </ol>
+        </div>
+        <div class="card">
+          <p>用 <code class="inline">render-snippet.js</code> 的 <code class="inline">pickStyle</code> / <code class="inline">renderSnippet</code>；模型写 <code class="inline">impl.code</code> 时同样遵守。探测失败时 <code class="inline">code</code> 写成 SDK 直调。</p>
+        </div>
+      </section>
+
+      <section id="adaptor-roots">
+        <h3>源码根目录</h3>
+        <div class="card">
+          <p><code class="inline">adaptor.sourceRoots</code> 由探测填写（存在才加入：<code class="inline">client/src</code>、<code class="inline">src</code>、<code class="inline">app</code>、<code class="inline">server/views</code>…）。Grep evtId / 写业务代码用这些目录，不要写死某一个项目路径。</p>
+        </div>
+      </section>
+
+      <section id="chain">
+        <h3>关键路径验收规则</h3>
+        <p class="src">reference/accept-chain-rules.md</p>
+        <div class="card">
+          <p>从矫正后的 <code class="inline">impl.json</code> 聚合 Playwright 精点路径。Excel / <code class="inline">events.json</code> 只作清单兜底，不按「页面名称」过滤。</p>
+          <p style="margin-top:10px;"><strong>项目无关：</strong>引擎不硬编码任何 pageKey / Tab / locator / evtId。入口步骤与定位器一律由<strong>对话模型根据代码</strong>写入 <code class="inline">impl.json</code> 的 <code class="inline">accept</code>（及 <code class="inline">pageKey</code>）。用户无需配置文件。</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h4>目标</h4>
+            <ul>
+              <li>只点击验收目标埋点需要的步骤，禁止整页探索 / 随机点击</li>
+              <li>同页同入口、相同前置步骤的埋点聚成一条 path</li>
+              <li>会离开当前页的点击拆成独立 path，避免污染后续断言</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>输入优先级</h4>
+            <ol class="steps">
+              <li>事件上已写的 <code class="inline">pageKey</code> + <code class="inline">accept</code>（模型根据代码填写，或人工矫正）</li>
+              <li><code class="inline">events.json</code> 的 <code class="inline">eventType</code> / <code class="inline">uicode</code> / <code class="inline">evtId</code> 清单（无落点 / 无 accept → <code class="inline">pending</code>）</li>
+            </ol>
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <h4 style="padding:18px 20px 0;">禁止</h4>
+          <ul class="ban-list">
+            <li>用文档「页面名称」当路由</li>
+            <li>在 <code class="inline">accept-chain.js</code> 或项目配置里写死业务 locator / 入口步骤</li>
+            <li>缺 <code class="inline">accept.trigger</code> 时用 evtId 表猜定位器</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="chain-fields">
+        <h3>模型必须写入的字段</h3>
+        <div class="card">
+          <p>每条可验收事件（<code class="inline">status</code> 为 <code class="inline">existing</code> / <code class="inline">located</code>）在 <code class="inline">impl.json</code> 中应具备：</p>
+        </div>
+        <table class="route-table">
+          <thead>
+            <tr><th>字段</th><th>来源</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">pageKey</code></td>
+              <td>读路由 / 页面目录</td>
+              <td>逻辑页标识，用于聚类；非文档「页面名称」</td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.trigger.kind</code></td>
+              <td><code class="inline">lifecycle</code></td>
+              <td><code class="inline">click</code> / <code class="inline">scrollIntoView</code> / <code class="inline">waitVisible</code> / <code class="inline">pageLoad</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.trigger.by</code> + <code class="inline">value</code></td>
+              <td>代码 <code class="inline">data-testid</code> &gt; insertHint 文案 &gt; 事件名</td>
+              <td><code class="inline">pageLoad</code> 可空 value</td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.trigger.alternates</code></td>
+              <td>同控件多文案</td>
+              <td>可选</td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.trigger.preconditions</code>（或 <code class="inline">accept.sharedSteps</code>）</td>
+              <td>从 seed 到控件的最少点击</td>
+              <td>同页无前置则 <code class="inline">[]</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.navigatesAway</code></td>
+              <td>点击后是否离开当前页</td>
+              <td>布尔；缺省按 <code class="inline">false</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">accept.assertParams</code> / <code class="inline">dataDeps</code></td>
+              <td>参数对账</td>
+              <td>可从已解析 parameters 整理</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="card" style="margin-top:12px;">
+          <h4>触发 kind</h4>
+        </div>
+        <table class="route-table">
+          <thead>
+            <tr><th>lifecycle</th><th>kind</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">onClick</code></td>
+              <td><code class="inline">click</code></td>
+              <td>点目标文案 / testid</td>
+            </tr>
+            <tr>
+              <td><code class="inline">IntersectionObserver</code></td>
+              <td><code class="inline">scrollIntoView</code></td>
+              <td>滚到模块，不伪造 click</td>
+            </tr>
+            <tr>
+              <td><code class="inline">useEffect</code></td>
+              <td><code class="inline">waitVisible</code> 或 <code class="inline">pageLoad</code></td>
+              <td>数据到达 / 模块可见后等埋点发出</td>
+            </tr>
+            <tr>
+              <td>其它</td>
+              <td><code class="inline">pageLoad</code></td>
+              <td>进入页面即可</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="card" style="margin-top:12px;">
+          <h4>定位器优先级</h4>
+          <p><code class="inline">data-testid</code> &gt; 示意图 / <code class="inline">insertHint</code> 可见文案 &gt; 事件名称。禁止用不稳定 class 当主定位（除非无 testid 且文案不稳定、已注明）。</p>
+        </div>
+        <div class="card">
+          <h4>前置步骤（sharedSteps）</h4>
+          <p>由落点组件与路由跳转代码决定，不由事件名称决定：</p>
+          <ul>
+            <li>读 <code class="inline">targetFile</code>、父页面 Tab / 入口按钮、<code class="inline">history.push</code> / <code class="inline">Link</code> 等，写出从 <strong>seedUrl</strong> 到该控件的最少步骤</li>
+            <li>子页禁止直开精简 URL：步骤里应包含从种子页点进去的 click + 可选 <code class="inline">waitUrl</code></li>
+            <li>同页默认 Tab / 头卡无前置 → <code class="inline">preconditions: []</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>页面入口</h4>
+          <p>所有 path <strong>只打开一次种子入口</strong>（<code class="inline">.env</code> 的 <code class="inline">seedUrl</code>，path + 全部 query 原样保留）。禁止按落点页另拼精简 URL。</p>
+          <p style="margin-top:10px;"><code class="inline">baseUrl</code> 只提供 origin。业务 query（如房源号）从 <code class="inline">seedUrl</code> 解析；<code class="inline">--housedel=</code> 只替换这一 query，其它参数保留。子页额外参数由页面跳转带上，runner 不直开子页。</p>
+        </div>
+      </section>
+
+      <section id="chain-engine">
+        <h3>引擎职责（<code class="inline">build-accept-chain.js</code>）</h3>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <ol class="steps">
+            <li>校验：缺 <code class="inline">pageKey</code> 或 <code class="inline">accept.trigger.kind</code>（及非 pageLoad 的 locator）→ <code class="inline">pending</code></li>
+            <li><code class="inline">pageKey</code> + <code class="inline">sharedSteps</code> 相同 → 一条 path</li>
+            <li>path 内顺序：<code class="inline">pageLoad</code> / <code class="inline">waitVisible</code> / <code class="inline">scrollIntoView</code> 先于 <code class="inline">click</code></li>
+            <li><code class="inline">navigatesAway === true</code> 的 click 单独成 path，仍复用同一 <code class="inline">sharedSteps</code></li>
+            <li>一条 path 跑完若发生跳转，下一条 path <strong>重新 <code class="inline">goto</code> 种子入口</strong>，再走 sharedSteps</li>
+          </ol>
+        </div>
+        <div class="card">
+          <p><code class="inline">--write-impl</code>：仅把链上已解析结果规范化写回；<strong>不覆盖</strong>已有 <code class="inline">accept.trigger.kind</code> 与 <code class="inline">hint</code>；<strong>不发明</strong>缺失的 locator。</p>
+        </div>
+      </section>
+
+      <section id="chain-precise">
+        <h3>精点约束</h3>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <ul class="ban-list">
+            <li><code class="inline">targets</code> 之外的按钮一律不点</li>
+            <li>弹层只在 trigger 本身是打开弹层时才点；不要顺手关广告 / 乱点遮罩</li>
+            <li>View 类禁止用 click 代替曝光</li>
+            <li><code class="inline">--evt=95941,95942</code> 时：只保留包含这些 evtId 的 path，并丢掉 path 内其它 target</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="assert">
+        <h3>验收断言规则</h3>
+        <p class="src">reference/accept-assert.md</p>
+        <div class="card">
+          <p>断言层：埋点已发出 + 关键参数对账。不做整包字节级比对。</p>
+        </div>
+        <div class="card">
+          <h4>发出（必须）</h4>
+          <p>从页面注入的 SDK 主方法包装器采集（默认 <code class="inline">window.$ULOG.send</code>，按 <code class="inline">_raw/adaptor.json</code> 的 sdkId 选档案）。一条通过需同时满足：</p>
+          <ul>
+            <li><code class="inline">evtId</code> 一致</li>
+            <li><code class="inline">eventType</code> 与文档 / <code class="inline">expect.eventType</code> 一致（<code class="inline">Module_Click</code> / <code class="inline">Module_View</code> / …）</li>
+            <li><code class="inline">uicode</code> <strong>只以文档 <code class="inline">events.json</code> 为准</strong>（<code class="inline">expect.uicode</code> 由建链从文档写入）。文档有值则必须一致；实发为空也 <code class="inline">fail</code>。禁止用 impl / 现网旧值覆盖 expect</li>
+            <li><code class="inline">pid</code> 若 <code class="inline">expect</code> 有值则一致</li>
+          </ul>
+          <p style="margin-top:10px;">采集窗口：执行该 target 的 trigger 之后、下一条 trigger 之前。<code class="inline">pageLoad</code> / <code class="inline">waitVisible</code> 类在进入页面或前置步骤完成后采集。</p>
+          <p style="margin-top:10px;">未采集到 → <code class="inline">fail</code>，原因 <code class="inline">not_fired</code>。</p>
+          <p style="margin-top:10px;">采集到的整包写入报告 <code class="inline">results[].fired</code>（eventType / pid / uicode / action），验收 HTML 展示「真实上报」，通过/失败均可查看。</p>
+        </div>
+      </section>
+
+      <section id="assert-params">
+        <h3>关键参数（assertParams）</h3>
+        <div class="card">
+          <p>默认断言该事件 <code class="inline">parameters</code> 里 <code class="inline">confidence</code> 为 <code class="inline">high</code> / <code class="inline">medium</code> 的 key；<code class="inline">low</code> 或 <code class="inline">unresolved</code> 只检查 key 是否出现，不对值。</p>
+          <p style="margin-top:10px;">按 <code class="inline">dataDeps.from</code> 对账：</p>
+        </div>
+        <table class="route-table">
+          <thead>
+            <tr><th>from</th><th>期望值</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">url</code></td>
+              <td><code class="inline">action[key]</code> 等于当前页 query（如 <code class="inline">housedelCode</code>），空则 <code class="inline">'-'</code> 也可接受</td>
+            </tr>
+            <tr>
+              <td><code class="inline">user</code></td>
+              <td>等于 <code class="inline">window.__user</code> 对应字段（id / officeAddress / officeAddressName）</td>
+            </tr>
+            <tr>
+              <td><code class="inline">api</code></td>
+              <td>若运行时录到匹配 <code class="inline">urlIncludes</code> 的响应，按 <code class="inline">field</code> 取值对账；没录到接口则只检查 key 存在且非 <code class="inline">undefined</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">page</code></td>
+              <td>只检查 key 存在；值允许 <code class="inline">'-'</code> / <code class="inline">false</code> / <code class="inline">0</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card" style="margin-top:12px;">
+          <p><code class="inline">'-'</code> 视为合法兜底，<strong>不判 fail</strong>，但写入报告 <code class="inline">results[].emptyParams</code>，验收 HTML / 终稿须提醒人工确认。key 缺失 → <code class="inline">fail</code>，写入 <code class="inline">paramDiffs</code>；同时也进入 <code class="inline">emptyParams</code>。</p>
+        </div>
+      </section>
+
+      <section id="assert-empty">
+        <h3>空值待确认（needConfirm）</h3>
+        <div class="card">
+          <p>实发值为以下任一即记入 <code class="inline">emptyParams</code>：</p>
+          <ul>
+            <li><code class="inline">'-'</code>（代码兜底）</li>
+            <li><code class="inline">''</code> / <code class="inline">null</code> / <code class="inline">undefined</code></li>
+            <li>assertParams / dataDeps 声明的 key 在 action 中缺失</li>
+          </ul>
+          <p style="margin-top:10px;"><code class="inline">false</code>、<code class="inline">0</code> 不算空值。<code class="inline">summary.needConfirm</code> = 含空值参数的事件数。通过/失败均可带 <code class="inline">emptyParams</code>；报告顶部与参数格用橙色「待确认」提示，不改写 pass/fail。</p>
+        </div>
+      </section>
+
+      <section id="assert-fix">
+        <h3>空值自修复</h3>
+        <div class="card">
+          <p>触发：用户要求「自修复 / 修空值 / 诊断空值」，或验收后 <code class="inline">needConfirm &gt; 0</code> 且用户要求处理。</p>
+        </div>
+        <div class="card">
+          <h4>诊断（无模型）</h4>
+          <div class="code-block" data-copy><button class="copy-btn" type="button">复制</button>node &lt;skillDir&gt;/scripts/accept/diagnose-empty.js --excel=docs/xxx.xlsx
+# 可选：--include-fail 一并收录 fail（paramDiffs / not_fired）</div>
+          <p style="margin-top:12px;">产出：<code class="inline">accept/{文档名}-空值修复.json</code>。<code class="inline">issues[].category</code> 为启发式，<strong>模型必须对照代码再校正</strong>。</p>
+        </div>
+        <div class="card">
+          <h4>分类</h4>
+        </div>
+        <table class="route-table">
+          <thead>
+            <tr><th>category</th><th>含义</th><th>默认可自动写</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">fix_expression</code></td>
+              <td>表达式 / 接口字段名错或缺失</td>
+              <td>默认可写 <code class="inline">impl.json</code>；同步改业务源码里的埋点调用须用户确认</td>
+            </tr>
+            <tr>
+              <td><code class="inline">fix_accept_timing</code></td>
+              <td>验收过早、缺 <code class="inline">waitApis</code> / <code class="inline">urlIncludes</code> / trigger 不准</td>
+              <td><code class="inline">impl.accept</code> → 重建 chain 后重验</td>
+            </tr>
+            <tr>
+              <td><code class="inline">needs_prop_plumb</code></td>
+              <td>页面有数据、组件未透传</td>
+              <td><strong>只出方案</strong>，改业务源码须用户确认</td>
+            </tr>
+            <tr>
+              <td><code class="inline">needs_product_decision</code></td>
+              <td>文档口径与现网不一致</td>
+              <td><strong>只标注</strong>，禁止擅自改口径</td>
+            </tr>
+            <tr>
+              <td><code class="inline">data_genuinely_empty</code></td>
+              <td>该样本房源确实无值</td>
+              <td>不改，报告保留待确认即可</td>
+            </tr>
+            <tr>
+              <td><code class="inline">unknown</code></td>
+              <td>启发式无法判定</td>
+              <td>模型读代码后再归类</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card" style="margin-top:12px;">
+          <h4>应用边界</h4>
+          <ul>
+            <li>脚本 <code class="inline">diagnose-empty.js</code> <strong>只诊断、不写业务</strong>。</li>
+            <li>自动应用默认允许：<code class="inline">impl.json</code>、<code class="inline">accept</code> 相关字段；业务源码一律 <code class="inline">requires_user_confirm</code>。</li>
+            <li>改完对受影响 <code class="inline">evtId</code> 跑 <code class="inline">run-accept.js --evt=</code>，再 <code class="inline">render-final.js</code>。</li>
+            <li>最多 <strong>2 轮</strong>；禁止为消掉 <code class="inline">needConfirm</code> 而编造字段、硬编码假数据、或改 Excel 文档口径。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>与 pass/fail 的关系</h4>
+          <p>自修复针对 <code class="inline">emptyParams</code>（及可选的 fail）。空值本身<strong>不改写</strong>原验收的 pass；修表达式后重验，以新报告为准。</p>
+        </div>
+        <div class="card">
+          <h4>接口等待</h4>
+          <p>target 若声明 <code class="inline">dataDeps</code> 且 <code class="inline">from=api</code> 且有 <code class="inline">urlIncludes</code>：trigger 前尽量等到该请求（超时不阻断发出断言，报告里标 <code class="inline">api_missed</code>）。</p>
+        </div>
+        <div class="card">
+          <h4>skip</h4>
+          <ul>
+            <li><code class="inline">impl.status</code> 不是 <code class="inline">existing</code>（未落地）</li>
+            <li>无 <code class="inline">targetFile</code> / 缺 <code class="inline">pageKey</code> 或 <code class="inline">accept.trigger.kind</code>（进 chain <code class="inline">pending</code>）</li>
+            <li><code class="inline">--evt</code> 过滤未选中</li>
+          </ul>
+          <p style="margin-top:10px;">skip 不计入 fail。</p>
+        </div>
+      </section>
+
+      <section id="assert-env">
+        <h3>运行环境</h3>
+        <div class="card">
+          <ul>
+            <li><code class="inline">baseUrl</code> 从仓库根目录 <code class="inline">.env</code> 读取（<code class="inline">--base-url</code> 可覆盖）</li>
+            <li>Playwright 设备须用户选择：<code class="inline">--device=mobile</code>（iPhone 13）或 <code class="inline">--device=pc</code>（1440×900）；也可写 <code class="inline">.env</code> 的 <code class="inline">acceptDevice</code>。未指定则退出，禁止默认开手机视口。有头打开；浏览器优先本机 Chrome</li>
+            <li>登录：先打开目标页；若跳到 <code class="inline">login.ke.com</code> / SSO，等你在窗口里登完（最多 5 分钟），再把登录态写到 <code class="inline">docs/tracking/.auth/storage.json</code>，下次直接复用</li>
+            <li>登录态失效会再次停住等登录，然后继续验收</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">已复制</div>
+  <script>
+    (function () {
+      var toast = document.getElementById('toast');
+      var toastTimer;
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.style.display = 'none'; }, 1400);
+      }
+
+      document.querySelectorAll('.code-block[data-copy]').forEach(function (block) {
+        var btn = block.querySelector('.copy-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var text = block.textContent.replace(/^复制/, '').trim();
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              showToast('已复制');
+            });
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('已复制');
+          }
+        });
+      });
+
+      var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+      var sections = links.map(function (a) {
+        return document.querySelector(a.getAttribute('href'));
+      }).filter(Boolean);
+
+      function setActive() {
+        var y = window.scrollY + 80;
+        var current = sections[0];
+        sections.forEach(function (sec) {
+          if (sec.offsetTop <= y) current = sec;
+        });
+        links.forEach(function (a) {
+          a.classList.toggle('active', current && a.getAttribute('href') === '#' + current.id);
+        });
+      }
+      window.addEventListener('scroll', setActive, { passive: true });
+      setActive();
+    })();
+  </script>
+</body>
+</html>

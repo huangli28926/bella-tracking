@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "accept-report.schema.json",
+  "title": "Tracking accept report",
+  "type": "object",
+  "required": ["generatedAt", "slug", "summary", "results"],
+  "properties": {
+    "generatedAt": { "type": "string" },
+    "slug": { "type": "string" },
+    "excelPath": { "type": "string" },
+    "baseUrl": { "type": "string" },
+    "planOnly": { "type": "boolean" },
+    "summary": {
+      "type": "object",
+      "required": ["total", "pass", "fail", "skip"],
+      "properties": {
+        "total": { "type": "integer" },
+        "pass": { "type": "integer" },
+        "fail": { "type": "integer" },
+        "skip": { "type": "integer" },
+        "needConfirm": {
+          "type": "integer",
+          "description": "含未取到值参数（'-'/空/缺失）的事件数，需人工确认"
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evtId", "status"],
+        "properties": {
+          "evtId": { "type": "string" },
+          "eventName": { "type": "string" },
+          "pathId": { "type": "string" },
+          "status": { "enum": ["pass", "fail", "skip"] },
+          "reason": { "type": "string" },
+          "code": {
+            "type": "object",
+            "properties": {
+              "file": { "type": "string" },
+              "functionName": { "type": "string" },
+              "lifecycle": { "type": "string" }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "dataDeps": { "type": "array" },
+          "fired": {
+            "type": ["object", "null"],
+            "description": "验收时从 SDK 主方法（默认 window.$ULOG.send）采集到的真实上报；未发出为 null",
+            "properties": {
+              "evtId": { "type": "string" },
+              "eventType": { "type": "string", "description": "如 Module_Click / Module_View" },
+              "pid": { "type": "string" },
+              "uicode": { "type": "string" },
+              "action": {
+                "type": "object",
+                "description": "真实 action 参数 key→value",
+                "additionalProperties": true
+              },
+              "t": { "type": "number", "description": "采集时间戳 ms" }
+            }
+          },
+          "paramDiffs": {
+            "type": "array",
+            "description": "参数对账差异；每项含 key / reason",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "reason": { "type": "string" }
+              }
+            }
+          },
+          "emptyParams": {
+            "type": "array",
+            "description": "未取到真实业务值的参数 key（'-'/空/缺失），需人工确认；不因此判 fail",
+            "items": { "type": "string" }
+          },
+          "assertParams": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "parameters": {
+            "type": "array",
+            "description": "从 impl.json 带入的参数说明，用于验收表「说明」列",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "docDesc": { "type": "string" },
+                "sourcePath": { "type": "string" }
+              }
+            }
+          },
+          "http": {
+            "type": ["object", "null"],
+            "description": "埋点上报像素 HTTP 状态（测试 check.gif / 线上 alliance.gif）；未采集为 null。未捕获 GIF 判 fail；非 2xx 只展示不改 pass/fail",
+            "properties": {
+              "ok": { "type": "boolean", "description": "HTTP 2xx 为 true" },
+              "status": { "type": "integer", "description": "HTTP 状态码，未发出或请求失败为 0" },
+              "statusText": { "type": "string", "description": "如 OK" },
+              "url": { "type": "string" },
+              "method": { "type": "string" },
+              "matched": { "type": "boolean", "description": "是否对上当前 evtId 的上报请求" },
+              "error": { "type": "string", "description": "requestfailed 或未捕获原因" }
+            }
+          },
+          "screenshot": { "type": "string", "description": "相对验收 HTML 的实际页面/按钮截图路径，如 shots/95936.png" },
+          "diagnostic": {
+            "type": ["object", "null"],
+            "description": "失败诊断产物路径，包含当前 URL、页面标题、可见候选元素和失败截图",
+            "properties": {
+              "json": { "type": "string" },
+              "screenshot": { "type": "string" }
+            }
+          },
+          "diagramSrc": { "type": "string", "description": "相对验收 HTML 的埋点文档示意图，如 ../_raw/images/95936.png" },
+          "triggerKind": { "type": "string", "description": "click / waitVisible / scrollIntoView / pageLoad" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "lianjia-ulog-1.3",
+  "sdkVersion": "1.3.0",
+  "scriptIncludes": ["dig-log/static/1.3.0/lianjiaUlog.js"],
+  "global": "$ULOG",
+  "method": "send",
+  "signature": ["evtId", "payload", "callback?"],
+  "payloadKeys": ["event", "pid", "uicode", "action"],
+  "hook": {
+    "global": "$ULOG",
+    "method": "send",
+    "evtIdArg": 0,
+    "payloadArg": 1
+  },
+  "reportUrlIncludes": [
+    "dig.lianjia.com/alliance.gif",
+    "dig.lianjia.com/check.gif"
+  ],
+  "callStyles": [
+    {
+      "id": "sdk-send",
+      "kind": "sdk-direct",
+      "detect": { "call": "$ULOG.send(" },
+      "snippet": "window.$ULOG.send('{{evtId}}', {\n  event: '{{eventType}}',\n  pid: '{{pid}}',\n  uicode: '{{uicode}}',\n  action: {{action}}\n})"
+    }
+  ]
+}

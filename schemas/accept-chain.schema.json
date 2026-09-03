@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "accept-chain.schema.json",
+  "title": "Tracking accept chain",
+  "type": "object",
+  "required": ["version", "slug", "paths"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "generatedAt": { "type": "string" },
+    "slug": { "type": "string" },
+    "excelPath": { "type": "string" },
+    "baseUrlEnv": { "type": "string" },
+    "seedUrlEnv": { "type": "string" },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "seedUrl": { "type": "string" },
+        "housedelCode": { "type": "string" },
+        "device": { "type": "string", "enum": ["mobile", "pc", "unset"] },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer" },
+            "height": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "pending": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evtId", "reason"],
+        "properties": {
+          "evtId": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/path" }
+    }
+  },
+  "$defs": {
+    "locator": {
+      "type": "object",
+      "required": ["by", "value"],
+      "properties": {
+        "by": { "enum": ["text", "testid", "css", "role"] },
+        "value": { "type": "string" },
+        "alternates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exact": { "type": "boolean" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["click", "scrollIntoView", "waitVisible", "waitApi", "waitUrl"] },
+        "by": { "enum": ["text", "testid", "css", "role"] },
+        "value": { "type": "string" },
+        "alternates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "urlIncludes": { "type": "string" },
+        "why": { "type": "string" }
+      }
+    },
+    "path": {
+      "type": "object",
+      "required": ["pathId", "pageKey", "entry", "targets"],
+      "properties": {
+        "pathId": { "type": "string" },
+        "pageKey": { "type": "string" },
+        "entry": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string" },
+            "waitApis": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "urlIncludes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "sharedSteps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/target" }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["evtId", "trigger", "expect"],
+      "properties": {
+        "evtId": { "type": "string" },
+        "eventName": { "type": "string" },
+        "lifecycle": { "type": "string" },
+        "navigates": { "type": "boolean" },
+        "code": {
+          "type": "object",
+          "properties": {
+            "file": { "type": "string" },
+            "functionName": { "type": "string" },
+            "lifecycle": { "type": "string" }
+          }
+        },
+        "trigger": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "enum": ["click", "scrollIntoView", "waitVisible", "pageLoad"]
+            },
+            "by": { "enum": ["text", "testid", "css", "role"] },
+            "value": { "type": "string" },
+            "alternates": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "expect": {
+          "type": "object",
+          "required": ["eventType"],
+          "properties": {
+            "eventType": { "type": "string" },
+            "pid": { "type": "string" },
+            "uicode": { "type": "string" }
+          }
+        },
+        "assertParams": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dataDeps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["paramKey", "from"],
+            "properties": {
+              "paramKey": { "type": "string" },
+              "from": { "enum": ["api", "url", "user", "page"] },
+              "queryKey": { "type": "string" },
+              "expression": { "type": "string" },
+              "sourcePath": { "type": "string" },
+              "api": {
+                "type": "object",
+                "properties": {
+                  "urlIncludes": { "type": "string" },
+                  "field": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
