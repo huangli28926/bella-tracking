@@ -14,6 +14,8 @@ description: >-
 
 稳定性优先级固定为：**磁盘事实 > 脚本 JSON > Schema > 当前模型判断 > 对话文本**。发生冲突时按此顺序覆盖，禁止根据聊天历史猜测阶段状态。
 
+每次先跑 `tracking-workflow.js --excel=docs/{文档名}.xlsx --status --json`，只执行返回的 `nextTask.command`；`prompt` 非空则原样发给用户。不要用对话记忆猜阶段。
+
 每次模型写入 `impl.json` 后，固定执行：
 
 ```bash
@@ -47,6 +49,7 @@ node <skillDir>/scripts/accept/validate-impl.js --excel=docs/{文档名}.xlsx --
 - `reference/accept-fail-explain.md` — 失败中文码 + 模型归因格式
 - `reference/history-tracking.md` — 历史埋点静态扫描
 - `reference/confirm-flow.md` — 矫正向导、confirm-sweep、确认/跳过
+- `reference/workflow-next-task.md` — 按 status JSON 的 nextTask 执行
 
 ## 何时启用
 
@@ -60,7 +63,7 @@ A → B → C **对外是一条执行流**（B 依赖 A，C 依赖 AB），对�
 
 | 用户说法 | 行为 |
 |---|---|
-| 明确「只跑 A / 阶段 A / `--run=A`」 | **只跑 A**（dump + 逐条分析），跑完停，不自动进 B/C，不要再列菜单 |
+| 明确「只跑 A / 阶段 A」 | **只跑路径 A**（dump + 逐条分析 + validate；needsConfirm 当场打断属 user task），跑完停，不自动进 B/C，不要再列菜单。`--run=A` **只** dump+render，不等于路径 A 完成 |
 | 明确「落库到写码 / A→B→C」 | 按路径 A → B → C 一条链跑（阶段内可停） |
 | 明确「验收全流程」 | A → B → C → D（E 不自动进） |
 | 明确「只跑 B」 | **恢复**：先 `tracking-workflow --run=B`；`needA`（exit 3）则先完整路径 A 再 B，禁止无产物开矫正 |
@@ -107,16 +110,16 @@ A 落库 → B 矫正 → C 写码 → D 验收（→ 失败且用户选自修�
 
 | 阶段 | 执行者 | 自动化 | 完成门禁 |
 |---|---|---|---|
-| A 落库 | 脚本 + 模型 | 半自动 | dump 示意图全部成功；`events.json` / `adaptor.json` / `impl.json` / 落库 HTML 存在；每条事件有非空 `_raw/images/{evtId}.png`；`validate-impl` 无 error；`needsConfirm` 条已当场打开浏览器确认 |
+| A 落库 | 脚本 + 模型 | 半自动 | dump 示意图全部成功；`events.json` / `adaptor.json` / `impl.json` / 落库 HTML 存在；每条事件有非空 `_raw/images/{evtId}.png`；`validate-impl` 无 error。needsConfirm 不阻止 A.done，进入 B 队列 |
 | B 矫正 | 用户 | 人工 | 待确认队列已处理；进 C 前必须已打开**整份**落库页并得到用户「进入 C」确认 |
 | C 写码 | 模型 | 半自动 | 用户明确同意改业务源码；代码已写；`impl.accept` 已补全；`build-accept-chain` 无 pending 关键项 |
 | D 验收 | 脚本 | 自动 | 真实 `run-accept` 非 plan-only 即生成终稿；终稿含通过 / 失败 / 路径跳过 / 未落地 / 验不了，不要求全绿 |
 | E 自修复 | 模型 | 半自动 | 仅 D 失败后用户选「自修复」，或用户点名 E；最多 1 轮；仍失败则自动打开人工矫正页 |
 
-优先入口：
+优先入口（先 `--status --json`，再按 `nextTask` 执行）：
 
 ```bash
-node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --status
+node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --status --json
 node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=A
 node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=B --json
 node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=C --json
@@ -129,13 +132,13 @@ node <skillDir>/scripts/workflow/tracking-workflow.js --excel=docs/2.3埋点需�
 ```
 
 执行策略：
-1. **只跑 A**（用户已明确）时直接 A，结束后汇报，不要再列菜单。未明确调用方式时**先列出全部 8 项入口**（全流程为第 1 项并带「强烈推荐」），等回复后再跑；禁止默认开 A 或全流程。
-2. `--run=A` 只做 dump+render，**不**等于路径 A 完成；dump 示意图失败（含缺 URL）则 dump 非 0 退出，禁止 render / 分析 / 写码。A 完成门禁以 `inspectLanding.artifactsReady`（含已分析的 impl **且每条有示意图 png**）为准。`--run=B|C` 只做依赖门禁，不写业务源码。`--run=H` 只做缺失表门禁，不写业务源码。`--run=D` 跑验收；真实验收须先有 `--device=mobile|pc`（或 `.env` `acceptDevice`），未指定则停下来问用户，禁止默认 iPhone。B/C 写码/确认不可脚本越过。
+1. **只跑路径 A**（用户已明确）时按 `nextTask` 做到 A.done，结束后汇报，不要再列菜单。未明确调用方式时**先列出全部 8 项入口**（全流程为第 1 项并带「强烈推荐」），等回复后再跑；禁止默认开 A 或全流程。跳转以引擎 JSON 为准，不要按对话 if 猜阶段。
+2. `--run=A` 只做 dump+render，**不**等于路径 A 完成，不标记 A 完成。dump 示意图失败（含缺 URL）则 dump 非 0 退出，禁止 render / 分析 / 写码。A.done = 产物齐 + 已分析 + `validate-impl` 无 error（与 confirm 队列拆开）。`--run=B|C` 只做依赖门禁，不写业务源码。`--run=H` 只做缺失表门禁，不写业务源码。`--run=D` 跑验收；真实验收须先有 `--device=mobile|pc`（或 `.env` `acceptDevice`），未指定则停下来问用户，禁止默认 iPhone。B/C 写码/确认不可脚本越过。
 3. 用户选「落库到写码」或「只跑 C」且 `needA`：按路径 A 全文执行（不是只 dump），再路径 B，用户「进入 C」后再写码。`needB`：不重跑 A，走路径 B。
 4. A 逐条分析时，若 `needsConfirm`，立刻跑 `confirm-event.js --evt=... --wait`。**本轮第一次打断必须打开浏览器**；同 slug 的 `serve-impl` 已在跑时脚本不再新开 tab（向导会在当前页切到下一条）。禁止整轮 `--no-open`、禁止只发 URL 或只开本地 HTML；不要等全部事件写完再开矫正页。`--wait` 超时须 `--force-open` 再开该条向导。
 5. 待确认队列清空后，进 C 前仍须 `serve-impl` 打开整份 `{文档名}-落库.html`，等用户确认「进入 C」。C 完成必须来自用户明确同意修改业务源码后的代码落地。
 6. D `fail>0` 时按 `reference/accept-fail-explain.md` 的**规范化总览**输出（失败 / 通过 / 报告 / C 落点），再给**两个选择**；未回复不改代码、不进 E、不进 B。选「自修复」后 E 只 1 轮；E 仍失败则自动打开人工矫正页。选「直接重新进入人工矫正页面」则跳过 E，立刻打开矫正页。
-7. 每次恢复都读 `_raw/workflow.json` + 磁盘产物 + `inspectLanding`，不靠对话记忆。
+7. 每次恢复都读 `--status --json` + 磁盘产物，不靠对话记忆。
 8. 任何阶段失败先看 `doctor.js` 和 `validate-impl.js`；D 失败再看验收 JSON 的 `failFactsZh` 与 `accept/_diagnostics/`。
 9. 入口 8：`--run=H` `needMissingList`（exit 5）则先入口 7；缺失为 0 则停；有 missing 再假缺失分流后走 A→B→C（只写 literal_missing）。
 

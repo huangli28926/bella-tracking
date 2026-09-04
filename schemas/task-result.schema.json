@@ -35,7 +35,10 @@
         "inputs": { "type": "array", "items": { "type": "string" } },
         "outputs": { "type": "array", "items": { "type": "string" } },
         "completionCondition": { "type": "array", "items": { "type": "string" } },
-        "blockingReason": { "type": ["string", "null"] }
+        "blockingReason": { "type": ["string", "null"] },
+        "command": { "type": ["string", "null"] },
+        "prompt": { "type": ["string", "null"] },
+        "nextAction": { "enum": ["none", "choose_entry", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "fix_validation", "retry"] }
       }
     },
     "issues": {
