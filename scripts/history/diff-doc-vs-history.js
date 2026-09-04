@@ -16,7 +16,7 @@ const {
 const { scanAndWrite } = require('./history-tracking')
 
 const SCRIPT_DIR = __dirname
-const ASK_EXCEL = '需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel'
+const { ASK_HISTORY_EXCEL: ASK_EXCEL } = require('../workflow/prompts')
 
 function printHelp() {
   console.log(`

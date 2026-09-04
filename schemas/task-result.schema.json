@@ -9,7 +9,7 @@
     "version": { "const": "1.0" },
     "stage": { "enum": ["menu", "A", "B", "C", "D", "E", "F", "7", "H"] },
     "status": { "enum": ["completed", "blocked", "needs_user_input", "failed"] },
-    "nextAction": { "enum": ["none", "choose_entry", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "fix_validation", "retry"] },
+    "nextAction": { "enum": ["none", "choose_entry", "ask_excel", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "confirm_delete_old", "fix_validation", "retry"] },
     "artifacts": {
       "type": "array",
       "items": {
@@ -28,14 +28,17 @@
       "required": ["id", "stage", "executor", "status"],
       "properties": {
         "id": { "type": "string" },
-        "stage": { "enum": ["A", "B", "C", "D", "E", "F", "7", "H"] },
+        "stage": { "enum": ["menu", "A", "B", "C", "D", "E", "F", "7", "H"] },
         "executor": { "enum": ["script", "agent", "user"] },
         "status": { "enum": ["ready", "blocked"] },
         "subject": { "type": "object" },
         "inputs": { "type": "array", "items": { "type": "string" } },
         "outputs": { "type": "array", "items": { "type": "string" } },
         "completionCondition": { "type": "array", "items": { "type": "string" } },
-        "blockingReason": { "type": ["string", "null"] }
+        "blockingReason": { "type": ["string", "null"] },
+        "command": { "type": ["string", "null"] },
+        "prompt": { "type": ["string", "null"] },
+        "nextAction": { "enum": ["none", "choose_entry", "ask_excel", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "confirm_delete_old", "fix_validation", "retry"] }
       }
     },
     "issues": {

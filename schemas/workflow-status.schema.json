@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-status.schema.json",
+  "title": "bella-tracking workflow status (Engine → Executor)",
+  "description": "nextTask = Engine → Executor. task-result.schema.json = Executor → Engine (Agent 回写为 follow-up，本次不强制).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["version", "stage", "status", "nextTask"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "stage": { "enum": ["menu", "A", "B", "C", "D", "E", "F", "7", "H"] },
+    "status": { "enum": ["completed", "blocked", "needs_user_input", "failed"] },
+    "next": { "type": "string" },
+    "nextAction": { "enum": ["none", "choose_entry", "ask_excel", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "confirm_delete_old", "fix_validation", "retry"] },
+    "prompt": { "type": ["string", "null"] },
+    "command": { "type": ["string", "null"] },
+    "nextTask": { "$ref": "task-result.schema.json#/properties/nextTask" },
+    "stages": { "type": "object" },
+    "validation": { "type": "object" },
+    "accept": { "type": "object" },
+    "landing": { "type": "object" },
+    "missing": { "type": "object" },
+    "trackingMode": { "type": "string" },
+    "run": { "type": ["object", "null"] },
+    "workflowPath": { "type": "string" }
+  }
+}

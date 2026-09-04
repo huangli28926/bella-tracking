@@ -9,6 +9,14 @@ const { fileOk, inspectLanding } = require('../lib/landing-ready')
 const { validateFiles } = require('../accept/validate-impl')
 const { scriptPath } = require('../lib/skill-paths')
 const { resolveTrackingMode } = require('../lib/period-diff')
+const {
+  excelRel,
+  resolveDeviceId,
+  resolveNextTask: resolveNextTaskCore,
+  stageADone,
+  workflowEnvelopeStatus
+} = require('./next-task')
+const { entryFromRun, hasEntryIntent, parseEntry } = require('./prompts')
 
 const SCRIPT_DIR = __dirname
 const STAGES = ['A', 'B', 'C', 'D']
@@ -28,10 +36,12 @@ Usage:
 
 Options:
   --status       只看 workflow 状态和下一步
-  --run=A|B|C|D|H  A dump+render；D 验收；B/C 只做依赖门禁（不写业务源码）
+  --run=A|B|C|D|H  --run=A 只执行 dump+render（路径 A 的脚本前置），不分析 impl、不标记 A 完成
+                 D 验收；B/C 只做依赖门禁（不写业务源码）
                  C 缺落库 → exit 3（须完整路径 A）；待确认未清 → exit 4（须路径 B）
                  H 缺缺失表 → exit 5（须入口 7）；缺失为 0 则不写码
-  --mark=A|B|C|D 标记阶段完成，写入 _raw/workflow.json
+  --mark=B|C|D   标记阶段完成，写入 _raw/workflow.json（A.done 只由磁盘门禁计算，--mark=A 不使 A 完成）
+  --entry=1..8   写入 workflow.json.entry；未带 --entry/--run 且无已存 entry 时 --status 停在菜单
   --plan-only    传给 D 验收计划
   --device       传给 D：mobile | pc（真实验收必填）
   --json         输出机器可读 JSON
@@ -87,129 +97,9 @@ function stageDone(state, id) {
   return !!(state && state.stages && state.stages[id] && state.stages[id].status === 'done')
 }
 
-function firstPendingConfirm(queueInfo) {
-  const list = (queueInfo && queueInfo.queue) || []
-  return list.find(item => item && item.needsConfirm && !item.confirmed && !(item.event && item.event.deferred)) || null
-}
-
-function firstPendingEvent(paths) {
-  const impl = readJson(paths.implPath, { events: [] })
-  const events = Array.isArray(impl.events) ? impl.events : []
-  return events.find(item => item && item.status !== 'existing') || events[0] || null
-}
-
-function resolveNextTask(paths, state, landing, validation, accept, queueInfo) {
-  const queue = queueInfo || loadConfirmQueue(paths)
-  const pendingConfirm = firstPendingConfirm(queue)
-  const acceptDone = !!(accept && accept.ok)
-  const artifactsReady = !!(landing && landing.artifactsReady)
-  const queueCleared = !!(landing && landing.queueCleared)
-  const validationOk = !!(validation && validation.ok)
-  const stageAComplete = acceptDone || (artifactsReady && validationOk && queueCleared)
-  const stageBComplete = acceptDone || (stageAComplete && stageDone(state, 'B'))
-
-  if (acceptDone) {
-    return null
-  }
-
-  if (!artifactsReady) {
-    const pending = firstPendingEvent(paths)
-    const subject = pending && pending.evtId ? { evtId: String(pending.evtId) } : {}
-    const missing = Array.isArray(landing && landing.missing) ? landing.missing : []
-    const missingDiagrams = Array.isArray(landing && landing.missingDiagrams) ? landing.missingDiagrams : []
-    return {
-      id: missing.length || missingDiagrams.length ? 'A_PREPARE_ARTIFACTS' : 'A_ANALYZE_EVENT',
-      stage: 'A',
-      executor: missing.length || missingDiagrams.length ? 'script' : 'agent',
-      status: 'ready',
-      subject,
-      inputs: missing.length || missingDiagrams.length
-        ? ['events.json', 'adaptor.json', 'impl.json', '落库.html', '_raw/images']
-        : ['events.json', 'adaptor.json', 'impl.json', '_raw/images'],
-      outputs: missing.length || missingDiagrams.length
-        ? ['events.json', 'adaptor.json', 'impl.json', '落库.html']
-        : ['impl.json'],
-      completionCondition: missing.length || missingDiagrams.length
-        ? [
-          'events.json/adaptor.json/impl.json/落库.html exist',
-          'every event has a non-empty _raw/images/{evtId}.png'
-        ]
-        : [
-          'impl.json contains analyzed events in docIndex order',
-          'validate-impl has no errors',
-          'needsConfirm queue is cleared'
-        ],
-      blockingReason: null
-    }
-  }
-
-  if (!validationOk) {
-    return {
-      id: 'A_VALIDATE_IMPL',
-      stage: 'A',
-      executor: 'script',
-      status: 'blocked',
-      subject: {},
-      inputs: ['impl.json', 'events.json', 'adaptor.json'],
-      outputs: ['impl.json'],
-      completionCondition: ['validate-impl errors = 0'],
-      blockingReason: validation && validation.message ? validation.message : 'validate-impl has errors'
-    }
-  }
-
-  if (queue && queue.pendingCount > 0 && pendingConfirm) {
-    return {
-      id: 'B_CONFIRM_EVENT',
-      stage: 'B',
-      executor: 'user',
-      status: 'ready',
-      subject: { evtId: String(pendingConfirm.evtId || '') },
-      inputs: ['impl.json'],
-      outputs: ['impl.json', '_raw/field-memory.json'],
-      completionCondition: ['confirmed=true or deferred=true'],
-      blockingReason: null
-    }
-  }
-
-  if (!stageBComplete) {
-    return {
-      id: 'B_CONFIRM_FULL_PAGE',
-      stage: 'B',
-      executor: 'user',
-      status: 'ready',
-      subject: {},
-      inputs: ['落库.html', '_raw/workflow.json'],
-      outputs: ['_raw/workflow.json'],
-      completionCondition: ['用户确认进入 C'],
-      blockingReason: null
-    }
-  }
-
-  if (!stageDone(state, 'C')) {
-    return {
-      id: 'C_WRITE_IMPL',
-      stage: 'C',
-      executor: 'agent',
-      status: 'ready',
-      subject: {},
-      inputs: ['events.json', 'adaptor.json', 'impl.json', 'accept-chain.json'],
-      outputs: ['业务源码', 'impl.json.accept', 'accept-chain.json'],
-      completionCondition: ['impl.accept complete', 'accept-chain has no pending blockers'],
-      blockingReason: null
-    }
-  }
-
-  return {
-    id: 'D_RUN_ACCEPT',
-    stage: 'D',
-    executor: 'script',
-    status: 'ready',
-    subject: {},
-    inputs: ['impl.json.accept', 'accept-chain.json'],
-    outputs: ['accept/*.json', 'accept/*.html', '终稿.html'],
-    completionCondition: ['run-accept generated a non-plan report'],
-    blockingReason: null
-  }
+function resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras) {
+  const extra = extras || {}
+  return resolveNextTaskCore(paths, state, landing, validation, accept, queueInfo || loadConfirmQueue(paths), extra)
 }
 
 function runNode(script, args, repoRoot) {
@@ -219,8 +109,11 @@ function runNode(script, args, repoRoot) {
     encoding: 'utf8',
     stdio: 'inherit'
   })
-  if (result.status !== 0) {
-    throw new Error(`${script} failed with exit ${result.status}`)
+  const status = result.status == null ? 1 : result.status
+  if (status !== 0) {
+    const error = new Error(`${script} failed with exit ${status}`)
+    error.exitCode = status
+    throw error
   }
 }
 
@@ -333,17 +226,26 @@ function buildStatus(paths, args, repoRoot) {
   const validation = validationSummary(paths, args, repoRoot)
   const accept = acceptSummary(paths)
   const queueInfo = loadConfirmQueue(paths)
-  const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo)
-  const stageAComplete = !!(accept.ok || (landing.artifactsReady && validation.ok && landing.readyForCPreflight))
-  const stageBComplete = !!(accept.ok || (stageAComplete && stageDone(state, 'B')))
+  const extras = {
+    repoRoot,
+    args,
+    excel: excelRel(repoRoot, args),
+    deviceId: resolveDeviceId(args, repoRoot),
+    planOnly: !!(args && (args['plan-only'] || args.plan)),
+    needAskExcel: !!args.needAskExcel,
+    askExcelStage: args.askExcelStage || ''
+  }
+  const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras)
+  const stageAComplete = stageADone(landing, validation, accept)
+  const stageBComplete = !!(accept.ok || (stageAComplete && landing.pendingConfirm === 0 && stageDone(state, 'B')))
   const stageCComplete = !!(accept.ok || (stageBComplete && stageDone(state, 'C')))
   const stageStatus = {
     A: {
       name: stageName('A'),
       done: stageAComplete,
       gate: stageAComplete
-        ? `events/adaptor/impl ready; events=${landing.eventCount}`
-        : (landing.reasons.join('; ') || 'need path A')
+        ? `analyzed+validated; events=${landing.eventCount}`
+        : (landing.reasons.join('; ') || validation.message || 'need path A')
     },
     B: {
       name: stageName('B'),
@@ -381,7 +283,8 @@ function buildStatus(paths, args, repoRoot) {
     validation,
     accept,
     landing,
-    paths
+    paths,
+    extras
   }
 }
 
@@ -398,6 +301,11 @@ function printStatus(status) {
     console.log(`NextTask: ${status.nextTask.id} [${status.nextTask.stage}] ${status.nextTask.executor}${subject}`)
   }
   console.log(`Next: ${status.next ? `${status.next} ${stageName(status.next)}` : 'complete'}`)
+  const prompt = status.nextTask && status.nextTask.prompt
+  if (prompt) {
+    console.log('')
+    console.log(prompt)
+  }
 }
 
 function ensureExcelArg(args) {
@@ -406,13 +314,43 @@ function ensureExcelArg(args) {
   }
 }
 
-function runStage(paths, args, repoRoot, state, id) {
+function runStageA(args, repoRoot, execFn) {
+  const excelArg = `--excel=${args.excel}`
+  const run = execFn || runNode
+  const did = []
+  try {
+    run('extract/dump-excel.js', [excelArg], repoRoot)
+    did.push('dump-excel')
+    run('extract/render-html.js', [excelArg], repoRoot)
+    did.push('render-html')
+    return {
+      requested: 'A',
+      did,
+      didNot: ['analyze-events', 'complete-stage-A'],
+      stageAComplete: false,
+      exitCode: 0
+    }
+  } catch (error) {
+    const didNot = ['analyze-events', 'complete-stage-A']
+    if (did.indexOf('dump-excel') === -1) didNot.unshift('dump-excel', 'render-html')
+    else if (did.indexOf('render-html') === -1) didNot.unshift('render-html')
+    return {
+      requested: 'A',
+      did,
+      didNot,
+      stageAComplete: false,
+      failed: true,
+      message: error.message || String(error),
+      exitCode: error.exitCode || 1
+    }
+  }
+}
+
+function runStage(paths, args, repoRoot, state, id, execFn) {
   ensureExcelArg(args)
   const excelArg = `--excel=${args.excel}`
   if (id === 'A') {
-    runNode('extract/dump-excel.js', [excelArg], repoRoot)
-    runNode('extract/render-html.js', [excelArg], repoRoot)
-    return
+    return runStageA(args, repoRoot, execFn)
   }
   if (id === 'D') {
     runNode('accept/validate-impl.js', [excelArg], repoRoot)
@@ -452,7 +390,7 @@ function gateStage(paths, id) {
   if (landing.needA) {
     payload.bootstrap = id === 'C' ? ['A', 'B'] : ['A']
     payload.message = id === 'C'
-      ? '落库未就绪：须先完整执行路径 A（dump + 逐条分析 + needsConfirm 打断），再路径 B，禁止直接写业务源码'
+      ? '落库未就绪：须先完整执行路径 A（dump + 逐条分析 + validate），再路径 B，禁止只 dump、禁止直接写业务源码'
       : '落库未就绪：须先完整执行路径 A，禁止跳过分析只做矫正'
     payload.exitCode = 3
     return payload
@@ -476,6 +414,92 @@ function gateStage(paths, id) {
   return payload
 }
 
+function persistEntry(paths, state, args) {
+  const parsed = parseEntry(args && args.entry)
+  const fromRun = entryFromRun(args && args.run)
+  const entry = parsed ? parsed.entry : fromRun
+  if (!entry) return state
+  if (state.entry === entry) return state
+  state.entry = entry
+  state.history = state.history || []
+  state.history.push({
+    at: new Date().toISOString(),
+    stage: 'menu',
+    action: 'entry',
+    note: String(entry)
+  })
+  return saveState(paths, state)
+}
+
+function emitChooseEntry(args) {
+  const { ENTRY_MENU } = require('./prompts')
+  const nextTask = {
+    id: 'CHOOSE_ENTRY',
+    stage: 'menu',
+    executor: 'user',
+    status: 'ready',
+    subject: {},
+    inputs: [],
+    outputs: ['_raw/workflow.json'],
+    completionCondition: ['--entry=1..8 or --run=A|B|C|D|H'],
+    blockingReason: null,
+    command: null,
+    prompt: ENTRY_MENU,
+    nextAction: 'choose_entry'
+  }
+  if (args && args.json) {
+    console.log(JSON.stringify({
+      version: '1.0',
+      stage: 'menu',
+      status: 'needs_user_input',
+      next: 'menu',
+      nextAction: 'choose_entry',
+      prompt: ENTRY_MENU,
+      command: null,
+      nextTask
+    }, null, 2))
+  } else {
+    console.log('== tracking-workflow ==')
+    console.log('NextTask: CHOOSE_ENTRY [menu] user')
+    console.log('')
+    console.log(ENTRY_MENU)
+  }
+  process.exitCode = 10
+}
+
+function emitAskExcel(args, stage) {
+  const { ASK_HISTORY_EXCEL } = require('./prompts')
+  const nextTask = {
+    id: 'ASK_HISTORY_EXCEL',
+    stage: stage || '7',
+    executor: 'user',
+    status: 'ready',
+    subject: {},
+    inputs: [],
+    outputs: [],
+    completionCondition: ['valid xlsx under docs/'],
+    blockingReason: null,
+    command: null,
+    prompt: ASK_HISTORY_EXCEL,
+    nextAction: 'ask_excel'
+  }
+  if (args && args.json) {
+    console.log(JSON.stringify({
+      version: '1.0',
+      stage: nextTask.stage,
+      status: 'needs_user_input',
+      next: nextTask.stage,
+      nextAction: 'ask_excel',
+      prompt: ASK_HISTORY_EXCEL,
+      command: null,
+      nextTask
+    }, null, 2))
+  } else {
+    console.log(ASK_HISTORY_EXCEL)
+  }
+  process.exitCode = 2
+}
+
 function main() {
   const args = parseArgs(process.argv)
   if (args.help || args.h) {
@@ -483,6 +507,18 @@ function main() {
     return
   }
   const repoRoot = findRepoRoot(SCRIPT_DIR)
+  const parsedEntry = parseEntry(args.entry)
+  const entryHint = parsedEntry ? parsedEntry.entry : entryFromRun(args.run)
+  if (!args.excel) {
+    if (!hasEntryIntent(args, null)) {
+      emitChooseEntry(args)
+      return
+    }
+    if (entryHint === 7 || entryHint === 8) {
+      emitAskExcel(args, String(entryHint))
+      return
+    }
+  }
   if (args.excel) {
     const moved = ensureExcelInDocs(repoRoot, resolveExcel(repoRoot, args.excel))
     args.excel = toPosix(path.relative(repoRoot, moved)) || moved
@@ -492,12 +528,14 @@ function main() {
     printHelp()
     throw new Error('未提供 --excel / --slug')
   }
-  const state = loadState(paths)
+  const state = persistEntry(paths, loadState(paths), args)
 
   if (args.mark) {
     const id = String(args.mark).toUpperCase()
     if (STAGES.indexOf(id) === -1) throw new Error(`unknown stage: ${args.mark}`)
-    completeStage(paths, state, id, args.note || '')
+    if (id !== 'A') {
+      completeStage(paths, state, id, args.note || '')
+    }
   }
 
   let runResult = null
@@ -508,9 +546,20 @@ function main() {
   }
 
   const status = buildStatus(paths, args, repoRoot)
+  if (runResult && runResult.requested === 'A') {
+    runResult.stageAComplete = !!status.stageStatus.A.done
+  }
+  const runFailed = !!(runResult && runResult.failed)
+  const envelopeStatus = workflowEnvelopeStatus(status.nextTask, runFailed)
   if (args.json) {
     console.log(JSON.stringify({
+      version: '1.0',
+      stage: status.nextTask ? status.nextTask.stage : 'D',
+      status: envelopeStatus,
       next: status.next,
+      nextAction: (status.nextTask && status.nextTask.nextAction) || 'none',
+      prompt: status.nextTask ? status.nextTask.prompt : null,
+      command: status.nextTask ? status.nextTask.command : null,
       nextTask: status.nextTask,
       stages: status.stageStatus,
       validation: status.validation,
@@ -533,6 +582,8 @@ function main() {
   }
   if (runResult && runResult.exitCode) {
     process.exitCode = runResult.exitCode
+  } else if (status.nextTask && status.nextTask.id === 'CHOOSE_ENTRY') {
+    process.exitCode = 10
   }
 }
 
@@ -551,5 +602,10 @@ module.exports = {
   inspectMissingList,
   gateStage,
   gateH,
-  resolveNextTask
+  loadState,
+  persistEntry,
+  resolveNextTask,
+  runStage,
+  runStageA,
+  workflowPath
 }

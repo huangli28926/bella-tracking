@@ -24,9 +24,9 @@ function listMissingDiagrams(paths) {
 }
 
 /**
- * A/B/C 依赖门禁：B 依赖 A 产物，C 依赖已分析的 A + 待确认队列可进入 B。
+ * A/B/C 依赖门禁：needA = 缺产物/缺图/未分析（pending）；needB = 已分析且待确认队列未清。
+ * A.done（含 validate）由 tracking-workflow.stageADone 计算，不把 needsConfirm 算进 A。
  * 整页「进入 C」无法从磁盘判定，调用方须另开 serve-impl。
- * 每条事件必须有非空示意图 png，缺图则 needA（入口 7 的 --skip-images dump 不能当 A 完成）。
  */
 function inspectLanding(paths) {
   const missing = []
@@ -50,8 +50,8 @@ function inspectLanding(paths) {
   }
 
   const needA = missing.length > 0 || emptyImpl || pendingEvents > 0
-  const needB = !needA && pendingConfirm > 0
-  const artifactsReady = !needA
+  const artifactsReady = missing.length === 0 && !emptyImpl && pendingEvents === 0
+  const needB = artifactsReady && pendingConfirm > 0
   const queueCleared = artifactsReady && pendingConfirm === 0
 
   const reasons = []

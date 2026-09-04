@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { readJson } = require('../lib/lib')
+const { D_FAIL_CHOICE } = require('../workflow/prompts')
 
 const REASON_ZH = {
   not_fired: '事件未触发',
@@ -258,6 +259,7 @@ function enrichFailExplain(report, opts) {
 }
 
 module.exports = {
+  D_FAIL_CHOICE,
   REASON_ZH,
   buildFailFacts,
   classifyReason,
