@@ -48,7 +48,7 @@ HTML 版式对齐既有「埋点关系图」：汇总卡、页面与埋点、页
 
 ## 文档 vs 代码（入口 7）
 
-`diff-doc-vs-history.js --excel=docs/{文档}.xlsx`：文档 `events.json` 的 evtId 减扫描 JSON 里 `pages[].events[].evtId`。无可用 xlsx 时打印「需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel」并以 exit 2 退出。不改业务源码。
+`diff-doc-vs-history.js --excel=docs/{文档}.xlsx`：文档 `events.json` 的 evtId 减扫描 JSON 里 `pages[].events[].evtId`。无可用 xlsx 时打印 `prompts.ASK_HISTORY_EXCEL` 并以 exit 2 退出。不改业务源码。
 
 缺失 JSON 是路径 H 的输入，不是写码许可。补全前由模型给每条 missing 分类：`literal_missing` / `dynamic_id` / `commented_out` / `feature_removed`。只有 `literal_missing` 才新增调用。补全完成后必须再跑一次本脚本。
 

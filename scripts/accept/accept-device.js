@@ -1,7 +1,4 @@
-const DEVICE_PROMPT = `请选择 Playwright 打开方式（回复 1 或 2）：
-1. 移动端（iPhone 13）
-2. PC 端（桌面视口）
-未选择前不启动浏览器、不跑验收。`
+const { DEVICE_PROMPT } = require('../workflow/prompts')
 
 const MOBILE_FALLBACK = {
   viewport: { width: 390, height: 844 },

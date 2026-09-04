@@ -2,6 +2,7 @@
 /* eslint-disable no-console */
 const { git, resolveTrackingBaseline } = require('../lib/period-diff')
 const { findRepoRoot, parseArgs } = require('../lib/lib')
+const { formatDeleteOldTracking } = require('../workflow/prompts')
 
 function printHelp() {
   console.log(`
@@ -139,7 +140,8 @@ function main() {
     vs: spec[0],
     baseline,
     removedCount: removed.length,
-    removed
+    removed,
+    prompt: removed.length ? formatDeleteOldTracking(removed.map(row => row.evtId)) : null
   }
   if (args.json) {
     console.log(JSON.stringify(payload, null, 2))
@@ -161,6 +163,8 @@ function main() {
           console.log('    - ' + line)
         })
       })
+      console.log('')
+      console.log(formatDeleteOldTracking(removed.map(row => row.evtId)))
     }
   }
   if (removed.length) {

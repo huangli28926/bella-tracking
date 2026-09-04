@@ -16,6 +16,7 @@ const {
   stageADone,
   workflowEnvelopeStatus
 } = require('./next-task')
+const { entryFromRun, hasEntryIntent, parseEntry } = require('./prompts')
 
 const SCRIPT_DIR = __dirname
 const STAGES = ['A', 'B', 'C', 'D']
@@ -40,6 +41,7 @@ Options:
                  C 缺落库 → exit 3（须完整路径 A）；待确认未清 → exit 4（须路径 B）
                  H 缺缺失表 → exit 5（须入口 7）；缺失为 0 则不写码
   --mark=B|C|D   标记阶段完成，写入 _raw/workflow.json（A.done 只由磁盘门禁计算，--mark=A 不使 A 完成）
+  --entry=1..8   写入 workflow.json.entry；未带 --entry/--run 且无已存 entry 时 --status 停在菜单
   --plan-only    传给 D 验收计划
   --device       传给 D：mobile | pc（真实验收必填）
   --json         输出机器可读 JSON
@@ -228,7 +230,10 @@ function buildStatus(paths, args, repoRoot) {
     repoRoot,
     args,
     excel: excelRel(repoRoot, args),
-    deviceId: resolveDeviceId(args, repoRoot)
+    deviceId: resolveDeviceId(args, repoRoot),
+    planOnly: !!(args && (args['plan-only'] || args.plan)),
+    needAskExcel: !!args.needAskExcel,
+    askExcelStage: args.askExcelStage || ''
   }
   const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras)
   const stageAComplete = stageADone(landing, validation, accept)
@@ -296,6 +301,11 @@ function printStatus(status) {
     console.log(`NextTask: ${status.nextTask.id} [${status.nextTask.stage}] ${status.nextTask.executor}${subject}`)
   }
   console.log(`Next: ${status.next ? `${status.next} ${stageName(status.next)}` : 'complete'}`)
+  const prompt = status.nextTask && status.nextTask.prompt
+  if (prompt) {
+    console.log('')
+    console.log(prompt)
+  }
 }
 
 function ensureExcelArg(args) {
@@ -404,6 +414,92 @@ function gateStage(paths, id) {
   return payload
 }
 
+function persistEntry(paths, state, args) {
+  const parsed = parseEntry(args && args.entry)
+  const fromRun = entryFromRun(args && args.run)
+  const entry = parsed ? parsed.entry : fromRun
+  if (!entry) return state
+  if (state.entry === entry) return state
+  state.entry = entry
+  state.history = state.history || []
+  state.history.push({
+    at: new Date().toISOString(),
+    stage: 'menu',
+    action: 'entry',
+    note: String(entry)
+  })
+  return saveState(paths, state)
+}
+
+function emitChooseEntry(args) {
+  const { ENTRY_MENU } = require('./prompts')
+  const nextTask = {
+    id: 'CHOOSE_ENTRY',
+    stage: 'menu',
+    executor: 'user',
+    status: 'ready',
+    subject: {},
+    inputs: [],
+    outputs: ['_raw/workflow.json'],
+    completionCondition: ['--entry=1..8 or --run=A|B|C|D|H'],
+    blockingReason: null,
+    command: null,
+    prompt: ENTRY_MENU,
+    nextAction: 'choose_entry'
+  }
+  if (args && args.json) {
+    console.log(JSON.stringify({
+      version: '1.0',
+      stage: 'menu',
+      status: 'needs_user_input',
+      next: 'menu',
+      nextAction: 'choose_entry',
+      prompt: ENTRY_MENU,
+      command: null,
+      nextTask
+    }, null, 2))
+  } else {
+    console.log('== tracking-workflow ==')
+    console.log('NextTask: CHOOSE_ENTRY [menu] user')
+    console.log('')
+    console.log(ENTRY_MENU)
+  }
+  process.exitCode = 10
+}
+
+function emitAskExcel(args, stage) {
+  const { ASK_HISTORY_EXCEL } = require('./prompts')
+  const nextTask = {
+    id: 'ASK_HISTORY_EXCEL',
+    stage: stage || '7',
+    executor: 'user',
+    status: 'ready',
+    subject: {},
+    inputs: [],
+    outputs: [],
+    completionCondition: ['valid xlsx under docs/'],
+    blockingReason: null,
+    command: null,
+    prompt: ASK_HISTORY_EXCEL,
+    nextAction: 'ask_excel'
+  }
+  if (args && args.json) {
+    console.log(JSON.stringify({
+      version: '1.0',
+      stage: nextTask.stage,
+      status: 'needs_user_input',
+      next: nextTask.stage,
+      nextAction: 'ask_excel',
+      prompt: ASK_HISTORY_EXCEL,
+      command: null,
+      nextTask
+    }, null, 2))
+  } else {
+    console.log(ASK_HISTORY_EXCEL)
+  }
+  process.exitCode = 2
+}
+
 function main() {
   const args = parseArgs(process.argv)
   if (args.help || args.h) {
@@ -411,6 +507,18 @@ function main() {
     return
   }
   const repoRoot = findRepoRoot(SCRIPT_DIR)
+  const parsedEntry = parseEntry(args.entry)
+  const entryHint = parsedEntry ? parsedEntry.entry : entryFromRun(args.run)
+  if (!args.excel) {
+    if (!hasEntryIntent(args, null)) {
+      emitChooseEntry(args)
+      return
+    }
+    if (entryHint === 7 || entryHint === 8) {
+      emitAskExcel(args, String(entryHint))
+      return
+    }
+  }
   if (args.excel) {
     const moved = ensureExcelInDocs(repoRoot, resolveExcel(repoRoot, args.excel))
     args.excel = toPosix(path.relative(repoRoot, moved)) || moved
@@ -420,7 +528,7 @@ function main() {
     printHelp()
     throw new Error('未提供 --excel / --slug')
   }
-  const state = loadState(paths)
+  const state = persistEntry(paths, loadState(paths), args)
 
   if (args.mark) {
     const id = String(args.mark).toUpperCase()
@@ -474,6 +582,8 @@ function main() {
   }
   if (runResult && runResult.exitCode) {
     process.exitCode = runResult.exitCode
+  } else if (status.nextTask && status.nextTask.id === 'CHOOSE_ENTRY') {
+    process.exitCode = 10
   }
 }
 
@@ -493,6 +603,7 @@ module.exports = {
   gateStage,
   gateH,
   loadState,
+  persistEntry,
   resolveNextTask,
   runStage,
   runStageA,

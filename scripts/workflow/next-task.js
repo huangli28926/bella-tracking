@@ -2,8 +2,19 @@ const path = require('path')
 const { readDotEnv, readJson, toPosix } = require('../lib/lib')
 const { getConfirmReasons } = require('../confirm/needs-confirm')
 const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/accept-device')
+const {
+  ASK_HISTORY_EXCEL,
+  D_FAIL_CHOICE,
+  ENTRY_MENU,
+  FULL_PAGE_PROMPT,
+  formatConfirmEvent,
+  formatDeleteOldTracking,
+  hasEntryIntent
+} = require('./prompts')
 
 const TASK_IDS = [
+  'CHOOSE_ENTRY',
+  'ASK_HISTORY_EXCEL',
   'A_DUMP',
   'A_RENDER',
   'A_PREPARE_IMAGES',
@@ -13,13 +24,13 @@ const TASK_IDS = [
   'B_CONFIRM_EVENT',
   'B_CONFIRM_FULL_PAGE',
   'C_WRITE_IMPL',
+  'C_CONFIRM_DELETE_OLD',
   'D_CHOOSE_DEVICE',
+  'D_CHOOSE_REPAIR',
   'D_RUN_ACCEPT',
   'H_NEED_MISSING_LIST'
 ]
 
-const FULL_PAGE_PROMPT = '请打开整份落库页，回复「进入 C」。'
-const CONFIRM_PROMPT_TAIL = '禁止附猜测或散文；只确认向导闭集项后保存。'
 const NEED_A_NOT_DUMP_ONLY = '须完整执行路径 A（dump + 逐条分析 + validate），禁止只 dump。'
 
 function excelRel(repoRoot, args) {
@@ -130,14 +141,31 @@ function fillContract(task, ctx) {
       command = `node scripts/accept/normalize-impl.js --excel=${excel} && node scripts/accept/validate-impl.js --excel=${excel} --json`
       nextAction = 'fix_validation'
       break
+    case 'CHOOSE_ENTRY':
+      command = null
+      prompt = ENTRY_MENU
+      nextAction = 'choose_entry'
+      break
+    case 'ASK_HISTORY_EXCEL':
+      command = null
+      prompt = ASK_HISTORY_EXCEL
+      nextAction = 'ask_excel'
+      break
+    case 'C_CONFIRM_DELETE_OLD':
+      command = `node scripts/accept/check-old-tracking.js --json`
+      prompt = formatDeleteOldTracking((ctx.deleteEvtIds || []).length ? ctx.deleteEvtIds : ['{evtId 列表}'])
+      nextAction = 'confirm_delete_old'
+      break
+    case 'D_CHOOSE_REPAIR':
+      command = null
+      prompt = D_FAIL_CHOICE
+      nextAction = 'choose_repair_mode'
+      break
     case 'B_CONFIRM_EVENT': {
       command = `node scripts/confirm/confirm-event.js --excel=${excel} --evt=${evtId} --if-needed --wait`
       const event = ctx.pendingConfirm && ctx.pendingConfirm.event
       const reasons = (ctx.pendingConfirm && ctx.pendingConfirm.reasons) || getConfirmReasons(event)
-      const reasonText = (reasons || []).length
-        ? reasons.map(item => `· ${item}`).join('\n')
-        : '· 请确认埋点位置'
-      prompt = `请在已打开的矫正向导中确认 evtId=${evtId} 后保存。\n${reasonText}\n${CONFIRM_PROMPT_TAIL}`
+      prompt = formatConfirmEvent(evtId, reasons)
       nextAction = 'confirm_event'
       break
     }
@@ -207,7 +235,46 @@ function resolveNextTask(paths, state, landing, validation, accept, queueInfo, e
     pendingConfirm
   }
 
+  if (!hasEntryIntent(extra.args, state)) {
+    return fillContract(taskBase({
+      id: 'CHOOSE_ENTRY',
+      stage: 'menu',
+      executor: 'user',
+      status: 'ready',
+      subject: {},
+      inputs: [],
+      outputs: ['_raw/workflow.json'],
+      completionCondition: ['--entry=1..8 or --run=A|B|C|D|H']
+    }), ctx)
+  }
+
+  if (extra.needAskExcel) {
+    return fillContract(taskBase({
+      id: 'ASK_HISTORY_EXCEL',
+      stage: extra.askExcelStage || '7',
+      executor: 'user',
+      status: 'ready',
+      subject: {},
+      inputs: [],
+      outputs: [],
+      completionCondition: ['valid xlsx under docs/']
+    }), ctx)
+  }
+
   if (acceptDone) {
+    const fail = accept && accept.summary ? Number(accept.summary.fail) || 0 : 0
+    if (fail > 0 && !extra.planOnly && !(state && state.repairMode)) {
+      return fillContract(taskBase({
+        id: 'D_CHOOSE_REPAIR',
+        stage: 'D',
+        executor: 'user',
+        status: 'ready',
+        subject: {},
+        inputs: ['accept/*.json'],
+        outputs: ['_raw/workflow.json'],
+        completionCondition: ['user chose 1 or 2']
+      }), ctx)
+    }
     return null
   }
 
@@ -363,6 +430,7 @@ function resolveDeviceId(args, repoRoot) {
 module.exports = {
   TASK_IDS,
   DEVICE_PROMPT,
+  ENTRY_MENU,
   FULL_PAGE_PROMPT,
   analysisComplete,
   excelRel,

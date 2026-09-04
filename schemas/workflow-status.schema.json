@@ -11,7 +11,7 @@
     "stage": { "enum": ["menu", "A", "B", "C", "D", "E", "F", "7", "H"] },
     "status": { "enum": ["completed", "blocked", "needs_user_input", "failed"] },
     "next": { "type": "string" },
-    "nextAction": { "enum": ["none", "choose_entry", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "fix_validation", "retry"] },
+    "nextAction": { "enum": ["none", "choose_entry", "ask_excel", "confirm_event", "confirm_full_page", "choose_device", "choose_repair_mode", "confirm_delete_old", "fix_validation", "retry"] },
     "prompt": { "type": ["string", "null"] },
     "command": { "type": ["string", "null"] },
     "nextTask": { "$ref": "task-result.schema.json#/properties/nextTask" },

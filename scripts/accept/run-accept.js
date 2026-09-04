@@ -1295,6 +1295,8 @@ async function main() {
       console.log(item.failFactsZh || ((item.evtId || '') + ' 「' + (item.reasonZh || item.reason || '') + '」'))
       console.log('---')
     })
+    const { D_FAIL_CHOICE } = require('../workflow/prompts')
+    console.log(D_FAIL_CHOICE)
   }
   if (!planOnly) {
     try {
