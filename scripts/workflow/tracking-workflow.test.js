@@ -8,6 +8,8 @@ const { defaultAcceptPaths } = require('../accept/accept-chain')
 const { buildStatus, gateStage, loadState, runStage, workflowPath } = require('./tracking-workflow')
 const { DEVICE_PROMPT } = require('../accept/accept-device')
 const {
+  ASK_EXCEL,
+  ASK_EXCEL_INVALID,
   ASK_HISTORY_EXCEL,
   D_FAIL_CHOICE,
   DELETE_OLD_TRACKING,
@@ -321,6 +323,34 @@ test('analyzed + validated events never return A_ANALYZE_EVENT', () => {
   assert.notStrictEqual(getNextTask(status).id, 'A_ANALYZE_EVENT')
 })
 
+function runWorkflowCli(extraArgs) {
+  const { spawnSync } = require('child_process')
+  return spawnSync(process.execPath, [
+    path.join(__dirname, 'tracking-workflow.js'),
+    '--status',
+    '--json'
+  ].concat(extraArgs || []), {
+    encoding: 'utf8',
+    cwd: path.join(__dirname, '../..')
+  })
+}
+
+test('no excel returns ASK_EXCEL', () => {
+  const result = runWorkflowCli([])
+  const payload = JSON.parse(result.stdout)
+  assert.strictEqual(payload.nextTask.id, 'ASK_EXCEL')
+  assert.strictEqual(payload.prompt, ASK_EXCEL)
+  assert.strictEqual(payload.nextAction, 'ask_excel')
+})
+
+test('invalid excel returns ASK_EXCEL_INVALID', () => {
+  const result = runWorkflowCli(['--excel=docs/__not-a-real-tracking-doc__.xlsx'])
+  const payload = JSON.parse(result.stdout)
+  assert.strictEqual(payload.nextTask.id, 'ASK_EXCEL_INVALID')
+  assert.strictEqual(payload.prompt, ASK_EXCEL_INVALID)
+  assert.strictEqual(payload.nextAction, 'ask_excel')
+})
+
 test('no entry and no run returns CHOOSE_ENTRY with ENTRY_MENU', () => {
   const fixture = baseFixture('need-menu', {
     events: [{ evtId: '1001', eventName: 'Pending event' }],
@@ -362,6 +392,8 @@ test('shared prompts stay single-sourced', () => {
 1. 移动端（iPhone 13）
 2. PC 端（桌面视口）
 未选择前不启动浏览器、不跑验收。`)
+  assert.strictEqual(ASK_EXCEL, '请输入本次埋点需求Excel')
+  assert.strictEqual(ASK_EXCEL_INVALID, '当前埋点文档路径无效，请核实后，重新输入')
   assert.strictEqual(ASK_HISTORY_EXCEL, '需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel')
   assert.ok(formatDeleteOldTracking('95936').indexOf(DELETE_OLD_TRACKING.split('\n')[0]) === 0)
   assert.ok(D_FAIL_CHOICE.indexOf('请选择下一步（回复 1 或 2）') === 0)

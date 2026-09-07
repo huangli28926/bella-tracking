@@ -3,6 +3,8 @@ const { readDotEnv, readJson, toPosix } = require('../lib/lib')
 const { getConfirmReasons } = require('../confirm/needs-confirm')
 const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/accept-device')
 const {
+  ASK_EXCEL,
+  ASK_EXCEL_INVALID,
   ASK_HISTORY_EXCEL,
   D_FAIL_CHOICE,
   ENTRY_MENU,
@@ -14,6 +16,8 @@ const {
 
 const TASK_IDS = [
   'CHOOSE_ENTRY',
+  'ASK_EXCEL',
+  'ASK_EXCEL_INVALID',
   'ASK_HISTORY_EXCEL',
   'A_DUMP',
   'A_RENDER',
@@ -145,6 +149,16 @@ function fillContract(task, ctx) {
       command = null
       prompt = ENTRY_MENU
       nextAction = 'choose_entry'
+      break
+    case 'ASK_EXCEL':
+      command = null
+      prompt = ASK_EXCEL
+      nextAction = 'ask_excel'
+      break
+    case 'ASK_EXCEL_INVALID':
+      command = null
+      prompt = ASK_EXCEL_INVALID
+      nextAction = 'ask_excel'
       break
     case 'ASK_HISTORY_EXCEL':
       command = null

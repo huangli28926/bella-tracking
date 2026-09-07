@@ -9,6 +9,8 @@
 - 改写文档 `uicode`：只从 Excel → `events.json` 读取；禁止写入 `impl.json`、禁止落库页编辑、禁止用现网旧值覆盖。不一致只填 `uicodeConflict`
 - 不确定时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`
 - 打断确认时向用户输出与「埋点位置 / 参数取值 / uicode」无关的说明
+- 未给埋点文档路径时不打印 `prompts.ASK_EXCEL`（请输入本次埋点需求Excel）就开跑或编造路径
+- 埋点文档路径无效时不打印 `prompts.ASK_EXCEL_INVALID` 就继续 dump / 选入口 / 写码
 - 未明确入口时不列完整选项（8 项：全流程 / A→B→C / 只 A / D / E / F / 缺失列表 / 补全历史缺失）就自行开跑，或替用户选择默认跑 A
 - 选 7 或 8 且无可用埋点 Excel、也无 `{文档名}-缺失埋点.json` 时不打印 `prompts.ASK_HISTORY_EXCEL` 就开跑 dump/扫描/对账/写码
 - 未走入口 8 / 路径 H、未确认「进入 C」，仅凭缺失 HTML/JSON 改业务源码

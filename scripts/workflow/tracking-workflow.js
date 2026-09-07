@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
+const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { defaultAcceptPaths } = require('../accept/accept-chain')
@@ -467,11 +468,10 @@ function emitChooseEntry(args) {
   process.exitCode = 10
 }
 
-function emitAskExcel(args, stage) {
-  const { ASK_HISTORY_EXCEL } = require('./prompts')
+function emitAskPrompt(args, spec) {
   const nextTask = {
-    id: 'ASK_HISTORY_EXCEL',
-    stage: stage || '7',
+    id: spec.id,
+    stage: spec.stage,
     executor: 'user',
     status: 'ready',
     subject: {},
@@ -480,7 +480,7 @@ function emitAskExcel(args, stage) {
     completionCondition: ['valid xlsx under docs/'],
     blockingReason: null,
     command: null,
-    prompt: ASK_HISTORY_EXCEL,
+    prompt: spec.prompt,
     nextAction: 'ask_excel'
   }
   if (args && args.json) {
@@ -490,14 +490,51 @@ function emitAskExcel(args, stage) {
       status: 'needs_user_input',
       next: nextTask.stage,
       nextAction: 'ask_excel',
-      prompt: ASK_HISTORY_EXCEL,
+      prompt: spec.prompt,
       command: null,
       nextTask
     }, null, 2))
   } else {
-    console.log(ASK_HISTORY_EXCEL)
+    console.log(spec.prompt)
   }
-  process.exitCode = 2
+  process.exitCode = spec.exitCode == null ? 2 : spec.exitCode
+}
+
+function emitAskExcel(args) {
+  const { ASK_EXCEL } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_EXCEL',
+    stage: 'excel',
+    prompt: ASK_EXCEL
+  })
+}
+
+function emitAskExcelInvalid(args) {
+  const { ASK_EXCEL_INVALID } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_EXCEL_INVALID',
+    stage: 'excel',
+    prompt: ASK_EXCEL_INVALID
+  })
+}
+
+function emitAskHistoryExcel(args, stage) {
+  const { ASK_HISTORY_EXCEL } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_HISTORY_EXCEL',
+    stage: stage || '7',
+    prompt: ASK_HISTORY_EXCEL
+  })
+}
+
+function isValidExcelFile(abs) {
+  if (!abs || !fs.existsSync(abs)) return false
+  try {
+    if (!fs.statSync(abs).isFile()) return false
+  } catch (error) {
+    return false
+  }
+  return /\.xlsx?$/i.test(abs)
 }
 
 function main() {
@@ -510,19 +547,24 @@ function main() {
   const parsedEntry = parseEntry(args.entry)
   const entryHint = parsedEntry ? parsedEntry.entry : entryFromRun(args.run)
   if (!args.excel) {
-    if (!hasEntryIntent(args, null)) {
-      emitChooseEntry(args)
-      return
-    }
     if (entryHint === 7 || entryHint === 8) {
-      emitAskExcel(args, String(entryHint))
+      emitAskHistoryExcel(args, String(entryHint))
       return
     }
+    emitAskExcel(args)
+    return
   }
-  if (args.excel) {
-    const moved = ensureExcelInDocs(repoRoot, resolveExcel(repoRoot, args.excel))
-    args.excel = toPosix(path.relative(repoRoot, moved)) || moved
+  const resolvedExcel = resolveExcel(repoRoot, args.excel)
+  if (!isValidExcelFile(resolvedExcel) && !isValidExcelFile(path.join(repoRoot, 'docs', path.basename(resolvedExcel)))) {
+    emitAskExcelInvalid(args)
+    return
   }
+  const moved = ensureExcelInDocs(repoRoot, resolvedExcel)
+  if (!isValidExcelFile(moved)) {
+    emitAskExcelInvalid(args)
+    return
+  }
+  args.excel = toPosix(path.relative(repoRoot, moved)) || moved
   const paths = defaultAcceptPaths(repoRoot, args)
   if (!paths.outDir) {
     printHelp()

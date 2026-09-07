@@ -46,6 +46,8 @@
 
 对话里用：`--excel=docs/你的文件名.xlsx`
 
+没给路径时，AI 必须原样转述脚本 `prompt`：`请输入本次埋点需求Excel`。路径无效时原样转述：`当前埋点文档路径无效，请核实后，重新输入`。只给了有效文档、没选入口时，原样列出 `prompts.ENTRY_MENU`。
+
 选 **7 / 8** 时如果没给可用的 xlsx（也没有已生成的缺失 JSON），以脚本 `prompts.ASK_HISTORY_EXCEL` / `--status` 的 `prompt` 为准原样询问。未回复不得开扫、不得对账、不得写码。
 
 ---
