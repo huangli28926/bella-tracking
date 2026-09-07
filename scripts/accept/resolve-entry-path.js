@@ -12,6 +12,8 @@ const {
   toPosix
 } = require('../lib/lib')
 const { jumpAddedThisPeriod, loadPeriodDiff } = require('../lib/period-diff')
+const { pathIdForCandidate } = require('./path-id')
+const { resolveAcceptPath } = require('./resolve-accept-path')
 
 const SCRIPT_DIR = __dirname
 
@@ -28,9 +30,10 @@ Usage:
   不写业务 locator，不改 impl.json。给路径 C 填 accept.preconditions 用。
   lockMode:
     new_jump           本期新增跳转到该页 → 主验收走这条新边
-    existing_shortest  入边都是历史跳转 → 从 seed 走已有最短路径，禁止编新入口
+    existing_shortest  入边都是历史跳转且可唯一收敛
     seed_is_page       seed 已在该页 → preconditions 可为 []
     no_inbound         仓内扫不到入边（外链/原生）→ 以 seed 直达该页为准
+    needs_confirm      多条历史/同级新路径无法唯一收敛 → 人工选一次并写入 pathResolution
 `)
 }
 
@@ -127,24 +130,107 @@ function preferEdges(page, edges) {
   return sameTo.length ? sameTo : list
 }
 
-function lockForPage(page, inbound, seedPath, trackingMode) {
-  const newJumps = preferEdges(page, inbound.filter(edge => edge.jumpAddedThisPeriod))
+function candidateFromEdge(edge, page, seedPath, backfill) {
+  const added = !backfill && !!edge.jumpAddedThisPeriod
+  return {
+    pageKey: page && page.path || '',
+    seedUrlKey: seedPath || '',
+    target: page && page.path || '',
+    steps: [
+      { node: edge.from, action: edge.via || 'navigate', to: edge.to },
+      { node: edge.to, action: 'target' }
+    ],
+    edges: [{
+      from: edge.from,
+      to: edge.to,
+      action: edge.via || '',
+      sourceFile: edge.file,
+      evidence: ['router'],
+      changeStatus: added ? 'added' : 'existing'
+    }],
+    reachable: true,
+    relatedToCurrentChange: added,
+    factsComplete: !!(edge.from && edge.to && edge.file),
+    executable: true,
+    cost: edge.from === seedPath ? 1 : 2,
+    stableLocatorCount: edge.via ? 1 : 0,
+    lockEdge: edge
+  }
+}
+
+function lockForPage(page, inbound, seedPath, trackingMode, historicalDecision) {
+  const backfill = trackingMode === 'backfill'
   const seedOnPage = !!(seedPath && page && (
     seedPath === page.path || seedPath.indexOf(page.path + '/') === 0
   ))
-  const backfill = trackingMode === 'backfill'
-  if (newJumps.length && !backfill) {
-    const fromSeed = newJumps.filter(edge => edge.from === seedPath)
+  const candidates = preferEdges(page, inbound).map(edge => candidateFromEdge(edge, page, seedPath, backfill))
+  if (seedOnPage) {
+    candidates.push({
+      pageKey: page.path,
+      seedUrlKey: seedPath || '',
+      target: page.path,
+      steps: [{ node: page.path, action: 'target' }],
+      edges: [],
+      reachable: true,
+      seedIsPage: true,
+      relatedToCurrentChange: false,
+      factsComplete: true,
+      executable: true,
+      cost: 0,
+      stableLocatorCount: 1,
+      lockEdge: null
+    })
+  }
+  if (!candidates.length) {
+    candidates.push({
+      pageKey: page && page.path || '',
+      seedUrlKey: seedPath || '',
+      target: page && page.path || '',
+      steps: [{ node: page && page.path || 'seed', action: 'target' }],
+      edges: [],
+      reachable: true,
+      relatedToCurrentChange: false,
+      factsComplete: true,
+      executable: true,
+      cost: 0,
+      stableLocatorCount: 0,
+      lockEdge: null
+    })
+  }
+  const resolution = resolveAcceptPath({
+    candidates,
+    historicalDecision: historicalDecision || null,
+    context: {
+      pageKey: page && page.path || '',
+      target: page && page.path || '',
+      seedUrlKey: seedPath || ''
+    }
+  })
+  const selected = candidates.find(item => pathIdForCandidate(item) === resolution.selectedPathId)
+  if (resolution.status === 'needsConfirm') {
+    return {
+      lockMode: 'needs_confirm',
+      lockEdges: [],
+      needsConfirm: true,
+      pathResolution: resolution,
+      hint: '多条可达路径无法从代码事实唯一确定。列出 candidate 请用户选一次，写入 accept.pathResolution 后复用。'
+    }
+  }
+  if (selected && selected.relatedToCurrentChange) {
     return {
       lockMode: 'new_jump',
-      lockEdges: fromSeed.length ? fromSeed : newJumps,
+      lockEdges: selected.lockEdge ? [selected.lockEdge] : [],
+      needsConfirm: false,
+      pathResolution: resolution,
       hint: '主验收只走本期新增跳转；历史入边不当主 accept。从 seed 点到 lockEdges[0].from，再点该跳转进入落点页。'
     }
   }
-  if (seedOnPage) {
+  if (selected && selected.seedIsPage) {
     return {
       lockMode: 'seed_is_page',
       lockEdges: [],
+      needsConfirm: false,
+      pathResolution: resolution,
       hint: 'seed 已在落点页。preconditions 用 []，只触发本期控件。不要编新跳转。'
     }
   }
@@ -152,14 +238,16 @@ function lockForPage(page, inbound, seedPath, trackingMode) {
     return {
       lockMode: 'no_inbound',
       lockEdges: [],
+      needsConfirm: false,
+      pathResolution: resolution,
       hint: '仓内未扫到 history.push / Link 入边。以 seed 直达该页为准（外链/原生扫不到）。'
     }
   }
-  const historical = preferEdges(page, inbound)
-  const fromSeed = historical.filter(edge => edge.from === seedPath)
   return {
     lockMode: 'existing_shortest',
-    lockEdges: (fromSeed.length ? fromSeed : historical).slice(0, 1),
+    lockEdges: selected && selected.lockEdge ? [selected.lockEdge] : [],
+    needsConfirm: false,
+    pathResolution: resolution,
     hint: backfill
       ? 'trackingMode=backfill：旧页补点。从 seed 走已有最短入边，不把本期新跳转当主 accept。禁止编新入口。'
       : '本期没有新跳转边。从 seed 走已有最短入边进旧页，再触发本期埋点。禁止把全部历史入边都写成验收 path。'
@@ -183,7 +271,7 @@ function resolveOne(graph, period, seedPath, spec) {
   }
   const inboundRaw = (graph.edgeDetails || []).filter(edge => aliasPaths[edge.to])
   const inbound = inboundRaw.map(edge => classifyEdge(period, edge))
-  const lock = lockForPage(page, inbound, seedPath, period.trackingMode)
+  const lock = lockForPage(page, inbound, seedPath, period.trackingMode, spec.historicalDecision || null)
   return {
     evtId: spec.evtId || '',
     targetFile,
@@ -196,6 +284,8 @@ function resolveOne(graph, period, seedPath, spec) {
     newJumpCount: inbound.filter(edge => edge.jumpAddedThisPeriod).length,
     lockMode: lock.lockMode,
     lockEdges: lock.lockEdges,
+    needsConfirm: !!lock.needsConfirm,
+    pathResolution: lock.pathResolution || null,
     hint: lock.hint
   }
 }
@@ -246,7 +336,8 @@ function main() {
       specs.push({
         evtId: String(item.evtId || ''),
         targetFile: item.targetFile || '',
-        route: args.route || ''
+        route: args.route || '',
+        historicalDecision: item.accept && item.accept.pathResolution || null
       })
     })
   }
@@ -278,7 +369,8 @@ function main() {
       '  page=' + (item.pagePath || '-') +
       '  inbound=' + item.inboundCount +
       '  newJump=' + item.newJumpCount +
-      '  lock=' + item.lockMode
+      '  lock=' + item.lockMode +
+      (item.needsConfirm ? '  needsConfirm' : '')
     )
     item.lockEdges.forEach(edge => {
       console.log('    ' + edge.from + ' -[' + edge.via + ']-> ' + edge.to + '  ' + edge.file + ':' + edge.line)
@@ -297,6 +389,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  candidateFromEdge,
   classifyEdge,
   lockForPage,
   pagesForFile,

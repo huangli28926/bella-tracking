@@ -12,7 +12,9 @@ const LOCATOR_BY = ['text', 'testid', 'css', 'role', '']
 const TRIGGER_KIND = ['click', 'scrollIntoView', 'waitVisible', 'pageLoad']
 const STEP_ACTION = ['click', 'scrollIntoView', 'waitVisible', 'waitApi', 'waitUrl', 'pageLoad']
 const DEP_FROM = ['api', 'url', 'user', 'page']
-const LIFECYCLE = ['onClick', 'useEffect', 'IntersectionObserver', 'pageLoad', '']
+const PATH_STATUS = ['resolved', 'needsConfirm']
+const PATH_SELECTED_BY = ['current-change', 'historical-human-decision', 'unique-candidate', 'deterministic-tie-break', 'human', '']
+const PATH_SOURCE = ['deterministic-rule', 'human', '']
 
 function printHelp() {
   console.log(`
@@ -182,6 +184,22 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
     if (event.accept && typeof event.accept === 'object') {
       validateTrigger(issues, evtId, event.accept.trigger)
       validateDataDeps(issues, evtId, event.accept.dataDeps || [])
+      const pathRes = event.accept.pathResolution
+      if (pathRes && typeof pathRes === 'object') {
+        if (pathRes.status && PATH_STATUS.indexOf(pathRes.status) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.status', `invalid status: ${pathRes.status}`)
+        }
+        if (pathRes.selectedBy && PATH_SELECTED_BY.indexOf(pathRes.selectedBy) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.selectedBy', `invalid selectedBy: ${pathRes.selectedBy}`)
+        }
+        const src = pathRes.decision && pathRes.decision.source
+        if (src && PATH_SOURCE.indexOf(src) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.decision.source', `invalid source: ${src}`)
+        }
+        if (pathRes.status === 'resolved' && !pathRes.selectedPathId) {
+          add(issues, 'error', evtId, 'accept.pathResolution.selectedPathId', 'resolved path requires selectedPathId')
+        }
+      }
     }
   })
 

@@ -19,6 +19,10 @@ function eventNeedsConfirm(event) {
   if (Array.isArray(event.unresolved) && event.unresolved.length) {
     return true
   }
+  const pathRes = event.accept && event.accept.pathResolution
+  if (pathRes && pathRes.status === 'needsConfirm') {
+    return true
+  }
   if (!String(event.targetFile || '').trim()) {
     return true
   }
@@ -67,6 +71,10 @@ function getConfirmReasons(event) {
   })
   if (String(event.uicodeConflict || '').trim()) {
     reasons.push('请确认 uicode（文档与落点不一致）')
+  }
+  const pathRes = event.accept && event.accept.pathResolution
+  if (pathRes && pathRes.status === 'needsConfirm') {
+    reasons.push('请确认验收入口路径')
   }
   return reasons
 }

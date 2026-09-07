@@ -2,6 +2,7 @@ const path = require('path')
 const { defaultPaths } = require('../extract/report')
 
 const { viewportForDevice } = require('./accept-device')
+const { pathIdForCandidate } = require('./path-id')
 
 const CHAIN_VERSION = 1
 const DEFAULT_VIEWPORT = viewportForDevice('mobile')
@@ -218,6 +219,11 @@ function buildTarget(impl, docEvent, seedUrl) {
     return { error: 'missing pageKey (model must set from code)' }
   }
   const sharedSteps = resolveSharedSteps(impl)
+  const accept = impl.accept || {}
+  const pathRes = accept.pathResolution
+  if (pathRes && pathRes.status === 'needsConfirm') {
+    return { error: 'accept.pathResolution needsConfirm' }
+  }
   const dataDeps = resolveDataDeps(impl)
   return {
     evtId: String(impl.evtId),
@@ -246,7 +252,9 @@ function buildTarget(impl, docEvent, seedUrl) {
       file: impl.targetFile || '',
       functionName: impl.functionName || '',
       lifecycle: impl.lifecycle || ''
-    }
+    },
+    selectedPathId: pathRes && pathRes.selectedPathId || '',
+    pathDecisionSource: pathRes && pathRes.selectedBy || ''
   }
 }
 
@@ -259,13 +267,11 @@ function clusterKey(target) {
 
 function pathIdFor(pageKey, sharedSteps, navigates, evtId) {
   const suffix = navigates ? `nav-${evtId}` : 'shared'
-  const stepPart = (sharedSteps || [])
-    .map(step => step.value || step.urlIncludes || step.why || step.action || '')
-    .filter(Boolean)
-    .join('-')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .slice(0, 48)
-  return [pageKey || 'page', stepPart || 'entry', suffix].filter(Boolean).join('.')
+  return pathIdForCandidate({
+    pageKey: pageKey || 'page',
+    steps: sharedSteps || [],
+    target: suffix
+  })
 }
 
 function clusterPaths(targets, seedUrl) {
@@ -280,6 +286,8 @@ function clusterPaths(targets, seedUrl) {
       groups[key] = {
         pathId: pathIdFor(target.pageKey, target.sharedSteps, nav, target.evtId),
         pageKey: target.pageKey,
+        pathDecisionSource: target.pathDecisionSource || '',
+        selectedPathId: target.selectedPathId || '',
         entry: { url: entryUrl, waitApis: [] },
         sharedSteps: target.sharedSteps || [],
         targets: []
@@ -296,6 +304,8 @@ function clusterPaths(targets, seedUrl) {
       delete copy.seedUrl
       delete copy.sharedSteps
       delete copy.status
+      delete copy.pathDecisionSource
+      delete copy.selectedPathId
       return copy
     })
     return pathItem
