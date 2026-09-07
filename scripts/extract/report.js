@@ -67,6 +67,11 @@ function normalizeParam(param) {
     valueKind: inferValueKind(expression, src.valueKind),
     sourcePath: src.sourcePath || '',
     confidence: src.confidence || '',
+    evidence: Array.isArray(src.evidence) ? src.evidence : [],
+    scopeReachable: src.scopeReachable === true || src.scopeReachable === false || src.scopeReachable === null
+      ? src.scopeReachable
+      : null,
+    conflicts: Array.isArray(src.conflicts) ? src.conflicts : [],
     fromMemory: !!src.fromMemory,
     fromEvtId: src.fromEvtId ? String(src.fromEvtId) : '',
     hint: normalizeHint(src.hint)
@@ -351,6 +356,9 @@ function mergeImplEvent(existing, patch) {
       valueKind: inferValueKind(nextExpr, nextKind),
       sourcePath: incoming.sourcePath !== undefined ? incoming.sourcePath : before.sourcePath,
       confidence: incoming.confidence !== undefined ? incoming.confidence : before.confidence,
+      evidence: incoming.evidence !== undefined ? incoming.evidence : before.evidence,
+      scopeReachable: incoming.scopeReachable !== undefined ? incoming.scopeReachable : before.scopeReachable,
+      conflicts: incoming.conflicts !== undefined ? incoming.conflicts : before.conflicts,
       docDesc: incoming.docDesc !== undefined ? incoming.docDesc : before.docDesc,
       fromMemory: incoming.fromMemory !== undefined ? !!incoming.fromMemory : !!before.fromMemory,
       fromEvtId: incoming.fromEvtId !== undefined ? String(incoming.fromEvtId || '') : (before.fromEvtId || ''),

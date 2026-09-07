@@ -76,6 +76,9 @@ function normalizeImpl(payload) {
       if ('sourcePath' in p) p.sourcePath = str(p.sourcePath)
       p.confidence = CONFIDENCE.has(str(p.confidence)) ? str(p.confidence) : ''
       if ('valueKind' in p) p.valueKind = ['expression', 'prompt', ''].includes(str(p.valueKind)) ? str(p.valueKind) : ''
+      if (!Object.prototype.hasOwnProperty.call(p, 'evidence')) p.evidence = []
+      if (!Object.prototype.hasOwnProperty.call(p, 'scopeReachable')) p.scopeReachable = null
+      if (!Object.prototype.hasOwnProperty.call(p, 'conflicts')) p.conflicts = []
     })
     event.unresolved = normalizeUnresolved(event)
     if (event.accept && event.accept.trigger) {

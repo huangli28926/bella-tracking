@@ -12,6 +12,23 @@ const LOCATOR_BY = ['text', 'testid', 'css', 'role', '']
 const TRIGGER_KIND = ['click', 'scrollIntoView', 'waitVisible', 'pageLoad']
 const STEP_ACTION = ['click', 'scrollIntoView', 'waitVisible', 'waitApi', 'waitUrl', 'pageLoad']
 const DEP_FROM = ['api', 'url', 'user', 'page']
+const PARAMETER_EVIDENCE_TYPES = [
+  'same-component-tracking',
+  'same-page-tracking',
+  'same-module-tracking',
+  'jsx-binding',
+  'api-field',
+  'prop-chain',
+  'state-chain',
+  'hook-chain',
+  'context-chain',
+  'url-field',
+  'user-context',
+  'field-memory',
+  'repository-convention',
+  'manual-confirm'
+]
+const LIFECYCLE = ['onClick', 'useEffect', 'IntersectionObserver', 'pageLoad', '']
 const PATH_STATUS = ['resolved', 'needsConfirm']
 const PATH_SELECTED_BY = ['current-change', 'historical-human-decision', 'unique-candidate', 'deterministic-tie-break', 'human', '']
 const PATH_SOURCE = ['deterministic-rule', 'human', '']
@@ -180,6 +197,35 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
       if (CONFIDENCE.indexOf(param.confidence || '') === -1) {
         add(issues, 'warn', evtId, `${field}.confidence`, `unexpected confidence: ${param.confidence}`)
       }
+      if (Object.prototype.hasOwnProperty.call(param, 'evidence')) {
+        if (!Array.isArray(param.evidence)) {
+          add(issues, 'error', evtId, `${field}.evidence`, 'evidence must be an array')
+        } else {
+          param.evidence.forEach((item, eIdx) => {
+            const eField = `${field}.evidence[${eIdx}]`
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              add(issues, 'error', evtId, eField, 'evidence item must be object')
+              return
+            }
+            if (PARAMETER_EVIDENCE_TYPES.indexOf(item.type) === -1) {
+              add(issues, 'error', evtId, `${eField}.type`, `invalid evidence type: ${item.type || '(empty)'}`)
+            }
+          })
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(param, 'scopeReachable')) {
+        const reach = param.scopeReachable
+        if (reach !== true && reach !== false && reach !== null) {
+          add(issues, 'error', evtId, `${field}.scopeReachable`, 'scopeReachable must be true, false, or null')
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(param, 'conflicts')) {
+        if (!Array.isArray(param.conflicts)) {
+          add(issues, 'error', evtId, `${field}.conflicts`, 'conflicts must be an array')
+        } else if (param.conflicts.some(item => typeof item !== 'string')) {
+          add(issues, 'error', evtId, `${field}.conflicts`, 'conflicts items must be strings')
+        }
+      }
     })
     if (event.accept && typeof event.accept === 'object') {
       validateTrigger(issues, evtId, event.accept.trigger)
@@ -267,4 +313,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { assertValidImpl, validateFiles, validateImpl }
+module.exports = { assertValidImpl, validateFiles, validateImpl, PARAMETER_EVIDENCE_TYPES }
