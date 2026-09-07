@@ -23,8 +23,10 @@ const TASK_IDS = [
   'A_VALIDATE_IMPL',
   'B_CONFIRM_EVENT',
   'B_CONFIRM_FULL_PAGE',
-  'C_WRITE_IMPL',
+  'C_WRITE_EVENT',
   'C_CONFIRM_DELETE_OLD',
+  'C_FILL_ACCEPT',
+  'C_BUILD_CHAIN',
   'D_CHOOSE_DEVICE',
   'D_CHOOSE_REPAIR',
   'D_RUN_ACCEPT',
@@ -54,6 +56,38 @@ function isUnanalyzed(item) {
   if (!item) return true
   const status = String(item.status || '').trim()
   return !status || status === 'pending'
+}
+
+function sortByDoc(list) {
+  return (list || []).slice().sort((a, b) => {
+    const da = Number(a && a.docIndex) || 0
+    const db = Number(b && b.docIndex) || 0
+    if (da !== db) return da - db
+    return String((a && a.evtId) || '').localeCompare(String((b && b.evtId) || ''))
+  })
+}
+
+function implEvents(paths) {
+  const impl = readJson(paths.implPath, { events: [] })
+  return sortByDoc(Array.isArray(impl.events) ? impl.events : [])
+}
+
+function firstUnwrittenEvent(paths) {
+  return implEvents(paths).find(item => item && item.accepted !== true) || null
+}
+
+function firstMissingAcceptEvent(paths) {
+  return implEvents(paths).find(item => {
+    if (!item) return false
+    const trigger = item.accept && item.accept.trigger
+    return !String(item.pageKey || '').trim() || !trigger || !trigger.kind
+  }) || null
+}
+
+function chainReady(paths) {
+  const chain = readJson(paths.chainPath, null)
+  if (!chain || !Array.isArray(chain.paths)) return false
+  return !(Array.isArray(chain.pending) && chain.pending.length)
 }
 
 function firstUnanalyzedEvent(paths) {
@@ -132,7 +166,7 @@ function fillContract(task, ctx) {
       command = `node scripts/extract/dump-excel.js --excel=${excel}`
       break
     case 'A_ANALYZE_EVENT':
-      command = statusCommand(excel)
+      command = `node scripts/workflow/apply-impl-patch.js --excel=${excel} --task=A_ANALYZE_EVENT --evt=${evtId} --patch=-`
       break
     case 'A_NORMALIZE_IMPL':
       command = `node scripts/accept/normalize-impl.js --excel=${excel}`
@@ -174,8 +208,14 @@ function fillContract(task, ctx) {
       prompt = FULL_PAGE_PROMPT
       nextAction = 'confirm_full_page'
       break
-    case 'C_WRITE_IMPL':
-      command = statusCommand(excel)
+    case 'C_WRITE_EVENT':
+      command = `node scripts/workflow/apply-impl-patch.js --excel=${excel} --task=C_WRITE_EVENT --evt=${evtId} --patch=-`
+      break
+    case 'C_FILL_ACCEPT':
+      command = `node scripts/workflow/apply-impl-patch.js --excel=${excel} --task=C_FILL_ACCEPT --evt=${evtId} --patch=-`
+      break
+    case 'C_BUILD_CHAIN':
+      command = `node scripts/accept/build-accept-chain.js --excel=${excel}`
       break
     case 'D_CHOOSE_DEVICE':
       command = null
@@ -326,8 +366,8 @@ function resolveNextTask(paths, state, landing, validation, accept, queueInfo, e
       inputs: ['events.json', 'adaptor.json', 'impl.json', '_raw/images'],
       outputs: ['impl.json'],
       completionCondition: [
-        'impl.json contains analyzed events in docIndex order',
-        'pendingEvents = 0'
+        `impl.events contains evtId ${subject.evtId || ''}`,
+        'that event status is not pending or empty'
       ]
     }), ctx)
   }
@@ -372,16 +412,43 @@ function resolveNextTask(paths, state, landing, validation, accept, queueInfo, e
     }), ctx)
   }
 
-  if (!stageDone(state, 'C')) {
+  const cComplete = stageDone(state, 'C') || chainReady(paths)
+  if (!cComplete) {
+    const unwritten = firstUnwrittenEvent(paths)
+    if (unwritten && unwritten.evtId) {
+      return fillContract(taskBase({
+        id: 'C_WRITE_EVENT',
+        stage: 'C',
+        executor: 'agent',
+        status: 'ready',
+        subject: { evtId: String(unwritten.evtId) },
+        inputs: ['impl.json', 'adaptor.json'],
+        outputs: ['业务源码', 'impl.json'],
+        completionCondition: [`evtId ${unwritten.evtId} accepted=true`]
+      }), ctx)
+    }
+    const missingAccept = firstMissingAcceptEvent(paths)
+    if (missingAccept && missingAccept.evtId) {
+      return fillContract(taskBase({
+        id: 'C_FILL_ACCEPT',
+        stage: 'C',
+        executor: 'agent',
+        status: 'ready',
+        subject: { evtId: String(missingAccept.evtId) },
+        inputs: ['impl.json'],
+        outputs: ['impl.json.accept'],
+        completionCondition: [`evtId ${missingAccept.evtId} has pageKey and accept.trigger`]
+      }), ctx)
+    }
     return fillContract(taskBase({
-      id: 'C_WRITE_IMPL',
+      id: 'C_BUILD_CHAIN',
       stage: 'C',
-      executor: 'agent',
+      executor: 'script',
       status: 'ready',
       subject: {},
-      inputs: ['events.json', 'adaptor.json', 'impl.json', 'accept-chain.json'],
-      outputs: ['业务源码', 'impl.json.accept', 'accept-chain.json'],
-      completionCondition: ['impl.accept complete', 'accept-chain has no pending blockers']
+      inputs: ['impl.json.accept'],
+      outputs: ['accept-chain.json'],
+      completionCondition: ['accept-chain.json exists', 'pending = 0']
     }), ctx)
   }
 
@@ -435,6 +502,8 @@ module.exports = {
   analysisComplete,
   excelRel,
   firstUnanalyzedEvent,
+  firstUnwrittenEvent,
+  chainReady,
   resolveDeviceId,
   resolveNextTask,
   stageADone,

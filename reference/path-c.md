@@ -1,6 +1,6 @@
 # 路径 C：写业务埋点
 
-C 依赖 A+B。禁止在 `events.json` / `impl.json` / 落库 HTML 缺失、impl 全 `pending`、或待确认队列未清时改业务源码。
+C 依赖 A+B。禁止在 `events.json` / `impl.json` / 落库 HTML 缺失、impl 全 `pending`、或待确认队列未清时改业务源码。nextTask 拆为 `C_WRITE_EVENT` → `C_FILL_ACCEPT` → `C_BUILD_CHAIN`（删除旧埋点时插入 `C_CONFIRM_DELETE_OLD`）。写完一条后对该 evt 交 `accepted: true` 的 patch（`--task=C_WRITE_EVENT`）。补 `pageKey`/`accept` 用 `--task=C_FILL_ACCEPT`。建链只跑 `build-accept-chain.js`。禁止 `--mark=C`。
 
 **前置**：
 1. 跑 `tracking-workflow.js --excel=... --run=C --json`（或 `--status`）读 `landing`：

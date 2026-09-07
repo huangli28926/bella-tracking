@@ -25,10 +25,10 @@ description: >-
 2. 先跑：`node scripts/workflow/tracking-workflow.js --excel=docs/{文档名}.xlsx --status --json`（用户已选则加 `--entry=1..8` 或 `--run=`）。
 3. `prompt` 非空或 `nextAction` 为 `choose_*` / `confirm_*` / `ask_excel`：把 `prompt` **原样**发给用户后停。禁止从记忆或本文件补菜单。exit 10 = 未选入口。
 4. `executor=script`：只跑返回的 `nextTask.command`。
-5. `executor=agent`：只读 `nextTask.inputs` + 下表对应 reference，写 `outputs`。写入 `impl.json` 后立刻 `normalize-impl` + `validate-impl --json`。error / `status=blocked` 则停。
-6. 成功后再 `--status --json`。聊天解释不是下一跳输入。`confirm-event --wait` 会阻塞，超时 exit 2。
+5. `executor=agent`：只读 `nextTask.inputs` + 下表对应 reference，写出**单 evt** JSON patch，只调用 `apply-impl-patch.js`。禁止手改整份 `impl.json`。apply / assert 非 0 则停，禁止改 command 重试写盘。
+6. 成功后再 `--status --json`。把 stdout / `report` **原样**发给用户，禁止另写「路径 X 已完成」。聊天解释不是下一跳输入。`confirm-event --wait` 会阻塞，超时 exit 2。
 
-`--run=A` 只 dump+render，不等于路径 A 完成。公司 SDK 是 `$ULOG.send`；项目封装进仓后探测，不写进本文件。
+`--run=A` 只 dump+render，不等于路径 A 完成。公司 SDK 是 `$ULOG.send`；项目封装进仓后探测，不写进本文件。用户回复「进入 C」后只跑 `serve-impl.js --enter-c`，禁止 `--mark`。
 
 ## 何时读哪篇
 

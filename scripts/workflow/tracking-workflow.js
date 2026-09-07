@@ -4,6 +4,7 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { defaultAcceptPaths } = require('../accept/accept-chain')
 const { loadConfirmQueue } = require('../confirm/needs-confirm')
+const { formatStageReport } = require('./format-stage-report')
 const { ensureExcelInDocs, findRepoRoot, parseArgs, readJson, resolveExcel, toPosix, writeJson } = require('../lib/lib')
 const { fileOk, inspectLanding } = require('../lib/landing-ready')
 const { validateFiles } = require('../accept/validate-impl')
@@ -32,7 +33,7 @@ Usage:
   node tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=H --json
   node tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=D --plan-only
   node tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --run=D --device=mobile
-  node tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --mark=B
+  node tracking-workflow.js --excel=docs/2.3埋点需求文档.xlsx --status
 
 Options:
   --status       只看 workflow 状态和下一步
@@ -40,7 +41,7 @@ Options:
                  D 验收；B/C 只做依赖门禁（不写业务源码）
                  C 缺落库 → exit 3（须完整路径 A）；待确认未清 → exit 4（须路径 B）
                  H 缺缺失表 → exit 5（须入口 7）；缺失为 0 则不写码
-  --mark=B|C|D   标记阶段完成，写入 _raw/workflow.json（A.done 只由磁盘门禁计算，--mark=A 不使 A 完成）
+  --mark         已禁用（exit 20）。B 用 serve-impl --enter-c；C 由 accept-chain 计算；D 由 run-accept 内部写入
   --entry=1..8   写入 workflow.json.entry；未带 --entry/--run 且无已存 entry 时 --status 停在菜单
   --plan-only    传给 D 验收计划
   --device       传给 D：mobile | pc（真实验收必填）
@@ -238,7 +239,7 @@ function buildStatus(paths, args, repoRoot) {
   const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras)
   const stageAComplete = stageADone(landing, validation, accept)
   const stageBComplete = !!(accept.ok || (stageAComplete && landing.pendingConfirm === 0 && stageDone(state, 'B')))
-  const stageCComplete = !!(accept.ok || (stageBComplete && stageDone(state, 'C')))
+  const stageCComplete = !!(accept.ok || (stageBComplete && (stageDone(state, 'C') || require('./next-task').chainReady(paths))))
   const stageStatus = {
     A: {
       name: stageName('A'),
@@ -301,10 +302,14 @@ function printStatus(status) {
     console.log(`NextTask: ${status.nextTask.id} [${status.nextTask.stage}] ${status.nextTask.executor}${subject}`)
   }
   console.log(`Next: ${status.next ? `${status.next} ${stageName(status.next)}` : 'complete'}`)
-  const prompt = status.nextTask && status.nextTask.prompt
-  if (prompt) {
+  const impl = readJson(status.paths.implPath, { events: [] })
+  const report = formatStageReport(status, impl, {})
+  if (report) {
     console.log('')
-    console.log(prompt)
+    console.log(report)
+  } else if (status.nextTask && status.nextTask.prompt) {
+    console.log('')
+    console.log(status.nextTask.prompt)
   }
 }
 
@@ -375,7 +380,7 @@ function runStage(paths, args, repoRoot, state, id, execFn) {
   if (id === 'H') {
     return gateH(paths, repoRoot)
   }
-  throw new Error(`${id} ${stageName(id)} 是人工/模型门禁：完成后用 --mark=${id}`)
+  throw new Error(`${id} ${stageName(id)} 须由磁盘门禁或专用脚本完成，禁止 --mark`)
 }
 
 function gateStage(paths, id) {
@@ -429,6 +434,16 @@ function persistEntry(paths, state, args) {
     note: String(entry)
   })
   return saveState(paths, state)
+}
+
+function refuseAgentMark(mark) {
+  return {
+    ok: false,
+    exitCode: 20,
+    expected: null,
+    actual: `mark=${String(mark || '').toUpperCase()}`,
+    blockingReason: '--mark 已禁用；B 用 serve-impl --enter-c，C 由 accept-chain，D 由 run-accept 内部写入'
+  }
 }
 
 function emitChooseEntry(args) {
@@ -531,11 +546,13 @@ function main() {
   const state = persistEntry(paths, loadState(paths), args)
 
   if (args.mark) {
-    const id = String(args.mark).toUpperCase()
-    if (STAGES.indexOf(id) === -1) throw new Error(`unknown stage: ${args.mark}`)
-    if (id !== 'A') {
-      completeStage(paths, state, id, args.note || '')
-    }
+    const denied = refuseAgentMark(args.mark)
+    console.error(JSON.stringify({
+      expected: denied.expected,
+      actual: denied.actual,
+      blockingReason: denied.blockingReason
+    }, null, 2))
+    process.exit(denied.exitCode)
   }
 
   let runResult = null
@@ -565,6 +582,7 @@ function main() {
       validation: status.validation,
       accept: status.accept,
       landing: status.landing,
+      report: formatStageReport(status, readJson(paths.implPath, { events: [] }), {}),
       missing: inspectMissingList(paths),
       trackingMode: resolveTrackingMode(repoRoot),
       run: runResult,
@@ -592,18 +610,20 @@ if (require.main === module) {
     main()
   } catch (error) {
     console.error(error.message || error)
-    process.exit(1)
+    process.exit(error.exitCode || 1)
   }
 }
 
 module.exports = {
   buildStatus,
+  completeStage,
   inspectLanding,
   inspectMissingList,
   gateStage,
   gateH,
   loadState,
   persistEntry,
+  refuseAgentMark,
   resolveNextTask,
   runStage,
   runStageA,

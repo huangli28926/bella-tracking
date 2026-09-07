@@ -5,7 +5,7 @@ const path = require('path')
 const test = require('node:test')
 
 const { defaultAcceptPaths } = require('../accept/accept-chain')
-const { buildStatus, gateStage, loadState, runStage, workflowPath } = require('./tracking-workflow')
+const { buildStatus, gateStage, loadState, refuseAgentMark, runStage, workflowPath } = require('./tracking-workflow')
 const { DEVICE_PROMPT } = require('../accept/accept-device')
 const {
   ASK_HISTORY_EXCEL,
@@ -199,7 +199,7 @@ test('same facts twice keep nextTask including command and prompt', () => {
   assert.strictEqual(getNextTask(first).id, 'A_ANALYZE_EVENT')
   assert.strictEqual(getNextTask(first).executor, 'agent')
   assert.strictEqual(getNextTask(first).subject.evtId, '1001')
-  assert.match(getNextTask(first).command, /^node scripts\/workflow\/tracking-workflow\.js --excel=docs\/stable-cmd\.xlsx --status --json$/)
+  assert.match(getNextTask(first).command, /^node scripts\/workflow\/apply-impl-patch\.js --excel=docs\/stable-cmd\.xlsx --task=A_ANALYZE_EVENT --evt=1001 --patch=-$/)
   assert.strictEqual(getNextTask(first).prompt, null)
 })
 
@@ -279,7 +279,9 @@ test('needA blocks --run=C from a write-impl command', () => {
   assert.strictEqual(gate.exitCode, 3)
   const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
   assert.strictEqual(getNextTask(status).stage, 'A')
-  assert.notStrictEqual(getNextTask(status).id, 'C_WRITE_IMPL')
+  assert.notStrictEqual(getNextTask(status).id, 'C_WRITE_EVENT')
+  assert.notStrictEqual(getNextTask(status).id, 'C_FILL_ACCEPT')
+  assert.notStrictEqual(getNextTask(status).id, 'C_BUILD_CHAIN')
   assert.ok(!/业务源码/.test(getNextTask(status).command || ''))
 })
 
@@ -407,5 +409,184 @@ test('SKILL.md stays a short router without prompt copies', () => {
   ].forEach(banned => {
     assert.ok(skill.indexOf(banned) === -1, banned)
   })
+})
+
+const { applyPatch } = require('./apply-impl-patch')
+const { assertCurrentTask, TASK_MISMATCH_EXIT } = require('./assert-task')
+const { formatStageReport } = require('./format-stage-report')
+const { FULL_PAGE_PROMPT } = require('./prompts')
+
+function analyzedEvent(evtId) {
+  return {
+    evtId,
+    status: 'existing',
+    targetFile: 'src/foo.js',
+    functionName: 'handleShare',
+    lifecycle: 'onClick',
+    parameters: [{ key: 'roomId', expression: 'state.roomId', confidence: 'high' }]
+  }
+}
+
+test('CHOOSE_ENTRY rejects apply-impl-patch and leaves impl unchanged', () => {
+  const fixture = baseFixture('gate-no-entry', {
+    events: [{ evtId: '1', eventName: 'Pending' }],
+    implEvents: [{ evtId: '1', status: 'pending', targetFile: '', parameters: [] }]
+  })
+  const before = fs.readFileSync(fixture.paths.implPath, 'utf8')
+  const result = applyPatch(fixture.paths, {
+    excel: fixture.excelPath,
+    task: 'A_ANALYZE_EVENT',
+    evt: '1'
+  }, fixture.root, {
+    evtId: '1',
+    status: 'located',
+    targetFile: 'src/foo.js',
+    functionName: 'fn',
+    lifecycle: 'onClick',
+    parameters: [{ key: 'roomId', expression: 'x', confidence: 'high' }]
+  })
+  assert.strictEqual(result.ok, false)
+  assert.strictEqual(result.exitCode, TASK_MISMATCH_EXIT)
+  assert.strictEqual(result.actual, 'CHOOSE_ENTRY')
+  assert.strictEqual(fs.readFileSync(fixture.paths.implPath, 'utf8'), before)
+})
+
+test('wrong evtId patch is rejected and first event stays pending', () => {
+  const fixture = baseFixture('gate-wrong-evt', {
+    events: [
+      { evtId: '1', eventName: 'First' },
+      { evtId: '2', eventName: 'Second' }
+    ],
+    implEvents: [
+      { evtId: '1', status: 'pending', targetFile: '', parameters: [] },
+      { evtId: '2', status: 'pending', targetFile: '', parameters: [] }
+    ]
+  })
+  const result = applyPatch(fixture.paths, entered(fixture, { task: 'A_ANALYZE_EVENT', evt: '2' }), fixture.root, {
+    evtId: '2',
+    status: 'located',
+    targetFile: 'src/foo.js',
+    functionName: 'fn',
+    lifecycle: 'onClick',
+    parameters: [{ key: 'roomId', expression: 'x', confidence: 'high' }]
+  })
+  assert.strictEqual(result.ok, false)
+  assert.strictEqual(result.exitCode, TASK_MISMATCH_EXIT)
+  const impl = readJson(fixture.paths.implPath, { events: [] })
+  assert.strictEqual(impl.events.find(item => item.evtId === '1').status, 'pending')
+  assert.strictEqual(impl.events.find(item => item.evtId === '2').status, 'pending')
+})
+
+test('apply one analyzed event leaves nextTask on the second A_ANALYZE_EVENT', () => {
+  const fixture = baseFixture('single-evt-done', {
+    events: [
+      { evtId: '1', eventName: 'First' },
+      { evtId: '2', eventName: 'Second' }
+    ],
+    implEvents: [
+      { evtId: '1', status: 'pending', targetFile: '', parameters: [] },
+      { evtId: '2', status: 'pending', targetFile: '', parameters: [] }
+    ]
+  })
+  const result = applyPatch(fixture.paths, entered(fixture, { task: 'A_ANALYZE_EVENT', evt: '1' }), fixture.root, {
+    evtId: '1',
+    status: 'located',
+    targetFile: 'src/foo.js',
+    functionName: 'fn',
+    lifecycle: 'onClick',
+    parameters: [{ key: 'roomId', expression: 'state.roomId', confidence: 'high' }]
+  })
+  assert.strictEqual(result.ok, true)
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(status.stageStatus.A.done, false)
+  assert.strictEqual(getNextTask(status).id, 'A_ANALYZE_EVENT')
+  assert.strictEqual(getNextTask(status).subject.evtId, '2')
+})
+
+test('--mark=C is rejected while A still pending', () => {
+  const fixture = baseFixture('mark-c-denied', {
+    events: [{ evtId: '1', eventName: 'Pending' }],
+    implEvents: [{ evtId: '1', status: 'pending', targetFile: '', parameters: [] }]
+  })
+  const denied = refuseAgentMark('C')
+  assert.strictEqual(denied.exitCode, 20)
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(status.stageStatus.A.done, false)
+  assert.strictEqual(getNextTask(status).id, 'A_ANALYZE_EVENT')
+})
+
+test('needsConfirm blocks D_RUN_ACCEPT assert', () => {
+  const fixture = baseFixture('no-d-while-b', {
+    events: [{ evtId: '3001', eventName: 'Need confirm' }],
+    implEvents: [{
+      evtId: '3001',
+      status: 'existing',
+      targetFile: 'src/foo.js',
+      parameters: [{ key: 'roomId', expression: '', confidence: 'medium' }]
+    }]
+  })
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  const gate = assertCurrentTask(status, 'D_RUN_ACCEPT')
+  assert.strictEqual(gate.ok, false)
+  assert.strictEqual(gate.exitCode, TASK_MISMATCH_EXIT)
+  assert.strictEqual(gate.actual, 'B_CONFIRM_EVENT')
+})
+
+test('D_CHOOSE_DEVICE blocks real accept assert', () => {
+  const fixture = baseFixture('no-device-accept', {
+    events: [{ evtId: '8001', eventName: 'Ready' }],
+    implEvents: [analyzedEvent('8001')],
+    workflow: {
+      version: 1,
+      stages: {
+        B: { status: 'done', completedAt: '2026-09-03T00:00:00.000Z' },
+        C: { status: 'done', completedAt: '2026-09-03T00:01:00.000Z' }
+      },
+      history: []
+    }
+  })
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(getNextTask(status).id, 'D_CHOOSE_DEVICE')
+  const gate = assertCurrentTask(status, 'D_RUN_ACCEPT')
+  assert.strictEqual(gate.ok, false)
+  assert.strictEqual(gate.actual, 'D_CHOOSE_DEVICE')
+})
+
+test('--mark=B is rejected; nextTask stays B_CONFIRM_FULL_PAGE', () => {
+  const fixture = baseFixture('mark-b-denied', {
+    events: [{ evtId: '5001', eventName: 'Ready for C' }],
+    implEvents: [analyzedEvent('5001')]
+  })
+  const denied = refuseAgentMark('B')
+  assert.strictEqual(denied.exitCode, 20)
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(getNextTask(status).id, 'B_CONFIRM_FULL_PAGE')
+})
+
+test('B done without C mark starts C_WRITE_EVENT', () => {
+  const fixture = baseFixture('c-write-event', {
+    events: [{ evtId: '5001', eventName: 'Ready for C' }],
+    implEvents: [analyzedEvent('5001')],
+    workflow: {
+      version: 1,
+      stages: { B: { status: 'done', completedAt: '2026-09-03T00:00:00.000Z' } },
+      history: []
+    }
+  })
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(getNextTask(status).id, 'C_WRITE_EVENT')
+  assert.strictEqual(getNextTask(status).subject.evtId, '5001')
+})
+
+test('stage report for full-page confirm is script-fixed', () => {
+  const fixture = baseFixture('stage-report', {
+    events: [{ evtId: '5001', eventName: 'Ready for C' }],
+    implEvents: [analyzedEvent('5001')]
+  })
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  const report = formatStageReport(status, readJson(fixture.paths.implPath), {})
+  assert.ok(report.indexOf('5001') !== -1)
+  assert.ok(report.indexOf(FULL_PAGE_PROMPT) !== -1)
+  assert.ok(report.indexOf('== 路径 A ==') !== -1)
 })
 

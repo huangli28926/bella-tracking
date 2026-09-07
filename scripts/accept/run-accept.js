@@ -1227,6 +1227,12 @@ async function main() {
     printHelp()
     throw new Error('未提供 --excel / --impl')
   }
+  const planOnly = Boolean(args['plan-only'] || args.plan)
+  if (!planOnly) {
+    const { assertCurrentTask, loadStatus, assertOrExit } = require('../workflow/assert-task')
+    const status = loadStatus(args, repoRoot)
+    assertOrExit(assertCurrentTask(status, 'D_RUN_ACCEPT'), !!args.json)
+  }
   assertValidImpl(paths, args, repoRoot)
   const urls = envAcceptUrls(repoRoot, {
     baseUrl: args['base-url'] || '',
@@ -1234,7 +1240,6 @@ async function main() {
     housedelCode: args.housedel || ''
   })
   const env = readDotEnv(repoRoot)
-  const planOnly = Boolean(args['plan-only'] || args.plan)
   const deviceId = planOnly
     ? resolveAcceptDevice(args, env)
     : requireAcceptDevice(args, env)

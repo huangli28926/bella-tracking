@@ -68,6 +68,12 @@ function main() {
     return
   }
   const repoRoot = findRepoRoot(SCRIPT_DIR)
+  const { assertOneOf, loadStatus, assertOrExit } = require('../workflow/assert-task')
+  const { completeStage, loadState } = require('../workflow/tracking-workflow')
+  if (args.excel) {
+    const status = loadStatus(args, repoRoot)
+    assertOrExit(assertOneOf(status, ['C_BUILD_CHAIN', 'D_RUN_ACCEPT', 'D_CHOOSE_DEVICE']), !!args.json)
+  }
   const paths = defaultAcceptPaths(repoRoot, args)
   if (!paths.implPath) {
     printHelp()
@@ -91,6 +97,9 @@ function main() {
     deviceId
   }), eventsPayload)
   writeJson(paths.chainPath, chain)
+  if (!chain.pending.length) {
+    completeStage(paths, loadState(paths), 'C', 'accept-chain ready')
+  }
 
   if (args['write-impl']) {
     const next = lockImplPayload(patchImplAccept(implPayload, chain), eventsPayload)

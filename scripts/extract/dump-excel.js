@@ -189,6 +189,12 @@ async function main() {
     return
   }
   const repoRoot = findRepoRoot(SCRIPT_DIR)
+  const { assertOneOf, loadStatus, assertOrExit } = require('../workflow/assert-task')
+  if (args.excel) {
+    const status = loadStatus(args, repoRoot)
+    const gate = assertOneOf(status, ['A_DUMP', 'A_PREPARE_IMAGES', 'A_RENDER', 'A_ANALYZE_EVENT', 'A_VALIDATE_IMPL'])
+    if (!gate.ok) assertOrExit(gate, false)
+  }
   const excelPath = ensureExcelInDocs(
     repoRoot,
     resolveExcel(repoRoot, args.excel || args._[0] || '')

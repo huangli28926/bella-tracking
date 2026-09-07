@@ -413,7 +413,26 @@ function createServer(paths) {
         sendJson(res, 200, readJson(paths.apisPath, { apis: [] }))
         return
       }
-      if (req.method === 'POST' && route === '/api/save-impl') {
+      if (req.method === 'POST' && route === '/api/enter-c') {
+        const { completeStage, loadState } = require('../workflow/tracking-workflow')
+        const { assertCurrentTask, loadStatus, TASK_MISMATCH_EXIT } = require('../workflow/assert-task')
+        const repoRoot = findRepoRoot(__dirname)
+        const excel = readJson(paths.eventsPath, {}).excelPath || ''
+        const status = loadStatus({ excel }, repoRoot)
+        const gate = assertCurrentTask(status, 'B_CONFIRM_FULL_PAGE')
+        if (!gate.ok) {
+          sendJson(res, 409, {
+            ok: false,
+            expected: gate.expected,
+            actual: gate.actual,
+            blockingReason: gate.blockingReason
+          })
+          return
+        }
+        completeStage(paths, loadState(paths), 'B', 'enter C')
+        sendJson(res, 200, { ok: true, stage: 'B' })
+        return
+      }
         const body = await readBody(req)
         delete body.uicode
         const evtId = String(body.evtId || '')
@@ -590,6 +609,18 @@ function main() {
   }
   const startPort = Number(args.port || DEFAULT_PORT) || DEFAULT_PORT
   const evtId = evtArg(args)
+  if (args['enter-c'] || args.enterC) {
+    if (evtId) throw new Error('serve-impl --enter-c 仅整页，禁止带 --evt')
+    const { completeStage, loadState } = require('../workflow/tracking-workflow')
+    const { assertCurrentTask, assertOrExit, loadStatus } = require('../workflow/assert-task')
+    const excel = args.excel || readJson(paths.eventsPath, {}).excelPath || ''
+    const status = loadStatus(Object.assign({}, args, { excel }), repoRoot)
+    const gate = assertCurrentTask(status, 'B_CONFIRM_FULL_PAGE')
+    assertOrExit(gate, !!args.json)
+    completeStage(paths, loadState(paths), 'B', 'enter C')
+    console.log(JSON.stringify({ ok: true, stage: 'B', next: 'C' }, null, 2))
+    return
+  }
   findExistingServer(paths, startPort, PORT_ATTEMPTS)
     .then(existing => {
       if (existing) {

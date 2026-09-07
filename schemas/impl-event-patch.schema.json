@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "impl-event-patch.schema.json",
+  "title": "Single-event impl upsert patch (untrusted agent)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evtId"],
+  "not": { "required": ["uicode"] },
+  "properties": {
+    "evtId": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["pending", "existing", "located", "unresolved"] },
+    "accepted": { "type": "boolean" },
+    "targetFile": { "type": "string" },
+    "functionName": { "type": "string" },
+    "lifecycle": { "enum": ["onClick", "useEffect", "IntersectionObserver", "pageLoad", ""] },
+    "pageKey": { "type": "string" },
+    "styleId": { "type": "string" },
+    "entryUrlTemplate": { "type": "string" },
+    "insertHint": { "type": "string" },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "uicodeConflict": { "type": "string" },
+    "code": { "type": "string" },
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parameter" }
+    },
+    "accept": { "$ref": "impl.schema.json#/$defs/accept" },
+    "unresolved": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^(请确认埋点位置|请确认参数 .+ 的取值)$" }
+    }
+  },
+  "$defs": {
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string" },
+        "docDesc": { "type": "string" },
+        "expression": { "type": "string" },
+        "valueKind": { "enum": ["expression", "prompt", ""] },
+        "sourcePath": { "type": "string" },
+        "confidence": { "enum": ["high", "medium", "low", ""] }
+      }
+    }
+  }
+}
