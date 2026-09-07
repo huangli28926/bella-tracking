@@ -164,22 +164,75 @@ test('conflicts + manual-confirm stay medium, not high', () => {
 })
 
 test('legacy params keep stored confidence after normalize', () => {
+  const raw = {
+    key: 'house_id',
+    expression: 'houseInfo.id',
+    sourcePath: '',
+    confidence: 'high'
+  }
+  assert.equal(isLegacyParameter(raw), true)
   const after = normalizeImpl({
     events: [{
       evtId: '1001',
       status: 'pending',
-      parameters: [{
-        key: 'house_id',
-        expression: 'houseInfo.id',
-        sourcePath: '',
-        confidence: 'high'
-      }]
+      parameters: [raw]
     }]
   })
   const param = after.events[0].parameters[0]
   assert.equal(param.confidence, 'high')
   assert.equal(param.legacyUnverified, true)
-  assert.equal(isLegacyParameter(param), true)
+  assert.equal(isLegacyParameter(param), false)
+})
+
+test('legacyUnverified does not make a structured parameter legacy', () => {
+  assert.equal(isLegacyParameter({
+    key: 'house_id',
+    evidence: [],
+    scopeReachable: null,
+    conflicts: [],
+    legacyUnverified: true
+  }), false)
+})
+
+test('city_id unresolved does not block house_id high', () => {
+  const after = normalizeImpl({
+    events: [{
+      evtId: '1001',
+      status: 'located',
+      targetFile: 'src/pages/house.js',
+      unresolved: ['请确认参数 city_id 的取值'],
+      parameters: [
+        baseHighFacts(),
+        {
+          key: 'city_id',
+          expression: '',
+          sourcePath: '',
+          evidence: [],
+          scopeReachable: null,
+          conflicts: []
+        }
+      ]
+    }]
+  })
+  const house = after.events[0].parameters.find(p => p.key === 'house_id')
+  assert.equal(house.confidence, 'high')
+})
+
+test('object-form PARAM_VALUE_UNCONFIRMED affects matching param in same normalize', () => {
+  const paramFacts = { ...baseHighFacts() }
+  delete paramFacts.unresolved
+  const after = normalizeImpl({
+    events: [{
+      evtId: '1001',
+      status: 'located',
+      targetFile: 'src/pages/house.js',
+      unresolved: [{ reasonCode: 'PARAM_VALUE_UNCONFIRMED', field: 'house_id' }],
+      parameters: [paramFacts]
+    }]
+  })
+  const param = after.events[0].parameters[0]
+  assert.equal(param.confidence, 'medium')
+  assert.ok(after.events[0].unresolved.includes('请确认参数 house_id 的取值'))
 })
 
 test('structured empty facts overwrite agent high', () => {

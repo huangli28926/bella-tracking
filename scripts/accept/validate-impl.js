@@ -186,7 +186,7 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
       if (CONFIDENCE.indexOf(param.confidence || '') === -1) {
         add(issues, 'warn', evtId, `${field}.confidence`, `unexpected confidence: ${param.confidence}`)
       }
-      if (!isLegacyParameter(param)) {
+      if (param.legacyUnverified !== true && !isLegacyParameter(param)) {
         const calculated = calculateParameterConfidence(param, event)
         const stored = param.confidence || ''
         if (stored !== calculated) {

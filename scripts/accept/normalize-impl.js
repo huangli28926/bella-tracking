@@ -32,9 +32,9 @@ function normalizeLifecycle(value) {
   return LIFECYCLE_ALIAS.has(key) ? LIFECYCLE_ALIAS.get(key) : raw
 }
 
-function normalizeUnresolved(event) {
+function phrasesFromUnresolved(list) {
   const out = []
-  ;(event.unresolved || []).forEach(item => {
+  ;(list || []).forEach(item => {
     if (item && typeof item === 'object') {
       const code = str(item.reasonCode || item.code)
       const field = str(item.field || (Array.isArray(item.fields) ? item.fields[0] : ''))
@@ -50,6 +50,11 @@ function normalizeUnresolved(event) {
       if (m) out.push(`请确认参数 ${m[1]} 的取值`)
     }
   })
+  return out
+}
+
+function normalizeUnresolved(event) {
+  const out = phrasesFromUnresolved(event.unresolved)
   if (!event.targetFile && ['pending', 'unresolved'].includes(event.status)) out.push('请确认埋点位置')
   ;(event.parameters || []).forEach(p => {
     if (!str(p.expression) || ['low', 'medium'].includes(str(p.confidence))) {
@@ -85,6 +90,11 @@ function normalizeImpl(payload) {
         p.legacyUnverified = true
       } else {
         delete p.legacyUnverified
+      }
+    })
+    event.unresolved = phrasesFromUnresolved(event.unresolved)
+    event.parameters.forEach(p => {
+      if (!p.legacyUnverified) {
         p.confidence = calculateParameterConfidence(p, event)
       }
     })

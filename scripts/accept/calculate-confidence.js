@@ -103,16 +103,8 @@ function isParameterUnresolved(parameter, eventContext) {
   return list.some(item => str(item) === phrase)
 }
 
-function hasStructuredFacts(parameter) {
-  if (evidenceList(parameter).length > 0) return true
-  if (parameter && (parameter.scopeReachable === true || parameter.scopeReachable === false)) return true
-  if (hasConflicts(parameter)) return true
-  return false
-}
-
 function isLegacyParameter(parameter) {
   if (!parameter || typeof parameter !== 'object') return true
-  if (parameter.legacyUnverified === true && !hasStructuredFacts(parameter)) return true
   const hasStructuredKey = hasOwn(parameter, 'evidence')
     || hasOwn(parameter, 'scopeReachable')
     || hasOwn(parameter, 'conflicts')
