@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { findRepoRoot, parseArgs, readJson } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
+const { calculateParameterConfidence, isLegacyParameter } = require('./calculate-confidence')
 
 const SCRIPT_DIR = __dirname
 const STATUS = new Set(['pending', 'existing', 'located', 'unresolved'])
@@ -71,6 +72,7 @@ function normalizeImpl(payload) {
     if ('lifecycle' in event) event.lifecycle = normalizeLifecycle(event.lifecycle)
     event.parameters = Array.isArray(event.parameters) ? event.parameters : []
     event.parameters.forEach(p => {
+      const legacy = isLegacyParameter(p)
       p.key = str(p.key)
       if ('expression' in p) p.expression = str(p.expression)
       if ('sourcePath' in p) p.sourcePath = str(p.sourcePath)
@@ -79,6 +81,12 @@ function normalizeImpl(payload) {
       if (!Object.prototype.hasOwnProperty.call(p, 'evidence')) p.evidence = []
       if (!Object.prototype.hasOwnProperty.call(p, 'scopeReachable')) p.scopeReachable = null
       if (!Object.prototype.hasOwnProperty.call(p, 'conflicts')) p.conflicts = []
+      if (legacy) {
+        p.legacyUnverified = true
+      } else {
+        delete p.legacyUnverified
+        p.confidence = calculateParameterConfidence(p, event)
+      }
     })
     event.unresolved = normalizeUnresolved(event)
     if (event.accept && event.accept.trigger) {

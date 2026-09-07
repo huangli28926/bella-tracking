@@ -4,6 +4,11 @@ const fs = require('fs')
 const path = require('path')
 const { findRepoRoot, parseArgs, readJson, toPosix } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
+const {
+  PARAMETER_EVIDENCE_TYPES,
+  calculateParameterConfidence,
+  isLegacyParameter
+} = require('./calculate-confidence')
 
 const SCRIPT_DIR = __dirname
 const STATUS = ['pending', 'existing', 'located', 'unresolved']
@@ -12,22 +17,6 @@ const LOCATOR_BY = ['text', 'testid', 'css', 'role', '']
 const TRIGGER_KIND = ['click', 'scrollIntoView', 'waitVisible', 'pageLoad']
 const STEP_ACTION = ['click', 'scrollIntoView', 'waitVisible', 'waitApi', 'waitUrl', 'pageLoad']
 const DEP_FROM = ['api', 'url', 'user', 'page']
-const PARAMETER_EVIDENCE_TYPES = [
-  'same-component-tracking',
-  'same-page-tracking',
-  'same-module-tracking',
-  'jsx-binding',
-  'api-field',
-  'prop-chain',
-  'state-chain',
-  'hook-chain',
-  'context-chain',
-  'url-field',
-  'user-context',
-  'field-memory',
-  'repository-convention',
-  'manual-confirm'
-]
 const LIFECYCLE = ['onClick', 'useEffect', 'IntersectionObserver', 'pageLoad', '']
 const PATH_STATUS = ['resolved', 'needsConfirm']
 const PATH_SELECTED_BY = ['current-change', 'historical-human-decision', 'unique-candidate', 'deterministic-tie-break', 'human', '']
@@ -196,6 +185,13 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
       if (!param.key) add(issues, 'error', evtId, `${field}.key`, 'missing parameter key')
       if (CONFIDENCE.indexOf(param.confidence || '') === -1) {
         add(issues, 'warn', evtId, `${field}.confidence`, `unexpected confidence: ${param.confidence}`)
+      }
+      if (!isLegacyParameter(param)) {
+        const calculated = calculateParameterConfidence(param, event)
+        const stored = param.confidence || ''
+        if (stored !== calculated) {
+          add(issues, 'error', evtId, `${field}.confidence`, `confidence must be derived (${calculated}), got ${stored || '(empty)'}`)
+        }
       }
       if (Object.prototype.hasOwnProperty.call(param, 'evidence')) {
         if (!Array.isArray(param.evidence)) {

@@ -84,4 +84,6 @@ test('normalize fills defaults without inferring evidence or reachability', () =
   assert.deepEqual(param.evidence, [])
   assert.strictEqual(param.scopeReachable, null)
   assert.deepEqual(param.conflicts, [])
+  assert.strictEqual(param.legacyUnverified, true)
+  assert.strictEqual(param.confidence, 'high')
 })

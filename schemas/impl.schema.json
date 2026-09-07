@@ -57,6 +57,7 @@
         "valueKind": { "enum": ["expression", "prompt", ""] },
         "sourcePath": { "type": "string" },
         "confidence": { "enum": ["high", "medium", "low", ""] },
+        "legacyUnverified": { "type": "boolean" },
         "evidence": {
           "type": "array",
           "items": { "$ref": "#/$defs/parameterEvidence" }
