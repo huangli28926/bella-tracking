@@ -260,6 +260,18 @@ function collectImplGates(implPayload) {
   })
 }
 
+function summarizeImplGates(implPayload) {
+  const gates = collectImplGates(implPayload)
+  const invalid = gates.filter(item => item.status === 'INVALID')
+  const needsConfirm = gates.filter(item => item.status === 'NEEDS_CONFIRM')
+  return {
+    gates,
+    invalidCount: invalid.length,
+    needsConfirmCount: needsConfirm.length,
+    allReady: gates.length > 0 && invalid.length === 0 && needsConfirm.length === 0
+  }
+}
+
 function validateFiles(paths, args, repoRoot) {
   const implPath = resolveMaybe(repoRoot, args.impl, paths.implPath)
   const eventsPath = resolveMaybe(repoRoot, args.events, paths.eventsPath)
@@ -325,4 +337,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { assertValidImpl, validateFiles, validateImpl, collectImplGates, PARAMETER_EVIDENCE_TYPES }
+module.exports = {
+  assertValidImpl,
+  validateFiles,
+  validateImpl,
+  collectImplGates,
+  summarizeImplGates,
+  PARAMETER_EVIDENCE_TYPES
+}

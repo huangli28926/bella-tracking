@@ -285,6 +285,82 @@ test('needA blocks --run=C from a write-impl command', () => {
   assert.ok(!/业务源码/.test(getNextTask(status).command || ''))
 })
 
+function structuredParam(overrides) {
+  return Object.assign({
+    key: 'house_id',
+    expression: 'houseInfo.id',
+    sourcePath: 'api.house.id -> props.houseInfo',
+    evidence: [{ type: 'same-component-tracking' }],
+    scopeReachable: true,
+    confidence: 'high',
+    unresolved: [],
+    conflicts: []
+  }, overrides)
+}
+
+test('stage C collectImplGates INVALID is blocked', () => {
+  const fixture = baseFixture('c-invalid', {
+    events: [{ evtId: '7101', eventName: 'Invalid' }],
+    implEvents: [{
+      evtId: '7101',
+      status: 'existing',
+      targetFile: 'src/foo.js',
+      confirmed: true,
+      parameters: [structuredParam({ scopeReachable: false, confidence: 'low' })]
+    }]
+  })
+  const gate = gateStage(fixture.paths, 'C')
+  assert.strictEqual(gate.exitCode, 1)
+  assert.match(gate.message, /invalid impl facts/)
+  assert.ok(gate.implGates.invalidCount > 0)
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.notStrictEqual(getNextTask(status).id, 'C_WRITE_IMPL')
+})
+
+test('stage C collectImplGates NEEDS_CONFIRM is blocked to B even if confirmed', () => {
+  const fixture = baseFixture('c-needs-confirm', {
+    events: [{ evtId: '7201', eventName: 'Needs confirm' }],
+    implEvents: [{
+      evtId: '7201',
+      status: 'existing',
+      targetFile: 'src/foo.js',
+      confirmed: true,
+      parameters: [structuredParam({
+        evidence: [{ type: 'field-memory' }],
+        confidence: 'medium'
+      })]
+    }],
+    workflow: {
+      version: 1,
+      stages: { B: { status: 'done', completedAt: '2026-09-03T00:00:00.000Z' } },
+      history: []
+    }
+  })
+  const gate = gateStage(fixture.paths, 'C')
+  assert.strictEqual(gate.exitCode, 4)
+  assert.deepStrictEqual(gate.bootstrap, ['B'])
+  assert.ok(gate.implGates.needsConfirmCount > 0)
+  const status = buildStatus(fixture.paths, entered(fixture), fixture.root)
+  assert.strictEqual(getNextTask(status).stage, 'B')
+  assert.notStrictEqual(getNextTask(status).id, 'C_WRITE_IMPL')
+})
+
+test('stage C collectImplGates all READY allows C preflight', () => {
+  const fixture = baseFixture('c-ready', {
+    events: [{ evtId: '7301', eventName: 'Ready' }],
+    implEvents: [{
+      evtId: '7301',
+      status: 'existing',
+      targetFile: 'src/foo.js',
+      parameters: [structuredParam()]
+    }]
+  })
+  const gate = gateStage(fixture.paths, 'C')
+  assert.strictEqual(gate.exitCode, 0)
+  assert.strictEqual(gate.implGates.allReady, true)
+  assert.strictEqual(gate.readyForC, true)
+})
+
 test('no device after C asks D_CHOOSE_DEVICE with original prompt', () => {
   const fixture = baseFixture('choose-device', {
     events: [{ evtId: '8001', eventName: 'Ready' }],

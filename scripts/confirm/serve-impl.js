@@ -15,6 +15,8 @@ const {
   toPosix,
   writeJson
 } = require('../lib/lib')
+const { normalizeImpl } = require('../accept/normalize-impl')
+const { applyConfirmAction } = require('./confirm-gate')
 const { buildReport, defaultPaths, mergeImplEvent, renderReviewToFile, renderToFile } = require('../extract/report')
 const {
   findNextPending,
@@ -430,7 +432,7 @@ function createServer(paths) {
         const existing = (payload.events || []).find(item => String(item.evtId) === evtId) || { evtId }
         const patch = Object.assign({}, body)
         if (wizardAction === 'confirm') {
-          patch.confirmed = true
+          delete patch.confirmed
           patch.deferred = false
         } else if (wizardAction === 'skip') {
           patch.confirmed = false
@@ -438,9 +440,16 @@ function createServer(paths) {
         }
         delete patch.wizardAction
         const merged = mergeImplEvent(existing, patch)
-        let nextPayload = upsertEvent(payload, merged)
-        if (merged.confirmed) {
-          const memory = upsertFromConfirmedEvent(loadMergedMemory(paths, nextPayload), merged)
+        let nextPayload = normalizeImpl(upsertEvent(payload, merged))
+        let saved = (nextPayload.events || []).find(item => String(item.evtId) === evtId) || merged
+        let confirmDecision = null
+        if (wizardAction === 'confirm') {
+          confirmDecision = applyConfirmAction(saved)
+          saved = confirmDecision.event
+          nextPayload = upsertEvent(nextPayload, saved)
+        }
+        if (saved.confirmed) {
+          const memory = upsertFromConfirmedEvent(loadMergedMemory(paths, nextPayload), saved)
           writeFieldMemory(paths, memory)
           nextPayload = applyToPayload(nextPayload, memory).payload
         }
@@ -450,14 +459,34 @@ function createServer(paths) {
         let nextEvtId = ''
         let reviewUrl = ''
         if (wizardAction === 'confirm' || wizardAction === 'skip') {
-          nextEvtId = findNextPending(queueInfo, evtId)
-          if (queueInfo.done) {
-            renderReviewToFile(paths)
-            reviewUrl = reviewPageUrl(req, paths)
+          if (!confirmDecision || confirmDecision.confirmed) {
+            nextEvtId = findNextPending(queueInfo, evtId)
+            if (queueInfo.done) {
+              renderReviewToFile(paths)
+              reviewUrl = reviewPageUrl(req, paths)
+            }
           }
+        }
+        if (confirmDecision && !confirmDecision.ok) {
+          sendJson(res, 409, {
+            ok: false,
+            error: confirmDecision.error,
+            gate: confirmDecision.gate,
+            report,
+            wizard: {
+              action: 'confirm',
+              nextEvtId: '',
+              reviewUrl: '',
+              done: false,
+              progress: queueProgress(queueInfo, evtId)
+            }
+          })
+          return
         }
         sendJson(res, 200, {
           ok: true,
+          confirmed: !!saved.confirmed,
+          gate: confirmDecision ? confirmDecision.gate : undefined,
           report,
           wizard: {
             action: wizardAction || 'save',

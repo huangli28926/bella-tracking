@@ -7,7 +7,7 @@ const { defaultAcceptPaths } = require('../accept/accept-chain')
 const { loadConfirmQueue } = require('../confirm/needs-confirm')
 const { ensureExcelInDocs, findRepoRoot, parseArgs, readJson, resolveExcel, toPosix, writeJson } = require('../lib/lib')
 const { fileOk, inspectLanding } = require('../lib/landing-ready')
-const { validateFiles } = require('../accept/validate-impl')
+const { summarizeImplGates, validateFiles } = require('../accept/validate-impl')
 const { scriptPath } = require('../lib/skill-paths')
 const { resolveTrackingMode } = require('../lib/period-diff')
 const {
@@ -238,7 +238,7 @@ function buildStatus(paths, args, repoRoot) {
   }
   const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras)
   const stageAComplete = stageADone(landing, validation, accept)
-  const stageBComplete = !!(accept.ok || (stageAComplete && landing.pendingConfirm === 0 && stageDone(state, 'B')))
+  const stageBComplete = !!(accept.ok || (stageAComplete && landing.queueCleared && stageDone(state, 'B')))
   const stageCComplete = !!(accept.ok || (stageBComplete && stageDone(state, 'C')))
   const stageStatus = {
     A: {
@@ -262,12 +262,16 @@ function buildStatus(paths, args, repoRoot) {
       done: stageCComplete,
       gate: !stageAComplete
         ? 'blocked: need A then B'
-        : (landing.needB
-          ? 'blocked: need B'
-          : (!stageBComplete
-            ? 'blocked: need full-page confirmation'
-          : (validation.ok ? `impl valid; located=${confirmed.located}/${confirmed.total}; need 进入 C` : validation.message))
-          )
+        : (landing.needInvalid
+          ? `blocked: invalid impl facts (${(landing.implGates && landing.implGates.invalidCount) || 0})`
+          : (landing.needB
+            ? 'blocked: need B'
+            : (!stageBComplete
+              ? 'blocked: need full-page confirmation'
+            : (validation.ok && landing.implGates && landing.implGates.allReady
+              ? `impl READY; located=${confirmed.located}/${confirmed.total}; need 进入 C`
+              : validation.message))
+            ))
     },
     D: {
       name: stageName('D'),
@@ -396,6 +400,21 @@ function gateStage(paths, id) {
     payload.exitCode = 3
     return payload
   }
+  if (id === 'C') {
+    const implGates = landing.implGates || summarizeImplGates(readJson(paths.implPath, { events: [] }))
+    payload.implGates = implGates
+    if (implGates.invalidCount > 0) {
+      payload.message = 'Implementation blocked: invalid impl facts'
+      payload.exitCode = 1
+      return payload
+    }
+    if (implGates.needsConfirmCount > 0) {
+      payload.bootstrap = ['B']
+      payload.message = '落库仍有 NEEDS_CONFIRM：须先路径 B，禁止直接写业务源码'
+      payload.exitCode = 4
+      return payload
+    }
+  }
   if (id === 'B') {
     payload.message = landing.needB
       ? 'A 已就绪，待确认未清：跑 confirm-sweep.js --wait（禁止 --no-open），再整页 serve-impl'
@@ -410,6 +429,7 @@ function gateStage(paths, id) {
     return payload
   }
   payload.needFullPageConfirm = true
+  payload.readyForC = true
   payload.message = '落库与待确认队列已就绪：须 serve-impl 打开整份落库页，用户回复「进入 C」后再写业务源码'
   payload.exitCode = 0
   return payload
