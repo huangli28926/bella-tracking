@@ -1,0 +1,5 @@
+{
+  "events": [
+    { "evtId": "1001", "eventName": "Ready event", "docIndex": 1 }
+  ]
+}

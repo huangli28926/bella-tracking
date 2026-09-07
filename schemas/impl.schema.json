@@ -53,11 +53,26 @@
       "properties": {
         "key": { "type": "string" },
         "docDesc": { "type": "string" },
+        "required": { "type": "boolean" },
         "expression": { "type": "string" },
         "valueKind": { "enum": ["expression", "prompt", ""] },
         "sourcePath": { "type": "string" },
         "confidence": { "enum": ["high", "medium", "low", ""] },
         "legacyUnverified": { "type": "boolean" },
+        "unresolved": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "transform": {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string" },
+            "evidence": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/parameterEvidence" }
+            }
+          }
+        },
         "evidence": {
           "type": "array",
           "items": { "$ref": "#/$defs/parameterEvidence" }
