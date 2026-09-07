@@ -55,12 +55,12 @@
 - 读 `targetFile`、父页面 Tab / 入口按钮、`history.push` / `Link` 等，写出从 **seedUrl** 到该控件的最少步骤
 - 子页禁止直开精简 URL：步骤里应包含从种子页点进去的 click + 可选 `waitUrl`
 - 同页默认 Tab / 头卡无前置 → `preconditions: []`
-- **旧页新埋点**：先跑 `scripts/accept/resolve-entry-path.js`，倒推到达该页的入边，再和 `trackingBaseline`（缺省 `master`）diff 对比跳转是否本期新增。**不要由模型直接选定最终路径。** 把候选写入 `accept.candidatePaths`，跑 `scripts/accept/resolve-accept-path.js`（或由 `lockMode` 消费同一套规则）：
-  - `new_jump`：只把新增跳转写成主验收前置（从 seed 走到 `from` 页，再点该跳转）。**`.env` `trackingMode=backfill` 时不要采用 `new_jump`**，即使 diff 里有新跳转也改走下面三条之一（旧页补点）
-  - `existing_shortest`：没有新跳转且候选唯一时（或 backfill 收敛后唯一），用 seed→已有最短入边
+- **旧页新埋点**：先跑 `scripts/accept/resolve-entry-path.js`，从种子页沿仓内跳转图走到落点页（倒推入边并拼完整页路径），再和 `trackingBaseline`（缺省 `master`）diff 对比跳转是否本期新增。**不要由模型直接选定最终路径。** 把候选写入 `accept.candidatePaths`，跑 `scripts/accept/resolve-accept-path.js`（或由 `lockMode` 消费同一套规则）：
+  - `new_jump`：主验收走含本期新增跳转的完整页路径（按 `lockEdges` 从种子页依次点到落点页）。**`.env` `trackingMode=backfill` 时不要采用 `new_jump`**，即使 diff 里有新跳转也改走下面三条之一（旧页补点）
+  - `existing_shortest`：没有新跳转且候选唯一时（或 backfill 收敛后唯一），用种子页到落点页已锁定的完整路径
   - `seed_is_page`：`preconditions: []`
-  - `no_inbound`：仓内静态扫不到入边，按 seed 直达该页写，不要编仓内不存在的按钮
-  - `needs_confirm`：多条历史路径或同级新增路径无法唯一收敛。列出候选请用户选一次，把 `accept.pathResolution`（`selectedPathId` + `candidateSignature` + `decision.context`）写入 `impl.json`。禁止 Agent 凭「更常见 / 更短 / 更好跑」自行挑选
+  - `no_inbound`：仓内静态扫不到从种子走到落点的路径，按 seed 直达该页写，不要编仓内不存在的按钮
+  - `needs_confirm`：多条从种子页到落点页的完整路径无法唯一收敛。列出候选请用户选一次，把 `accept.pathResolution`（`selectedPathId` + `candidateSignature` + `decision.context`）写入 `impl.json`。禁止 Agent 凭「更常见 / 更短 / 更好跑」自行挑选
   该脚本不发明 locator；click 的 `by`/`value` 仍按「定位器优先级」从代码填写。`trackingMode` 未配置时行为与原来一致（可出 `new_jump`）
 
 ### 页面入口

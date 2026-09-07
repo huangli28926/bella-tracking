@@ -16,7 +16,7 @@ C 依赖 A+B。禁止在 `events.json` / `impl.json` / 落库 HTML 缺失、impl
 文案只使用 `scripts/workflow/prompts.js` 的 `formatDeleteOldTracking` / `DELETE_OLD_TRACKING`（`check-old-tracking` stdout）。
 
 未回复则撤回或暂不提交删除。用户选 1 → 恢复被删调用后再继续。用户选 2 → 才允许保留删除并继续补 `accept`。
-3. 写完后由模型根据代码补全 `pageKey` + `accept`（`trigger` / `preconditions`≈sharedSteps / `navigatesAway` / `dataDeps`）。先跑 `resolve-entry-path.js --excel=... --json`（可 `--evt=`），按 `lockMode` 写前置；多候选时把候选写入 `accept.candidatePaths` 并跑 `resolve-accept-path.js`。`lockMode=needs_confirm` 必须停下来让用户选路径，用 `--select=<pathId> --write` 持久化，禁止模型自选。再读 `reference/accept-chain-rules.md`。未配置 `backfill` 时：前置步骤覆盖 `.env` `trackingBaseline`（缺省 `master`）diff 能走到的本期入口（含本期新增跳转边；无新边则 seed→旧页最短路径，多历史入口不可收敛则人工确认）。`trackingMode=backfill` 时：即使用户分支上有新跳转，主 `accept` 也不走 `new_jump`，用 `existing_shortest` / `seed_is_page` / `no_inbound`。
+3. 写完后由模型根据代码补全 `pageKey` + `accept`（`trigger` / `preconditions`≈sharedSteps / `navigatesAway` / `dataDeps`）。先跑 `resolve-entry-path.js --excel=... --json`（可 `--evt=`），按 `lockMode` 和 `lockEdges`（种子页到落点页的完整页跳转序列）写前置；多候选时把候选写入 `accept.candidatePaths` 并跑 `resolve-accept-path.js`。`lockMode=needs_confirm` 必须停下来让用户选路径，用 `--select=<pathId> --write` 持久化，禁止模型自选。再读 `reference/accept-chain-rules.md`。未配置 `backfill` 时：前置步骤覆盖从种子页沿仓内跳转图走到本期入口的完整路径（含本期新增跳转；无新边则走可唯一收敛的历史路径，多条无法收敛则人工确认）。`trackingMode=backfill` 时：即使用户分支上有新跳转，主 `accept` 也不走 `new_jump`，用 `existing_shortest` / `seed_is_page` / `no_inbound`。
 4. 不要让用户填配置文件；不要在 skill 脚本写死业务 locator。
 5. 跑 `build-accept-chain.js`（可选 `--write-impl` 仅规范化已有 accept）。检查同页聚类、`navigatesAway` 拆 path、pending 缺 pageKey/trigger → 模型补 `impl.json` 后再建链。
 

@@ -212,11 +212,11 @@ function edge(from, to, added) {
   }
 }
 
-test('lockForPage historical multiple inbound needs_confirm', () => {
+test('lockForPage seed one-hop unique when other inbound is not from seed', () => {
   const page = { path: '/detail' }
   const lock = lockForPage(page, [edge('/home', '/detail'), edge('/search', '/detail')], '/home', '')
-  assert.equal(lock.lockMode, 'needs_confirm')
-  assert.equal(lock.needsConfirm, true)
+  assert.equal(lock.lockMode, 'existing_shortest')
+  assert.equal(lock.lockEdges[0].from, '/home')
 })
 
 test('lockForPage current-change inbound wins over historical', () => {
@@ -227,5 +227,45 @@ test('lockForPage current-change inbound wins over historical', () => {
   ], '/home', '')
   assert.equal(lock.lockMode, 'new_jump')
   assert.equal(lock.lockEdges[0].from, '/home')
+})
+
+test('lockForPage enumerates seed to landing multi-hop path', () => {
+  const page = { path: '/detail' }
+  const all = [
+    edge('/home', '/list'),
+    edge('/list', '/detail')
+  ]
+  const lock = lockForPage(page, [all[1]], '/home', '', null, all)
+  assert.equal(lock.lockMode, 'existing_shortest')
+  assert.equal(lock.lockEdges.length, 2)
+  assert.equal(lock.lockEdges[0].from, '/home')
+  assert.equal(lock.lockEdges[0].to, '/list')
+  assert.equal(lock.lockEdges[1].to, '/detail')
+})
+
+test('lockForPage two historical deep paths needs_confirm', () => {
+  const page = { path: '/detail' }
+  const all = [
+    edge('/home', '/list'),
+    edge('/list', '/detail'),
+    edge('/home', '/search'),
+    edge('/search', '/detail')
+  ]
+  const lock = lockForPage(page, [all[1], all[3]], '/home', '', null, all)
+  assert.equal(lock.lockMode, 'needs_confirm')
+  assert.equal(lock.needsConfirm, true)
+})
+
+test('lockForPage longer current-change path wins over shorter historical', () => {
+  const page = { path: '/detail' }
+  const all = [
+    edge('/home', '/detail'),
+    edge('/home', '/list'),
+    edge('/list', '/detail', true)
+  ]
+  const lock = lockForPage(page, [all[0], all[2]], '/home', '', null, all)
+  assert.equal(lock.lockMode, 'new_jump')
+  assert.equal(lock.lockEdges.length, 2)
+  assert.equal(lock.lockEdges[1].from, '/list')
 })
 

@@ -45,12 +45,12 @@
 4. 查找范围始终是全部 `adaptor.sourceRoots`（全局 Grep），不是只扫本期 diff。
 5. 多处命中时：`targetFile` **优先**取 diff 内文件；`pageKey` / 前置步骤 / 种子入口只描述从本期代码能走到该控件的路径。旧页同 evtId 只作对照，不写入主 `accept`。允许落在 diff 外文件（全局查找结果仍有效）。
 6. 基线 ref 不存在时停下来问用户，禁止默默改用别的分支。
-7. **旧页新埋点锁验收路径**：路径 C 写 `accept.preconditions` 前跑 `resolve-entry-path.js`（倒推仓内 `history.push` / `Link` 入边，再和基线 diff 比跳转行是否本期新增）。最终路径由 `resolve-accept-path` 确定性收敛，禁止 Agent 凭「更常见 / 更好跑」挑选。
-   - 有本期新增跳转 → 主 `accept` 只走这条新边（`lockMode=new_jump`）；多条同级新增边按固定排序，仍无法区分则 `needs_confirm`。
-   - 入边都是历史跳转且只有一条 → `existing_shortest`。多条历史入边且无有效 `pathResolution` → `needs_confirm`，用户选一次后写入 `impl.json`。
+7. **旧页新埋点锁验收路径**：路径 C 写 `accept.preconditions` 前跑 `resolve-entry-path.js`（从种子页沿仓内 `history.push` / `Link` 走到落点页，再和基线 diff 比跳转行是否本期新增）。最终路径由 `resolve-accept-path` 确定性收敛，禁止 Agent 凭「更常见 / 更好跑」挑选。
+   - 有本期新增跳转 → 主 `accept` 只走含这条新边的完整页路径（`lockMode=new_jump`）；多条同级新增路径按固定排序，仍无法区分则 `needs_confirm`。
+   - 都是历史跳转且只有一条从种子可走的完整路径 → `existing_shortest`。多条历史路径且无有效 `pathResolution` → `needs_confirm`，用户选一次后写入 `impl.json`。
    - seed 已在落点页 → `preconditions: []`（`seed_is_page`）。
-   - 仓内无入边 → 以 seed 直达为准（外链/原生扫不到，`no_inbound`）。
-   脚本只输出入边与 `lockMode`，**不写 locator**；具体 click 文案 / testid 仍由模型按代码填写。`run-accept` 失败不得改选 Candidate。
+   - 仓内无从种子走到落点的路径 → 以 seed 直达为准（外链/原生扫不到，`no_inbound`）。
+   脚本输出完整 `lockEdges` 与 `lockMode`，**不写 locator**；具体 click 文案 / testid 仍由模型按代码填写。`run-accept` 失败不得改选 Candidate。
 
 Playwright / `run-accept` 不读 `trackingBaseline`；D 仍只跑 `impl.accept` 已锁定的那条链。
 
