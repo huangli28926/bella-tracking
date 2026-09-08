@@ -1,6 +1,6 @@
 # 执行 nextTask（按需读）
 
-先跑（用户给出了文档再带 `--excel=`，没有路径不要编造）：
+初始化只允许先跑（用户消息里已有路径再带 `--excel=`，没有路径不要编造、不要列出 `docs/`）：
 
 ```bash
 node scripts/workflow/tracking-workflow.js --status --json
@@ -10,7 +10,7 @@ node scripts/workflow/tracking-workflow.js --excel=docs/{文档名}.xlsx --statu
 
 Excel 门禁（先于入口）：
 
-- 未给 `--excel=`：`ASK_EXCEL`，prompt 为 `请输入本次埋点需求Excel`，`nextAction=ask_excel`
+- 未给 `--excel=`：`ASK_EXCEL`，prompt 为 `prompts.ASK_EXCEL`（要求用户给出路径，禁止扫描代选），`nextAction=ask_excel`
 - `--excel=` 路径不存在或不是 xlsx：`ASK_EXCEL_INVALID`，prompt 为 `当前埋点文档路径无效，请核实后，重新输入`
 - 入口 7/8 且无可用 xlsx：`ASK_HISTORY_EXCEL`，prompt 为 `ASK_HISTORY_EXCEL` 常量
 
