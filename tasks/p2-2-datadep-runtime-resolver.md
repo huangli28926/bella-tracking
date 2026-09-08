@@ -5,42 +5,42 @@
 ```text
 方案状态：候选实施方案
 阶段：P2-2
-前置：P2-1 DataDep Contract Closure = CLOSED
-目标：关闭 DataDep → Runtime Expected Value 的执行不确定性
+
+前置：
+P2-1 DataDep Contract Closure = CLOSED
+P2-1.1 Runtime Selector Contract Closure = CLOSED
+
+目标：
+关闭
+
+resolved DataDep
+→ Browser Runtime Expected Value
+→ Expected / Actual Compare
+
+之间的执行不确定性。
 ```
 
-本阶段只解决：
+本阶段不重新判断：
 
 ```text
-resolved dataDep
-↓
-Browser Runtime
-↓
-Runtime Expected Value
+参数来源是什么
+Runtime selector 应该是什么
+parameter.expression 是否合理
+sourcePath 是否合理
 ```
 
-核心原则：
-
-> Runtime Resolver 只消费已经 `status = resolved` 的 DataDep Contract。
->
-> 禁止重新读取 `parameter.expression / sourcePath / evidence / hint` 推断 Runtime 来源。
+这些事实必须在 P2-1 / P2-1.1 已经关闭。
 
 ---
 
-# 1. 当前问题
+# 1. 当前真实代码状态
 
-当前正式链路不变：
+当前正式链路：
 
 ```text
-events.json
-↓
-adaptor.json
-↓
-Parameter Resolution
-↓
 impl.json
 ↓
-DataDep Contract
+validate-data-dep
 ↓
 build-accept-chain
 ↓
@@ -48,99 +48,87 @@ accept-chain.json
 ↓
 run-accept
 ↓
-Runtime Resolver
+Runtime
 ↓
 Expected / Actual Compare
-↓
-验收报告
 ```
 
-P2-1 已经解决：
+`build-accept-chain` 当前行为已经正确：
 
 ```text
-Parameter Fact
+dataDepGate(event)
 ↓
-明确 dataDep
-↓
-validate-data-dep
-↓
-resolved / needsConfirm / invalid
-↓
-build-accept-chain 只复制
+INVALID
+→ target pending
+
+NEEDS_CONFIRM
+→ target pending
+
+READY
+→ dataDeps 原样复制到 accept-chain
 ```
 
-P2-2 需要解决：
+因此：
 
 ```text
-resolved dataDep
-↓
-到底如何从真实 Browser Runtime 取得值
+进入 run-accept 的 target.dataDeps
 ```
 
-当前 `run-accept.js` 中仍存在局部硬编码：
-
-```js
-if (dep.from === 'url') {
-  // housedel_id ↔ housedelCode 特例
-}
-
-if (dep.from === 'user') {
-  userExpect(ctx.user, key)
-}
-```
-
-并且：
+理论上已经全部满足：
 
 ```text
-URL
-User
-API
-Page
+status = resolved
++
+Runtime Selector 完整
 ```
 
-尚未形成统一 Resolver。
-
-因此当前 Runtime Compare 仍然存在两个问题：
-
-```text
-DataDep Contract
-≠
-统一 Runtime 执行契约
-```
-
-以及：
-
-```text
-paramKey / 业务字段
-↓
-run-accept 内部特例
-↓
-Expected
-```
-
-这会导致新的业务字段继续往 `run-accept.js` 中添加 hardcode。
-
-P2-2 必须关闭这个扩散点。
+P2-2 不应再次做业务推断。
 
 ---
 
-# 2. P2-2 核心目标
+# 2. P2-2 要解决的唯一问题
 
-完成后必须形成：
+当前缺失的是统一执行器：
 
 ```text
 accept-chain.target.dataDeps[]
-        ↓
-filter status=resolved
-        ↓
-resolveDataDep(dep, runtimeContext)
-        ↓
-RuntimeResolveResult
-        ↓
-compareResolvedDep(result, trackingActual)
+↓
+Runtime DataDep Resolver
+↓
+Expected Runtime Value
 ```
 
-任何 Agent / 项目面对相同：
+应形成：
+
+```text
+DataDep Contract
+↓
+确定性 Resolver
+↓
+RuntimeResolveResult
+↓
+Compare
+```
+
+不能再出现：
+
+```text
+paramKey
+↓
+run-accept.js 业务 hardcode
+↓
+expected value
+```
+
+例如禁止：
+
+```js
+if (dep.paramKey === 'housedel_id') {
+  expected = query.housedelCode
+}
+```
+
+正确来源必须完全由 DataDep 决定：
 
 ```json
 {
@@ -152,34 +140,9 @@ compareResolvedDep(result, trackingActual)
 }
 ```
 
-都必须确定性执行：
-
-```text
-当前 Browser URL
-↓
-query["housedelCode"]
-↓
-expectedValue
-```
-
-不能重新判断：
-
-```text
-housedelCode 看起来像 URL 参数
-```
-
-因为：
-
-```text
-from=url
-queryKey=housedelCode
-```
-
-已经是上游确认后的事实。
-
 ---
 
-# 3. P2-2 最重要的输入边界
+# 3. P2-2 输入 Contract
 
 Runtime Resolver 唯一业务输入：
 
@@ -187,21 +150,74 @@ Runtime Resolver 唯一业务输入：
 target.dataDeps[]
 ```
 
-并且只接受：
+单条 DataDep 第一阶段合法形式：
 
-```text
-dep.status === "resolved"
-```
+## URL
 
-正式规则：
-
-```js
-function isRuntimeResolvable(dep) {
-  return dep && dep.status === 'resolved'
+```json
+{
+  "paramKey": "housedel_id",
+  "from": "url",
+  "queryKey": "housedelCode",
+  "status": "resolved",
+  "unresolved": []
 }
 ```
 
-P2-2 禁止读取以下字段决定来源：
+## API
+
+```json
+{
+  "paramKey": "price",
+  "from": "api",
+  "api": {
+    "urlIncludes": "/api/detail",
+    "field": "data.price"
+  },
+  "status": "resolved",
+  "unresolved": []
+}
+```
+
+## User
+
+```json
+{
+  "paramKey": "ucid",
+  "from": "user",
+  "user": {
+    "runtime": {
+      "kind": "windowPath",
+      "path": "__user.id"
+    }
+  },
+  "status": "resolved",
+  "unresolved": []
+}
+```
+
+## Page
+
+```json
+{
+  "paramKey": "community_name",
+  "from": "page",
+  "page": {
+    "runtime": {
+      "kind": "windowPath",
+      "path": "__PAGE_DATA__.community.name"
+    }
+  },
+  "status": "resolved",
+  "unresolved": []
+}
+```
+
+---
+
+# 4. 明确禁止读取
+
+P2-2 禁止通过以下字段决定 Runtime 来源：
 
 ```text
 parameter.expression
@@ -210,189 +226,40 @@ parameter.evidence
 parameter.hint
 parameter.confidence
 
-dataDep.expression
-dataDep.sourcePath
+insertHint
+eventName
+evtId
+paramKey 业务名称
 ```
 
-其中：
+尤其禁止：
 
 ```text
-dataDep.expression
-dataDep.sourcePath
+expression 中有 query
+→ 推断 from=url
+
+sourcePath 中有 API
+→ 推断 from=api
+
+paramKey=ucid
+→ 猜 window.__user.id
 ```
 
-即使为了可追溯性继续保留在 Schema 中：
+Runtime Resolver 必须是：
 
 ```text
-也只能用于展示 / diagnosis
-不能参与 Resolver 分支判断
-```
-
-因此：
-
-```text
-expression = "query.housedelCode"
-```
-
-不能触发：
-
-```text
-from=url
-```
-
-只有：
-
-```json
-{
-  "from": "url",
-  "queryKey": "housedelCode"
-}
-```
-
-才能触发 URL Resolver。
-
----
-
-# 4. Runtime Resolver 与 P2-1 的职责边界
-
-## P2-1
-
-回答：
-
-```text
-这个参数 Runtime 应该从哪里验证？
-```
-
-产出：
-
-```json
-{
-  "paramKey": "...",
-  "from": "...",
-  "selector": "...",
-  "status": "resolved"
-}
-```
-
----
-
-## P2-2
-
-回答：
-
-```text
-按照这个已经确定的 Contract，
-当前 Browser Runtime 中实际读取到什么？
-```
-
-产出：
-
-```json
-{
-  "paramKey": "...",
-  "from": "...",
-  "status": "resolved",
-  "value": "...",
-  "runtimeSource": {...}
-}
-```
-
----
-
-## Compare
-
-回答：
-
-```text
-Runtime Expected
-和
-Tracking Actual
-是否一致？
-```
-
-因此明确禁止：
-
-```text
-P2-2 发现读取失败
-↓
-回头根据 sourcePath 换一个来源继续猜
-```
-
-正确行为：
-
-```text
-Runtime resolution failed
-↓
-返回明确失败结果
-↓
-验收 FAIL / PENDING
-↓
-指出 Runtime Source 不可解析
+Contract Interpreter
 ```
 
 而不是：
 
 ```text
-偷偷换数据源
+Runtime Reasoning Agent
 ```
 
 ---
 
-# 5. 不新增第五个事实层
-
-保持当前：
-
-```text
-impl.json
-↓
-accept-chain.json
-↓
-Runtime Actual / Report
-```
-
-不新增：
-
-```text
-runtime-deps.json
-resolver.json
-expected-runtime.json
-```
-
-P2-2 的结果属于：
-
-```text
-本次 Runtime Execution Evidence
-```
-
-可以直接进入：
-
-```text
-验收 result row
-```
-
-例如：
-
-```json
-{
-  "evtId": "95941",
-  "dataDepResults": [
-    {
-      "paramKey": "housedel_id",
-      "from": "url",
-      "status": "resolved",
-      "value": "123456",
-      "actualValue": "123456",
-      "compareStatus": "PASS"
-    }
-  ]
-}
-```
-
-它不是新的设计事实层。
-
----
-
-# 6. 推荐代码结构
+# 5. 新增 runtime-data-dep.js
 
 新增：
 
@@ -403,77 +270,71 @@ scripts/accept/runtime-data-dep.js
 职责只包含：
 
 ```text
-DataDep Runtime Resolution
+resolved DataDep
+→ Runtime Expected Value
 ```
 
-建议接口：
+建议导出：
 
 ```js
-async function resolveDataDep(dep, runtimeContext)
+resolveDataDep
+resolveDataDeps
 
-async function resolveDataDeps(deps, runtimeContext)
+resolveUrlDataDep
+resolveApiDataDep
+resolveWindowPathDataDep
 
-async function resolveUrlDataDep(dep, runtimeContext)
-
-async function resolveApiDataDep(dep, runtimeContext)
-
-async function resolveUserDataDep(dep, runtimeContext)
-
-async function resolvePageDataDep(dep, runtimeContext)
+getByPath
 ```
 
-统一入口：
+整体结构：
 
 ```js
-const RESOLVERS = {
+const SOURCE_RESOLVERS = {
   url: resolveUrlDataDep,
   api: resolveApiDataDep,
   user: resolveUserDataDep,
   page: resolvePageDataDep
 }
-```
 
-核心：
-
-```js
 async function resolveDataDep(dep, ctx) {
   if (!dep || dep.status !== 'resolved') {
-    return {
-      paramKey: dep && dep.paramKey || '',
-      status: 'not_resolvable',
-      code: 'DATADEP_NOT_RESOLVED'
-    }
+    return runtimeError(
+      dep,
+      'DATADEP_NOT_RESOLVED'
+    )
   }
 
-  const resolver = RESOLVERS[dep.from]
+  const resolver = SOURCE_RESOLVERS[dep.from]
 
   if (!resolver) {
-    return {
-      paramKey: dep.paramKey,
-      status: 'error',
-      code: 'RUNTIME_RESOLVER_NOT_FOUND'
-    }
+    return runtimeError(
+      dep,
+      'RUNTIME_RESOLVER_NOT_FOUND'
+    )
   }
 
   return resolver(dep, ctx)
 }
 ```
 
-注意：
+禁止：
 
-```text
-这里不存在 default resolver
-不存在 fallback page
-不存在 expression inference
+```js
+const resolver =
+  SOURCE_RESOLVERS[dep.from] ||
+  resolveSomethingElse
 ```
+
+不存在 fallback。
 
 ---
 
-# 7. Runtime Context
+# 6. Runtime Context
 
-不要让四个 Resolver 自己到处访问 Playwright 对象。
+P2-2 不新增新的事实文件。
 
-建立统一 Runtime Context：
+只在本次 Runtime Execution 中维护：
 
 ```js
 {
@@ -484,45 +345,60 @@ async function resolveDataDep(dep, ctx) {
     query
   },
 
-  user: runtimeUserSnapshot,
+  api: {
+    responses: []
+  },
 
-  api: apiRuntimeStore,
-
-  pageData: pageRuntimeStore
+  windowSnapshot
 }
 ```
 
-它表示：
+这里的：
 
 ```text
-本次 target 执行时的 Runtime Evidence
+runtimeContext
 ```
 
-不是新的业务事实。
+只是：
+
+```text
+Runtime Evidence Container
+```
+
+不是新的：
+
+```text
+runtime.json
+runtime-deps.json
+resolver.json
+```
 
 ---
 
-# 8. URL Resolver
+# 7. URL Resolver
 
-DataDep：
+实现规则：
 
-```json
-{
-  "paramKey": "housedel_id",
-  "from": "url",
-  "queryKey": "housedelCode",
-  "status": "resolved",
-  "unresolved": []
-}
+```text
+dep.from = url
+↓
+dep.queryKey
+↓
+当前 Browser URL
+↓
+query[queryKey]
 ```
 
-Resolver：
+建议：
 
 ```js
-function resolveUrlDataDep(dep, ctx) {
+async function resolveUrlDataDep(dep, ctx) {
   const query = ctx.url && ctx.url.query || {}
 
-  if (!Object.prototype.hasOwnProperty.call(query, dep.queryKey)) {
+  if (!Object.prototype.hasOwnProperty.call(
+    query,
+    dep.queryKey
+  )) {
     return {
       paramKey: dep.paramKey,
       from: 'url',
@@ -539,873 +415,168 @@ function resolveUrlDataDep(dep, ctx) {
     from: 'url',
     status: 'resolved',
     value: query[dep.queryKey],
-    selector: {
-      queryKey: dep.queryKey
+    runtimeSource: {
+      kind: 'urlQuery',
+      queryKey: dep.queryKey,
+      href: ctx.url.href
     }
   }
 }
 ```
 
-禁止：
-
-```js
-dep.queryKey || 'housedelCode'
-```
-
-禁止：
-
-```js
-if (paramKey === 'housedel_id')
-```
-
-因此必须删除当前：
+必须删除所有：
 
 ```text
-housedel_id ↔ housedelCode
+housedel_id
+housedelCode
 ```
 
-Runtime 特例。
+之间的 Runtime 专有映射。
 
 ---
 
-# 9. API Resolver
+# 8. User / Page Resolver
 
-DataDep：
+这里是当前旧 P2-2 文档最需要修正的地方。
 
-```json
-{
-  "paramKey": "price",
-  "from": "api",
-  "api": {
-    "urlIncludes": "/api/estimate/detail",
-    "field": "data.price"
-  },
-  "status": "resolved",
-  "unresolved": []
+P2-1.1 已经明确：
+
+```text
+user.path
+page.path
+```
+
+已经废弃。
+
+所以不能实现：
+
+```js
+getByPath(ctx.user, dep.user.path)
+```
+
+正式实现必须完全使用：
+
+```text
+runtime.kind
+runtime.path
+```
+
+第一阶段唯一支持：
+
+```text
+windowPath
+```
+
+统一实现：
+
+```js
+async function resolveWindowPath(page, runtime) {
+  return page.evaluate(function (path) {
+    var parts = String(path || '')
+      .split('.')
+      .filter(Boolean)
+
+    var current = window
+
+    for (var i = 0; i < parts.length; i += 1) {
+      var key = parts[i]
+
+      if (
+        current == null ||
+        !Object.prototype.hasOwnProperty.call(
+          Object(current),
+          key
+        )
+      ) {
+        return {
+          found: false
+        }
+      }
+
+      current = current[key]
+    }
+
+    return {
+      found: true,
+      value: current
+    }
+  }, runtime.path)
 }
 ```
 
-需要在 Playwright Runtime 采集 API response。
-
-推荐统一维护：
+User：
 
 ```js
-apiRuntimeStore
-```
-
-结构例如：
-
-```js
-[
-  {
-    url: "/api/estimate/detail?...",
-    method: "GET",
-    status: 200,
-    timestamp: 123456,
-    body: {
-      "data": {
-        "price": 500
-      }
-    }
-  }
-]
-```
-
-Resolver 只做两步：
-
-```text
-1. 按 api.urlIncludes 找 response
-2. 按 api.field 取字段
-```
-
-例如：
-
-```js
-async function resolveApiDataDep(dep, ctx) {
-  const api = dep.api
-
-  const candidates = ctx.api.responses.filter(item =>
-    item.url.includes(api.urlIncludes)
+async function resolveUserDataDep(dep, ctx) {
+  return resolveRuntimeSelector(
+    dep,
+    dep.user && dep.user.runtime,
+    ctx
   )
+}
+```
 
-  if (!candidates.length) {
-    return {
-      status: 'missing',
-      code: 'RUNTIME_API_NOT_CAPTURED'
-    }
+Page：
+
+```js
+async function resolvePageDataDep(dep, ctx) {
+  return resolveRuntimeSelector(
+    dep,
+    dep.page && dep.page.runtime,
+    ctx
+  )
+}
+```
+
+统一：
+
+```js
+async function resolveRuntimeSelector(
+  dep,
+  runtime,
+  ctx
+) {
+  if (!runtime) {
+    return runtimeError(
+      dep,
+      'RUNTIME_SELECTOR_MISSING'
+    )
   }
 
-  const response = selectRuntimeResponse(candidates)
+  if (runtime.kind !== 'windowPath') {
+    return runtimeError(
+      dep,
+      'RUNTIME_SELECTOR_UNSUPPORTED'
+    )
+  }
 
-  const result = getByPath(response.body, api.field)
+  const result = await resolveWindowPath(
+    ctx.page,
+    runtime
+  )
 
   if (!result.found) {
     return {
+      paramKey: dep.paramKey,
+      from: dep.from,
       status: 'missing',
-      code: 'RUNTIME_API_FIELD_MISSING'
+      code: 'RUNTIME_WINDOW_PATH_MISSING',
+      runtimeSource: {
+        kind: 'windowPath',
+        path: runtime.path
+      }
     }
   }
 
   return {
     paramKey: dep.paramKey,
-    from: 'api',
+    from: dep.from,
     status: 'resolved',
     value: result.value,
     runtimeSource: {
-      url: response.url,
-      field: api.field
+      kind: 'windowPath',
+      path: runtime.path
     }
-  }
-}
-```
-
----
-
-# 10. API 多响应确定性规则
-
-不能：
-
-```text
-同一路径出现 3 次接口
-↓
-随便 pop() 一个
-```
-
-P2-2 必须定义确定性选择规则。
-
-建议：
-
-```text
-只考虑当前 Accept Target Runtime Window 内的 response
-```
-
-Runtime Window：
-
-```text
-path opened
-↓
-sharedSteps
-↓
-target trigger
-↓
-event fired
-```
-
-对于候选响应：
-
-```text
-优先最后一个成功完成且 body 可解析的 response
-```
-
-确定性排序：
-
-```text
-timestamp DESC
-```
-
-如果：
-
-```text
-存在多个满足 urlIncludes
-+
-结果字段值不同
-+
-无法确定哪个与当前 target 对应
-```
-
-不要猜。
-
-返回：
-
-```text
-RUNTIME_API_AMBIGUOUS
-```
-
-P2-2 不增加复杂 AI 消歧。
-
-如果未来确实需要更精细 API 身份：
-
-```text
-method
-request query
-request body
-response selector
-```
-
-应扩充 DataDep Contract，而不是偷偷在 Resolver 中推断。
-
----
-
-# 11. User Resolver
-
-P2-1 当前 Contract：
-
-```json
-{
-  "paramKey": "agent_ucid",
-  "from": "user",
-  "user": {
-    "path": "user.id"
-  },
-  "status": "resolved",
-  "unresolved": []
-}
-```
-
-这里必须注意：
-
-P2-1 已定义：
-
-```text
-user.path 是业务语义路径
-```
-
-但没有规定 Runtime 必须读取：
-
-```text
-window.__user
-```
-
-因此当前 `run-accept.js`：
-
-```js
-window.__user
-```
-
-以及：
-
-```js
-userExpect(user, key)
-```
-
-不能继续作为通用 Contract。
-
-P2-2 推荐把：
-
-```text
-业务 user.path
-→ Runtime user snapshot
-```
-
-交给项目 `adaptor` / SDK profile 提供的统一 User Provider。
-
-形式例如：
-
-```js
-runtimeContext.user = await runtimeProviders.readUser(page)
-```
-
-然后 Resolver：
-
-```js
-resolveUserDataDep(dep, ctx) {
-  return getByPath(ctx.user, dep.user.path)
-}
-```
-
-关键原则：
-
-```text
-paramKey 不参与 user path 推断
-```
-
-禁止：
-
-```js
-if (key === 'agent_ucid') return user.id
-if (key === 'city_id') return user.officeAddress
-```
-
-正确：
-
-```json
-{
-  "paramKey": "city_id",
-  "from": "user",
-  "user": {
-    "path": "user.officeAddress"
-  }
-}
-```
-
-Resolver 完全按照：
-
-```text
-user.path
-```
-
-取值。
-
----
-
-# 12. User Runtime Provider 的边界
-
-这里存在一个需要明确的工程边界：
-
-```text
-DataDep
-```
-
-负责：
-
-```text
-业务事实路径
-```
-
-而：
-
-```text
-adaptor / Runtime Provider
-```
-
-负责：
-
-```text
-如何取得该项目的 user root object
-```
-
-例如某项目：
-
-```text
-window.__user
-```
-
-另一个项目：
-
-```text
-window.__INITIAL_STATE__.user
-```
-
-再一个项目：
-
-```text
-登录接口缓存
-```
-
-这些不能写进公共：
-
-```text
-runtime-data-dep.js
-```
-
-因此：
-
-```text
-通用 Resolver
-+
-项目 Runtime Provider
-```
-
-是推荐结构。
-
-这不改变 adaptor.json 的事实定位，只扩展其 Runtime 适配职责。
-
----
-
-# 13. Page Resolver
-
-DataDep：
-
-```json
-{
-  "paramKey": "community_name",
-  "from": "page",
-  "page": {
-    "path": "community.name"
-  },
-  "status": "resolved",
-  "unresolved": []
-}
-```
-
-P2-1 已明确：
-
-```text
-page.path 不是 DOM locator
-```
-
-因此 P2-2 禁止把：
-
-```text
-community.name
-```
-
-直接猜成：
-
-```text
-CSS selector
-React variable
-window path
-```
-
-Page Resolver 与 User 相同：
-
-```text
-page.path
-```
-
-只能访问已经由 Runtime Page Provider 暴露出的：
-
-```text
-pageRuntimeStore
-```
-
-例如：
-
-```js
-runtimeContext.pageData =
-  await runtimeProviders.readPageData(page)
-```
-
-然后：
-
-```js
-resolvePageDataDep(dep, ctx) {
-  return getByPath(ctx.pageData, dep.page.path)
-}
-```
-
----
-
-# 14. Page Provider 没有实现时怎么办
-
-这是 P2-2 很重要的失败边界。
-
-例如：
-
-```json
-{
-  "from": "page",
-  "page": {
-    "path": "community.name"
-  },
-  "status": "resolved"
-}
-```
-
-但是当前项目没有：
-
-```text
-page Runtime Provider
-```
-
-禁止：
-
-```text
-看到 community.name
-↓
-搜索 DOM
-↓
-尝试 window
-↓
-尝试 React internals
-↓
-尝试接口
-```
-
-正确结果：
-
-```json
-{
-  "status": "unsupported",
-  "code": "RUNTIME_PAGE_PROVIDER_UNAVAILABLE"
-}
-```
-
-这意味着：
-
-```text
-DataDep 业务事实已 resolved
-≠
-当前 Runtime 环境一定具备读取能力
-```
-
-需要区分：
-
-```text
-Contract Resolution
-和
-Runtime Resolution
-```
-
----
-
-# 15. RuntimeResolveResult Contract
-
-四类 Resolver 必须返回统一结构。
-
-推荐：
-
-```json
-{
-  "paramKey": "housedel_id",
-  "from": "url",
-
-  "status": "resolved",
-
-  "value": "123456",
-
-  "selector": {
-    "queryKey": "housedelCode"
-  },
-
-  "runtimeSource": {
-    "url": "/detail?housedelCode=123456"
-  },
-
-  "code": null
-}
-```
-
-Runtime Status：
-
-```text
-resolved
-missing
-ambiguous
-unsupported
-error
-```
-
-语义：
-
-```text
-resolved
-= Runtime Expected 已取得
-
-missing
-= 已按确定 selector 查找，但 Runtime 没有数据
-
-ambiguous
-= selector 命中多个互相冲突的 Runtime 候选
-
-unsupported
-= 当前 Runtime Provider 不支持该已确认 Contract
-
-error
-= Runtime 执行异常
-```
-
-这些状态不反写：
-
-```text
-dataDep.status
-```
-
-因为：
-
-```text
-dataDep.status
-= Design-time fact resolution status
-
-runtime result.status
-= 本次 Browser execution status
-```
-
-两者不能混淆。
-
----
-
-# 16. Compare Contract
-
-当前：
-
-```js
-assertParams(target, fired, ctx)
-```
-
-应拆分为：
-
-```text
-Resolve
-↓
-Compare
-```
-
-推荐：
-
-```js
-const depResults = await resolveDataDeps(
-  target.dataDeps,
-  runtimeContext
-)
-
-const paramDiffs = compareParams(
-  target,
-  fired,
-  depResults
-)
-```
-
-Compare 不再了解：
-
-```text
-URL
-API
-User
-Page
-```
-
-只接受：
-
-```text
-expectedValue
-actualValue
-```
-
-伪代码：
-
-```js
-function compareResolvedDataDeps(depResults, fired) {
-  const action = fired && fired.action || []
-  const diffs = []
-
-  for (const result of depResults) {
-    if (result.status !== 'resolved') {
-      diffs.push({
-        key: result.paramKey,
-        reason: result.code,
-        kind: 'runtime_source_unresolved'
-      })
-      continue
-    }
-
-    const actual = action[result.paramKey]
-
-    if (!sameRuntimeValue(actual, result.value)) {
-      diffs.push({
-        key: result.paramKey,
-        expected: result.value,
-        actual,
-        kind: 'value_mismatch'
-      })
-    }
-  }
-
-  return diffs
-}
-```
-
----
-
-# 17. 修正当前 `sameish()`
-
-当前 `sameish()` 存在非常危险的宽松逻辑：
-
-```text
-expected 为空 → true
-actual 为空 → true
-boolean 不好比较 → true
-```
-
-这会让：
-
-```text
-没有取得 Runtime Expected
-```
-
-看起来像：
-
-```text
-PASS
-```
-
-P2-2 不应继续如此。
-
-原则：
-
-```text
-Runtime Source 没取得
-≠
-Compare PASS
-```
-
-应该区分：
-
-```text
-Runtime source missing
-value mismatch
-actual missing
-value equal
-```
-
-建议：
-
-```js
-function sameRuntimeValue(actual, expected) {
-  if (actual === undefined || expected === undefined) {
-    return false
-  }
-
-  return String(actual) === String(expected)
-}
-```
-
-如果需要：
-
-```text
-boolean / number / null / enum
-```
-
-规范化，应增加明确 deterministic normalization contract。
-
-不能用：
-
-```text
-不好比就 true
-```
-
-规避错误。
-
----
-
-# 18. assertParams 与 dataDeps 的关系
-
-继续保留：
-
-```text
-assertParams
-```
-
-负责：
-
-```text
-哪些 action 参数必须存在
-```
-
-DataDep 负责：
-
-```text
-哪些参数还需要 Runtime Source Value Compare
-```
-
-所以两个维度应分开。
-
-例如：
-
-```json
-{
-  "assertParams": [
-    "city_id",
-    "source"
-  ],
-
-  "dataDeps": [
-    {
-      "paramKey": "city_id",
-      "from": "user",
-      ...
-    }
-  ]
-}
-```
-
-表示：
-
-```text
-source
-→ 只检查 action 是否存在
-
-city_id
-→ 检查 action 是否存在
-+
-检查 Runtime Expected Value
-```
-
-不要强制：
-
-```text
-每个 assertParam 都必须有 dataDep
-```
-
-除非上游 Contract 明确将它定义为 Runtime Source Compare 参数。
-
----
-
-# 19. Runtime Window
-
-DataDep 的 Runtime Evidence 必须和当前 target 有时间边界。
-
-推荐：
-
-```text
-openPath
-↓
-记录 pathOpenedAt
-↓
-sharedSteps
-↓
-记录 triggerStartedAt
-↓
-执行 trigger
-↓
-event firedAt
-↓
-resolve target Runtime deps
-```
-
-不同 source 的时间规则：
-
-```text
-url
-→ trigger 后当前 URL snapshot
-
-user
-→ target Runtime snapshot
-
-page
-→ target Runtime snapshot
-
-api
-→ 当前 path / target window 捕获的 response
-```
-
-不能从整个浏览器生命周期的无限历史中取 API。
-
-否则：
-
-```text
-上一个 Path 的 response
-```
-
-可能污染当前 target。
-
----
-
-# 20. 推荐 Runtime Context 构建
-
-将当前：
-
-```js
-openPath()
-```
-
-返回的：
-
-```js
-{
-  query,
-  user
-}
-```
-
-升级为更明确的：
-
-```js
-{
-  pathOpenedAt,
-
-  url: {
-    href,
-    query
-  },
-
-  user: ...,
-
-  pageData: ...,
-
-  api: {
-    responses: []
   }
 }
 ```
@@ -1413,855 +584,1156 @@ openPath()
 注意：
 
 ```text
-openPath 不负责判断 dataDep
+User 和 Page 第一阶段实际上共享同一个执行 Resolver。
 ```
 
-它只构建 Runtime Evidence Context。
-
-真正需要哪些数据：
+二者区别只存在于：
 
 ```text
-由 dataDeps.from
-决定
+DataDep 业务来源语义
 ```
+
+而不是执行机制。
 
 ---
 
-# 21. Lazy Resolution
+# 9. API Runtime Collector
 
-不建议每次都无条件采集所有 Runtime 数据。
+API Resolver 要先有确定性的 Runtime Evidence。
 
-可根据 resolved dataDeps 构建需求：
+建议在：
+
+```text
+run-accept.js
+```
+
+初始化 page 时挂：
 
 ```js
-const requirements = {
-  url: false,
-  api: false,
-  user: false,
-  page: false
-}
+attachApiRuntimeCollector(page)
 ```
 
-例如：
+但 Collector 与 Resolver 分离。
+
+新增可放：
 
 ```text
-target.dataDeps = [url, api]
+scripts/accept/runtime-api-store.js
 ```
 
-则：
+或者第一阶段放进：
 
 ```text
-只需要 URL snapshot
-+
-API collector
+runtime-data-dep.js
 ```
 
-不需要：
+如果代码量仍小。
 
-```text
-User Provider
-Page Provider
-```
-
-这样保持项目通用性。
-
----
-
-# 22. DataDep Consumer Guard
-
-即使 P2-1 Gate 已经拦住 `needsConfirm`，P2-2 自己仍必须 defensive check：
+推荐结构：
 
 ```js
-if (dep.status !== 'resolved') {
-  return DATADEP_NOT_RESOLVED
-}
-```
-
-原因：
-
-```text
-accept-chain.json
-可能来自旧版本
-可能被人工修改
-可能绕过 build-accept-chain
-```
-
-但：
-
-```text
-P2-2 只报告错误
-不尝试修复 Contract
-```
-
----
-
-# 23. 禁止 DataDep Runtime fallback
-
-以下全部禁止：
-
-```text
-URL query missing
-→ 尝试 API
-
-API field missing
-→ 尝试 page
-
-User provider missing
-→ window 上搜索类似字段
-
-Page provider missing
-→ 搜 DOM 文案
-
-selector 错误
-→ 根据 expression 猜新的 selector
-
-runtime source missing
-→ 使用 actual tracking value 当 expected
-```
-
-核心原则：
-
-```text
-Expected 必须独立于 Actual。
-```
-
-否则：
-
-```text
-Actual
-→ Expected
-→ Compare
-```
-
-变成自证循环，验收失去意义。
-
----
-
-# 24. Error Code
-
-建议新增稳定枚举：
-
-```text
-DATADEP_NOT_RESOLVED
-
-RUNTIME_URL_QUERY_MISSING
-
-RUNTIME_API_NOT_CAPTURED
-RUNTIME_API_FIELD_MISSING
-RUNTIME_API_AMBIGUOUS
-RUNTIME_API_BODY_UNREADABLE
-
-RUNTIME_USER_PROVIDER_UNAVAILABLE
-RUNTIME_USER_PATH_MISSING
-
-RUNTIME_PAGE_PROVIDER_UNAVAILABLE
-RUNTIME_PAGE_PATH_MISSING
-
-RUNTIME_RESOLVER_NOT_FOUND
-RUNTIME_RESOLVE_ERROR
-```
-
-报告层只消费这些 code 做中文展示。
-
-不要让不同 Agent 自由生成：
-
-```text
-"URL值没找到"
-"query不存在"
-"missing URL"
-```
-
----
-
-# 25. Runtime Evidence
-
-报告中建议保留：
-
-```json
 {
-  "paramKey": "price",
-  "from": "api",
-  "status": "resolved",
-  "value": 500,
+  responses: [
+    {
+      t,
+      url,
+      method,
+      status,
+      bodyParsed,
+      body
+    }
+  ]
+}
+```
 
-  "runtimeSource": {
-    "url": "/api/estimate/detail?id=1",
-    "field": "data.price",
-    "capturedAt": 123456789
+监听：
+
+```js
+page.on('response', async response => {
+  ...
+})
+```
+
+只保存：
+
+```text
+可读取 JSON response
+```
+
+不要把图片、埋点 GIF、HTML 全存进去。
+
+---
+
+# 10. API Resolver
+
+执行：
+
+```text
+api.urlIncludes
+↓
+当前 target Runtime Window 中 response
+↓
+api.field
+↓
+Expected Value
+```
+
+建议：
+
+```js
+function getByPath(obj, path) {
+  const parts = String(path || '')
+    .split('.')
+    .filter(Boolean)
+
+  let current = obj
+
+  for (const key of parts) {
+    if (
+      current == null ||
+      !Object.prototype.hasOwnProperty.call(
+        Object(current),
+        key
+      )
+    ) {
+      return {
+        found: false
+      }
+    }
+
+    current = current[key]
+  }
+
+  return {
+    found: true,
+    value: current
   }
 }
 ```
 
-但避免写入：
+API Resolver：
+
+```js
+async function resolveApiDataDep(dep, ctx) {
+  const selector = dep.api || {}
+
+  const responses =
+    ctx.api && Array.isArray(ctx.api.responses)
+      ? ctx.api.responses
+      : []
+
+  const candidates = responses
+    .filter(item =>
+      item.url.includes(selector.urlIncludes)
+    )
+    .filter(item => item.bodyParsed)
+
+  if (!candidates.length) {
+    return {
+      paramKey: dep.paramKey,
+      from: 'api',
+      status: 'missing',
+      code: 'RUNTIME_API_NOT_CAPTURED'
+    }
+  }
+
+  const withField = candidates.map(item => {
+    return {
+      response: item,
+      field: getByPath(
+        item.body,
+        selector.field
+      )
+    }
+  }).filter(item => item.field.found)
+
+  if (!withField.length) {
+    return {
+      paramKey: dep.paramKey,
+      from: 'api',
+      status: 'missing',
+      code: 'RUNTIME_API_FIELD_MISSING'
+    }
+  }
+
+  ...
+}
+```
+
+---
+
+# 11. API 多响应确定性
+
+这里不要让 Agent 自由决定。
+
+首先限制候选范围：
 
 ```text
-整个 API response body
+当前 target Runtime Window
 ```
+
+建议 target 开始前记录：
+
+```js
+const targetRuntimeStart = Date.now()
+```
+
+只看：
+
+```text
+response.t >= targetRuntimeStart
+```
+
+如果接口通常发生在 trigger 之前，则 window 可从：
+
+```text
+完成 sharedSteps 后
+```
+
+开始。
+
+关键原则：
+
+```text
+Window Boundary 必须由 run-accept 明确定义，
+不能由 API Resolver 自己猜。
+```
+
+候选规则：
+
+```text
+1. url.includes(api.urlIncludes)
+2. status 2xx
+3. bodyParsed = true
+4. field 存在
+```
+
+如果只有一个：
+
+```text
+resolved
+```
+
+如果多个候选，并且：
+
+```text
+field value 全部相同
+```
+
+可以确定性返回：
+
+```text
+最后一个 response
+```
+
+如果多个候选：
+
+```text
+field value 不同
+```
+
+返回：
+
+```text
+RUNTIME_API_AMBIGUOUS
+```
+
+不要偷偷选最后一个。
 
 原因：
 
 ```text
-报告体积
-敏感信息
-无关字段
+urlIncludes Contract 不足以区分这些 response。
 ```
 
-只保存验证需要的最小 evidence。
+此时真正该修改的是：
+
+```text
+P2-1 DataDep Contract
+```
+
+例如未来增加：
+
+```text
+method
+query selector
+request body selector
+```
+
+而不是增强 Runtime 猜测。
 
 ---
 
-# 26. 推荐文件修改范围
+# 12. RuntimeResolveResult
 
-重点修改：
+统一输出：
+
+```json
+{
+  "paramKey": "housedel_id",
+  "from": "url",
+  "status": "resolved",
+  "value": "123456",
+  "code": "",
+  "runtimeSource": {
+    "kind": "urlQuery",
+    "queryKey": "housedelCode"
+  }
+}
+```
+
+失败：
+
+```json
+{
+  "paramKey": "ucid",
+  "from": "user",
+  "status": "missing",
+  "code": "RUNTIME_WINDOW_PATH_MISSING",
+  "runtimeSource": {
+    "kind": "windowPath",
+    "path": "__user.id"
+  }
+}
+```
+
+建议 Runtime status 只使用：
 
 ```text
-scripts/accept/run-accept.js
+resolved
+missing
+error
+not_resolvable
+```
+
+注意不要与：
+
+```text
+DataDep.status
+```
+
+混为一个语义。
+
+DataDep 的：
+
+```text
+resolved
+```
+
+表示：
+
+```text
+Contract 已关闭
+```
+
+Runtime 的：
+
+```text
+resolved
+```
+
+表示：
+
+```text
+本次 Browser Runtime 真正读到了值
+```
+
+---
+
+# 13. Compare 层
+
+Resolver 不负责 PASS / FAIL。
+
+保持职责：
+
+```text
+Resolver
+→ Expected Runtime Value
+
+SDK Hook
+→ Tracking Actual Value
+
+Compare
+→ PASS / FAIL
 ```
 
 新增：
+
+```js
+function compareDataDepResult(
+  resolved,
+  firedAction
+)
+```
+
+结果例如：
+
+```json
+{
+  "paramKey": "housedel_id",
+  "expectedValue": "123456",
+  "actualValue": "123456",
+  "status": "PASS"
+}
+```
+
+不一致：
+
+```json
+{
+  "paramKey": "housedel_id",
+  "expectedValue": "123456",
+  "actualValue": "654321",
+  "status": "FAIL",
+  "code": "DATADEP_VALUE_MISMATCH"
+}
+```
+
+Runtime Source 没取到：
+
+```json
+{
+  "paramKey": "ucid",
+  "expectedValue": null,
+  "actualValue": "1001",
+  "status": "PENDING",
+  "code": "RUNTIME_WINDOW_PATH_MISSING"
+}
+```
+
+第一阶段建议：
+
+```text
+Runtime source 无法读取
+≠
+implementation mismatch
+```
+
+所以应该：
+
+```text
+PENDING / unverifiable
+```
+
+而不是把业务实现直接判 FAIL。
+
+而：
+
+```text
+expected resolved
++
+actual 不等于 expected
+```
+
+才是：
+
+```text
+FAIL
+```
+
+---
+
+# 14. run-accept.js 改造
+
+`run-accept.js` 应只负责编排：
+
+```text
+target Runtime Window start
+↓
+sharedSteps
+↓
+trigger
+↓
+捕获 fired event
+↓
+构造 runtimeContext
+↓
+resolveDataDeps()
+↓
+compareDataDepResults()
+↓
+写 result
+```
+
+禁止继续增加：
+
+```text
+if paramKey === xxx
+if from=user then猜字段
+if housedel_id...
+```
+
+建议导入：
+
+```js
+const {
+  resolveDataDeps
+} = require('./runtime-data-dep')
+```
+
+执行：
+
+```js
+const dataDepResults =
+  await resolveDataDeps(
+    target.dataDeps,
+    runtimeContext
+  )
+```
+
+然后：
+
+```js
+const paramDiffs =
+  compareDataDepResults(
+    dataDepResults,
+    fired && fired.action
+  )
+```
+
+---
+
+# 15. 报告输出
+
+现有报告已经携带：
+
+```text
+dataDeps
+paramDiffs
+fired
+```
+
+继续扩充：
+
+```json
+{
+  "dataDepResults": [
+    {
+      "paramKey": "housedel_id",
+      "from": "url",
+      "status": "resolved",
+      "value": "123",
+      "runtimeSource": {
+        "kind": "urlQuery",
+        "queryKey": "housedelCode"
+      }
+    }
+  ],
+  "paramDiffs": [
+    {
+      "paramKey": "housedel_id",
+      "expectedValue": "123",
+      "actualValue": "123",
+      "status": "PASS"
+    }
+  ]
+}
+```
+
+这样报告可以明确展示：
+
+```text
+为什么 Expected 是这个值
+```
+
+符合 bella-tracking 的：
+
+```text
+Runtime Evidence
+```
+
+原则。
+
+---
+
+# 16. 不修改 accept-chain Contract
+
+本阶段原则上不需要新增：
+
+```text
+accept-chain schema 字段
+```
+
+因为 P2-1.1 已经保证：
+
+```text
+target.dataDeps
+```
+
+足够执行。
+
+P2-2 只是：
+
+```text
+消费 Contract
+```
+
+而不是：
+
+```text
+再次改 Contract
+```
+
+只有实际实现过程中发现：
+
+```text
+某种来源无法仅靠当前 DataDep 确定执行
+```
+
+才回退到：
+
+```text
+P2-1 Contract Gap
+```
+
+而不是在 Runtime 加推断。
+
+---
+
+# 17. 需要新增测试
+
+至少新增：
+
+```text
+scripts/accept/runtime-data-dep.test.js
+```
+
+## Case 1 URL resolved
+
+输入：
+
+```json
+{
+  "from": "url",
+  "queryKey": "housedelCode",
+  "status": "resolved"
+}
+```
+
+Runtime：
+
+```text
+?housedelCode=123
+```
+
+期望：
+
+```text
+value = 123
+```
+
+---
+
+## Case 2 URL missing
+
+期望：
+
+```text
+RUNTIME_URL_QUERY_MISSING
+```
+
+---
+
+## Case 3 User windowPath
+
+```text
+window.__user.id = 1001
+```
+
+DataDep：
+
+```json
+{
+  "user": {
+    "runtime": {
+      "kind": "windowPath",
+      "path": "__user.id"
+    }
+  }
+}
+```
+
+期望：
+
+```text
+1001
+```
+
+---
+
+## Case 4 Page windowPath
+
+同 User。
+
+---
+
+## Case 5 windowPath missing
+
+期望：
+
+```text
+RUNTIME_WINDOW_PATH_MISSING
+```
+
+不能 fallback。
+
+---
+
+## Case 6 API single candidate
+
+匹配：
+
+```text
+urlIncludes
++
+field
+```
+
+期望：
+
+```text
+resolved
+```
+
+---
+
+## Case 7 API field missing
+
+期望：
+
+```text
+RUNTIME_API_FIELD_MISSING
+```
+
+---
+
+## Case 8 API ambiguous
+
+两个候选：
+
+```text
+field value 不同
+```
+
+期望：
+
+```text
+RUNTIME_API_AMBIGUOUS
+```
+
+---
+
+## Case 9 unresolved DataDep
+
+即使调用 Resolver：
+
+```json
+{
+  "status": "needsConfirm"
+}
+```
+
+也必须：
+
+```text
+DATADEP_NOT_RESOLVED
+```
+
+禁止执行。
+
+---
+
+## Case 10 禁止 expression fallback
+
+DataDep：
+
+```json
+{
+  "from": "url",
+  "queryKey": "missing",
+  "status": "resolved"
+}
+```
+
+即使 parameter.expression 是：
+
+```text
+window.foo
+```
+
+也必须：
+
+```text
+RUNTIME_URL_QUERY_MISSING
+```
+
+不能读取：
+
+```text
+window.foo
+```
+
+---
+
+# 18. 集成测试
+
+除了 unit test，还应增加一个 Runtime Integration Test：
+
+```text
+fake page
++
+URL query
++
+window global
++
+mock API
++
+fake tracking action
+```
+
+验证：
+
+```text
+DataDep
+→ Runtime Expected
+→ Actual
+→ Compare
+```
+
+完整闭环。
+
+重点不是 Playwright UI 本身，而是证明：
+
+```text
+相同 DataDep Contract
+在 Claude Code / Codex / Cursor 修改出的执行逻辑
+都只能得到同一个结果。
+```
+
+---
+
+# 19. AI 与确定性程序边界
+
+## AI
+
+P2-2 不需要 AI。
+
+AI 只存在于上游：
+
+```text
+Parameter Resolution
+↓
+DataDep Candidate
+↓
+Runtime Selector Candidate
+```
+
+---
+
+## Schema / Validator
+
+负责：
+
+```text
+resolved Contract 是否完整
+```
+
+---
+
+## Runtime Resolver
+
+负责：
+
+```text
+严格解释 DataDep Contract
+```
+
+---
+
+## Playwright
+
+负责：
+
+```text
+提供真实 Browser Runtime Evidence
+```
+
+---
+
+## Compare
+
+负责：
+
+```text
+Expected vs Actual
+```
+
+因此：
+
+```text
+P2-2 应该是纯确定性程序。
+```
+
+---
+
+# 20. 失败处理
+
+## Contract 不合法
+
+理论上：
+
+```text
+P2-1 Gate
+```
+
+已经挡住。
+
+若 Runtime 再收到：
+
+```text
+status != resolved
+```
+
+返回：
+
+```text
+DATADEP_NOT_RESOLVED
+```
+
+属于：
+
+```text
+internal contract violation
+```
+
+---
+
+## Runtime Source 不存在
+
+例如：
+
+```text
+windowPath 不存在
+URL query 不存在
+API 没捕获
+```
+
+输出：
+
+```text
+Runtime Resolution PENDING
+```
+
+并保留 Runtime Evidence。
+
+---
+
+## Runtime Source 成功但值不一致
+
+输出：
+
+```text
+FAIL
+```
+
+属于：
+
+```text
+implementation mismatch
+```
+
+---
+
+## API Selector ambiguous
+
+输出：
+
+```text
+PENDING
+RUNTIME_API_AMBIGUOUS
+```
+
+并提示：
+
+```text
+DataDep Contract selector precision insufficient
+```
+
+需要重新进入：
+
+```text
+P2-1 Contract
+```
+
+而不是 Runtime 推断。
+
+---
+
+# 21. 对当前主链路的影响
+
+正式主链路不变：
+
+```text
+events.json
+↓
+adaptor.json
+↓
+impl.json
+↓
+accept-chain.json
+↓
+run-accept
+↓
+Runtime Actual
+↓
+Expected / Actual Compare
+↓
+Report
+```
+
+只把：
+
+```text
+run-accept 内部零散的 Runtime Expected 推导
+```
+
+替换为：
+
+```text
+统一 Runtime Resolver
+```
+
+不新增事实层。
+
+---
+
+# 22. 推荐改动范围
+
+主要新增：
 
 ```text
 scripts/accept/runtime-data-dep.js
 scripts/accept/runtime-data-dep.test.js
 ```
 
-可能需要调整：
+视 API Collector 代码量决定是否新增：
 
 ```text
+scripts/accept/runtime-api-store.js
+scripts/accept/runtime-api-store.test.js
+```
+
+修改：
+
+```text
+scripts/accept/run-accept.js
 scripts/accept/accept-report.js
-scripts/accept/format-fail-explain.js
-scripts/lib/sdk.js
 ```
 
-如果 Runtime Provider 与项目 SDK adaptor 已有合适抽象，应复用真实代码，不重复创建一套。
-
-原则：
+必要时修改：
 
 ```text
-先全仓搜索现有 API/user/page runtime collector
-再决定最小修改点
+templates/accept-report.html
 ```
 
----
-
-# 27. 不应该修改
-
-原则上不修改 P2-1 已闭环的：
+原则上不应修改：
 
 ```text
-scripts/accept/validate-data-dep.js
-scripts/accept/accept-chain.js
 schemas/impl.schema.json
 schemas/accept-chain.schema.json
+scripts/accept/validate-data-dep.js
+scripts/accept/accept-chain.js
 ```
 
-除非实现过程中发现：
-
-```text
-P2-2 所需执行信息在 DataDep Contract 中客观缺失
-```
-
-此时不能由 Resolver 猜。
-
-必须：
-
-```text
-停止
-↓
-指出 Contract Gap
-↓
-回到 P2-1 Contract
-↓
-明确是否需要 Schema Upgrade
-```
-
-不能为了让 Resolver 跑起来偷偷补 fallback。
+除非实施过程中发现真实 Contract Gap。
 
 ---
 
-# 28. 第一阶段支持范围
+# 23. Codex 实施要求
 
-P2-2 第一阶段推荐完整支持：
+Codex 必须先读取：
 
 ```text
-URL
-API
+tasks/p2-1-datadeps-contract-closure.md
+tasks/p2-1.1-runtime-selector-contract-closure.md
+
+scripts/accept/validate-data-dep.js
+scripts/accept/accept-chain.js
+scripts/accept/run-accept.js
+scripts/accept/accept-report.js
 ```
 
-并建立：
+然后实施 P2-2。
+
+不得恢复：
 
 ```text
-User / Page Provider Contract
+user.path
+page.path
 ```
 
-如果当前 repository 已有稳定 User/Page Runtime root，则一并完成。
-
-否则：
+不得：
 
 ```text
-user/page
+根据 expression/sourcePath 推断 Runtime 来源
 ```
 
-可以明确返回：
+不得：
 
 ```text
-unsupported
+新增 paramKey 业务 hardcode
 ```
 
-但不能硬编码业务字段。
-
-原因：
+不得：
 
 ```text
-URL/API
-都有浏览器层稳定 Runtime Evidence
-
-User/Page
-涉及项目 Runtime root 的适配问题
-```
-
-这个差异属于事实，不应靠公共 Resolver 猜测填平。
-
----
-
-# 29. 测试矩阵
-
-## URL
-
-### Case 1
-
-```text
-resolved url + query exists
-```
-
-Expected：
-
-```text
-resolved
-value 正确
-```
-
-### Case 2
-
-```text
-resolved url + query missing
-```
-
-Expected：
-
-```text
-RUNTIME_URL_QUERY_MISSING
-```
-
-### Case 3
-
-```text
-expression 写着 location.search
-但 status != resolved
-```
-
-Expected：
-
-```text
-DATADEP_NOT_RESOLVED
-```
-
-证明：
-
-```text
-不看 expression
+为了兼容旧格式增加 fallback
 ```
 
 ---
 
-## API
+# 24. Closure 判定
 
-### Case 4
-
-```text
-urlIncludes 命中
-field 存在
-```
-
-Expected：
+P2-2 只有同时满足以下条件才算 CLOSED：
 
 ```text
-resolved
-```
+[ ] target.dataDeps 是 Runtime Resolver 唯一业务输入
 
-### Case 5
-
-```text
-没有匹配 response
-```
-
-Expected：
-
-```text
-RUNTIME_API_NOT_CAPTURED
-```
-
-### Case 6
-
-```text
-response 存在
-field 不存在
-```
-
-Expected：
-
-```text
-RUNTIME_API_FIELD_MISSING
-```
-
-### Case 7
-
-```text
-多个 response 值冲突
-```
-
-Expected：
-
-```text
-RUNTIME_API_AMBIGUOUS
-```
-
-或者按照已明确的 deterministic time rule 选定一个。
-
-必须在测试中写死，不允许依赖数组偶然顺序。
-
----
-
-## User
-
-### Case 8
-
-```text
-provider available
-+
-user.path exists
-```
-
-Expected：
-
-```text
-resolved
-```
-
-### Case 9
-
-```text
-provider unavailable
-```
-
-Expected：
-
-```text
-RUNTIME_USER_PROVIDER_UNAVAILABLE
-```
-
-禁止：
-
-```text
-paramKey → user property hardcode
-```
-
----
-
-## Page
-
-### Case 10
-
-```text
-provider unavailable
-```
-
-Expected：
-
-```text
-RUNTIME_PAGE_PROVIDER_UNAVAILABLE
-```
-
-禁止自动：
-
-```text
-query DOM
-```
-
----
-
-## Anti-Inference
-
-### Case 11
-
-```json
-{
-  "paramKey": "housedel_id",
-  "expression": "query.housedelCode",
-  "sourcePath": "location.search -> housedelCode",
-  "status": "needsConfirm"
-}
-```
-
-Expected：
-
-```text
-绝不能解析 URL
-```
-
-### Case 12
-
-```json
-{
-  "paramKey": "price",
-  "from": "page",
-  "page": {
-    "path": "price"
-  },
-  "expression": "response.data.price",
-  "status": "resolved"
-}
-```
-
-Expected：
-
-```text
-只能走 page resolver
-绝不能因为 expression 含 response 改走 API
-```
-
-这是 P2-2 最重要的 Determinism Test。
-
----
-
-# 30. Integration Test
-
-必须至少增加一个：
-
-```text
-accept-chain
-↓
-run-accept
-↓
-Runtime Resolver
-↓
-Compare
-```
-
-闭环测试。
-
-例如：
-
-```text
-URL:
-?housedelCode=123456
-
-DataDep:
-{
-  paramKey: "housedel_id",
-  from: "url",
-  queryKey: "housedelCode",
-  status: "resolved"
-}
-
-Actual:
-action.housedel_id = "123456"
-```
-
-Expected：
-
-```text
-PASS
-```
-
-再测试：
-
-```text
-Actual = "999"
-```
-
-Expected：
-
-```text
-FAIL
-expected = 123456
-actual = 999
-```
-
----
-
-# 31. Codex 实施顺序
-
-```text
-Step 1
-全仓搜索：
-
-dataDeps
-assertParams
-assertParams(
-sameish
-userExpect
-window.__user
-queryKey
-response
-page.on('response')
-```
-
-↓
-
-```text
-Step 2
-确认当前 Runtime collectors：
-URL / Network / User / Page
-```
-
-↓
-
-```text
-Step 3
-新增 runtime-data-dep.js
-建立统一 Resolver Contract
-```
-
-↓
-
-```text
-Step 4
-先实现 URL Resolver
-```
-
-↓
-
-```text
-Step 5
-实现 API response collector + API Resolver
-```
-
-↓
-
-```text
-Step 6
-把 User/Page 接到现有 Runtime Provider；
-不存在稳定 Provider 时显式 unsupported
-```
-
-↓
-
-```text
-Step 7
-重构 run-accept：
-
-assertParams
-→ presence check
-
-dataDeps
-→ resolve + compare
-```
-
-↓
-
-```text
-Step 8
-删除 housedel_id / agent_ucid / city_id 等业务硬编码
-```
-
-↓
-
-```text
-Step 9
-把 dataDepResults 写入 Runtime Result / Report
-```
-
-↓
-
-```text
-Step 10
-补 unit + integration tests
-```
-
-↓
-
-```text
-Step 11
-运行 P0 / P1 / P2-1 / P2-2 全量测试
-```
-
----
-
-# 32. Codex/cursor 禁止事项
-
-Codex 不得：
-
-```text
-1. 根据 expression 推断 from
-2. 根据 sourcePath 推断 from
-3. 根据 paramKey 推断 selector
-4. unknown fallback page
-5. URL 读取失败后换 API
-6. API 读取失败后换 page
-7. 用 Tracking Actual 填 Runtime Expected
-8. 为 user/page 写业务字段 hardcode
-9. 修改真实业务代码
-10. 新增第五个事实 JSON
-11. 为了 Runtime 能跑而放宽 P2-1 Gate
-12. 自动把 runtime failure 反写成 dataDep.needsConfirm
-13. 把 Runtime Actual 当成 impl.json 的新事实
-```
-
----
-
-# 33. Closure 验收标准
-
-只有以下全部满足，P2-2 才算 CLOSED。
-
-## Input Boundary
-
-```text
-[ ] Runtime Resolver 只消费 dataDep
 [ ] 只执行 status=resolved
-[ ] expression 不参与 Resolution
-[ ] sourcePath 不参与 Resolution
-[ ] paramKey 不参与来源推断
+
+[ ] URL 只读取 queryKey
+
+[ ] API 只读取 urlIncludes + field
+
+[ ] User/Page 只读取 runtime.kind/path
+
+[ ] 第一阶段 runtime.kind 只支持 windowPath
+
+[ ] 不读取 expression/sourcePath 推断来源
+
+[ ] 不存在 paramKey 业务特例
+
+[ ] 不存在 fallback resolver
+
+[ ] Runtime Source 读取失败有结构化结果
+
+[ ] API 多响应有确定性歧义处理
+
+[ ] Expected Runtime Value 与 Tracking Actual 分层
+
+[ ] dataDepResults 进入 Runtime Report
+
+[ ] 单元测试覆盖四类 source
+
+[ ] 有至少一个 Expected/Actual 集成测试
+
+[ ] 不新增第五事实层
 ```
 
-## Resolver
+全部满足：
 
 ```text
-[ ] URL 有通用 Resolver
-[ ] API 有通用 Resolver
-[ ] User 不存在业务字段 hardcode
-[ ] Page 不存在 DOM / variable fallback inference
-[ ] resolver 不存在 default fallback
+P2-2 DataDep Runtime Resolver
+=
+CLOSED
 ```
-
-## Runtime
-
-```text
-[ ] DataDep 产生 Runtime Expected Value
-[ ] Runtime Source 读取失败有稳定错误码
-[ ] Runtime Evidence 与当前 target window 绑定
-[ ] API 不读取其它 Path 的陈旧 response
-```
-
-## Compare
-
-```text
-[ ] Expected 来源独立于 Tracking Actual
-[ ] Compare 不再知道 url/api/user/page
-[ ] Runtime source missing 不会被判 PASS
-[ ] actual missing 不会被 sameish 静默通过
-```
-
-## Determinism
-
-```text
-[ ] expression/sourcePath 即使与 from 冲突，也只按 from 执行
-[ ] 相同 dataDep + 相同 Runtime Evidence 得到相同 Expected
-[ ] Claude Code / Codex / Cursor 无需重新理解参数业务语义
-```
-
-## Regression
-
-```text
-[ ] P0 tests PASS
-[ ] P1 tests PASS
-[ ] P2-1 tests PASS
-[ ] P2-2 tests PASS
-[ ] npm test PASS
-```
-
----
-
-# 34. P2-2 完成后的职责链
-
-最终形成：
-
-```text
-Parameter Resolution
-        │
-        │ AI / Static Analysis
-        ▼
-Parameter Fact
-expression / sourcePath / evidence
-        │
-        │ P2-1
-        ▼
-resolved DataDep
-from + selector
-        │
-        │ build-accept-chain
-        │ validate + copy
-        ▼
-accept-chain
-        │
-        │ P2-2 Deterministic Resolver
-        ▼
-Runtime Expected
-        │
-        ├──────────────┐
-        │              │
-        ▼              ▼
-Expected Value    Tracking Actual
-        │              │
-        └──── Compare ─┘
-               │
-               ▼
-         PASS / FAIL
-```
-
-其中最重要的边界是：
-
-```text
-expression/sourcePath
-      ╳
-Runtime Resolver
-```
-
-而正式关系是：
-
-```text
-resolved DataDep
-      ↓
-Runtime Resolver
-```
-
----
-
-# 35. 最终设计原则
-
-P2-2 不解决：
-
-> “这个参数到底来自哪里？”
-
-这个问题已经在 Parameter Resolution + P2-1 中解决。
-
-P2-2 只解决：
-
-> “既然 DataDep 已经明确说它来自这里，那么浏览器运行时怎样按照这份 Contract 确定性地把值读取出来？”
-
-因此 P2-2 的核心不是增加 AI 能力，而是：
-
-```text
-减少 AI
-+
-统一 Resolver
-+
-明确 Runtime Context
-+
-稳定错误码
-+
-Expected / Actual 解耦
-```
-
-最终保证：
-
-```text
-Parameter Fact
-→ resolved DataDep
-→ Runtime Expected
-→ Actual Compare
-```
-
-整条链只在上游发生一次业务语义判断。
-
-Runtime 阶段不再重新猜测。

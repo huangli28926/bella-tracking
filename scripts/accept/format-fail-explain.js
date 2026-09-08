@@ -166,7 +166,9 @@ function extrasLines(facts) {
   }
   if (facts.paramDiffs && facts.paramDiffs.length && facts.kind !== 'param_mismatch') {
     lines.push('参数差异：' + facts.paramDiffs.map(function (d) {
-      return d.key + '（' + (d.reason || '不一致') + '）'
+      const name = d.paramKey || d.key
+      const why = d.reason || d.code || d.status || '不一致'
+      return name + '（' + why + '）'
     }).join('；'))
   }
   if (facts.emptyParams && facts.emptyParams.length) {
@@ -202,7 +204,9 @@ function failFactsZh(facts, item) {
   }
   if (facts.kind === 'param_mismatch' && facts.paramDiffs && facts.paramDiffs.length) {
     blocks.push('参数差异：' + facts.paramDiffs.map(function (d) {
-      return d.key + '（' + (d.reason || '不一致') + '）'
+      const name = d.paramKey || d.key
+      const why = d.reason || d.code || d.status || '不一致'
+      return name + '（' + why + '）'
     }).join('；'))
   }
   if (!facts.fired && (facts.kind === 'not_fired' || facts.kind === 'click_not_found' || facts.kind === 'step_not_found')) {

@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 const fs = require('fs')
 const path = require('path')
-const { findRepoRoot, parseArgs, readJson, writeJson, envAcceptUrls, parseQuery, toPosix, readDotEnv } = require('../lib/lib')
+const { findRepoRoot, parseArgs, readJson, writeJson, envAcceptUrls, toPosix, readDotEnv } = require('../lib/lib')
 const {
   ACCEPT_LOG_PERSIST_KEY,
   ACCEPT_GIF_PERSIST_KEY,
@@ -50,6 +50,20 @@ const {
   skipReasonFor,
   toSkipOutcome
 } = require('./path-blocker')
+const {
+  captureRuntimeExpectedSnapshot,
+  resolveDataDeps
+} = require('./runtime-data-dep')
+const {
+  compareDataDepResults,
+  compareLegacyAssertParams,
+  eventOutcomeFromDataDeps
+} = require('./compare-data-dep')
+const {
+  attachApiRuntimeCollector,
+  createApiRuntimeStore,
+  resetApiRuntimeStore
+} = require('./runtime-api-store')
 
 const SCRIPT_DIR = __dirname
 
@@ -526,15 +540,13 @@ async function gotoSeed(page, context, opts, probeUrl) {
   }
 }
 
-async function openPath(page, context, pathItem, opts, probeUrl) {
+async function openPath(page, context, pathItem, opts, probeUrl, apiStore) {
+  resetApiRuntimeStore(apiStore)
   await gotoSeed(page, context, opts, probeUrl)
   for (let s = 0; s < (pathItem.sharedSteps || []).length; s += 1) {
     await runStep(page, pathItem.sharedSteps[s])
   }
-  return {
-    query: parseQuery(page.url()),
-    user: await page.evaluate(function () { return window.__user || null }).catch(function () { return null })
-  }
+  return {}
 }
 
 function toResultRow(pathItem, target, outcome) {
@@ -550,6 +562,7 @@ function toResultRow(pathItem, target, outcome) {
     code: target.code || {},
     steps: describeSteps(pathItem, target),
     dataDeps: target.dataDeps || [],
+    dataDepResults: outcome.dataDepResults || [],
     assertParams: target.assertParams || [],
     fired: outcome.fired,
     http: outcome.http || null,
@@ -765,80 +778,36 @@ function pickFired(logs, since, evtId) {
   return logs.filter(item => item.t >= since && String(item.evtId) === String(evtId)).pop() || null
 }
 
-function userExpect(user, key) {
-  if (!user) {
-    return undefined
-  }
-  if (key === 'agent_ucid') return user.id
-  if (key === 'city_id') return user.officeAddress
-  if (key === 'city_name') return user.officeAddressName
-  return undefined
-}
-
-function sameish(actual, expected) {
-  if (expected === undefined || expected === null || expected === '') {
-    return true
-  }
-  if (actual === '-' || actual === '' || actual === null || actual === undefined) {
-    return true
-  }
-  // 布尔不要和房源号等字符串硬比
-  if (typeof actual === 'boolean') {
-    if (expected === true || expected === false || expected === '1' || expected === '0') {
-      const want = expected === true || expected === '1'
-      return actual === want
-    }
-    return true
-  }
-  return String(actual) === String(expected)
-}
-
-function assertParams(target, fired, ctx) {
-  const diffs = []
-  const action = (fired && fired.action) || {}
-  const params = target.assertParams || []
-  const depMap = {}
-  ;(target.dataDeps || []).forEach(dep => {
-    depMap[dep.paramKey] = dep
+async function acceptDataDepOutcome(target, apiStore, targetRuntimeStart, snapshot, action) {
+  const targetRuntimeEnd = Date.now()
+  const dataDepResults = await resolveDataDeps(target.dataDeps || [], {
+    targetRuntimeStart: targetRuntimeStart,
+    targetRuntimeEnd: targetRuntimeEnd,
+    urlSnapshot: snapshot && snapshot.urlSnapshot,
+    windowSnapshot: snapshot && snapshot.windowSnapshot,
+    api: apiStore
   })
-  params.forEach(key => {
-    if (!Object.prototype.hasOwnProperty.call(action, key)) {
-      diffs.push({ key, reason: 'missing key' })
-      return
-    }
-    const dep = depMap[key]
-    if (!dep) {
-      return
-    }
-    if (dep.from === 'url') {
-      // 仅 housedel_id ↔ housedelCode 这类明确映射才对账
-      const qKey = dep.queryKey || 'housedelCode'
-      if (key === 'housedel_id' && qKey === 'housedelCode') {
-        const expected = ctx.query.housedelCode
-        if (!sameish(action[key], expected)) {
-          diffs.push({ key, reason: `url 期望 ${expected} 实际 ${action[key]}` })
-        }
-      }
-      return
-    }
-    if (dep.from === 'user') {
-      const expected = userExpect(ctx.user, key)
-      if (!sameish(action[key], expected)) {
-        diffs.push({ key, reason: `user 期望 ${expected} 实际 ${action[key]}` })
-      }
-    }
-  })
-  return diffs
+  const dataDepDiffs = compareDataDepResults(dataDepResults, action)
+  const legacyDiffs = compareLegacyAssertParams(target, action)
+  const verdict = eventOutcomeFromDataDeps(dataDepDiffs, legacyDiffs)
+  return {
+    dataDepResults: dataDepResults,
+    verdict: verdict
+  }
 }
 
-async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
+async function acceptOne(page, pathItem, target, runtime, openedAt, shotOpts) {
   const isClick = target.trigger.kind === 'click'
-  const before = isClick ? Date.now() : openedAt
   const trigger = Object.assign({ action: target.trigger.kind }, target.trigger)
   let screenshot = ''
   let pageScreenshot = ''
   let pageUrl = await currentPageUrl(page)
   const wantShot = shotOpts && shotOpts.absPath
+  const targetRuntimeStart = Date.now()
+  const snapshot = await captureRuntimeExpectedSnapshot(page, target.dataDeps || []).catch(function () {
+    return { urlSnapshot: { href: '', query: {} }, windowSnapshot: null }
+  })
+  const before = isClick ? Date.now() : openedAt
 
   try {
     if (isClick) {
@@ -878,6 +847,7 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
       reason: String(error.message || error),
       fired: null,
       http: null,
+      dataDepResults: [],
       paramDiffs: [],
       emptyParams: [],
       screenshot,
@@ -907,6 +877,7 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
       reason: REPORT_GIF_MISSED,
       fired,
       http,
+      dataDepResults: [],
       paramDiffs: [],
       emptyParams: fired
         ? collectEmptyParams(fired, {
@@ -927,6 +898,7 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
       reason: 'not_fired',
       fired: null,
       http,
+      dataDepResults: [],
       paramDiffs: [],
       emptyParams: [],
       screenshot,
@@ -945,6 +917,7 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
       reason: `eventType 期望 ${target.expect.eventType} 实际 ${fired.eventType}`,
       fired,
       http,
+      dataDepResults: [],
       paramDiffs: [],
       emptyParams,
       screenshot,
@@ -960,6 +933,7 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
         reason: `uicode 期望 ${target.expect.uicode} 实际 ${fired.uicode || '(空)'}`,
         fired,
         http,
+        dataDepResults: [],
         paramDiffs: [],
         emptyParams,
         screenshot,
@@ -969,33 +943,33 @@ async function acceptOne(page, pathItem, target, ctx, openedAt, shotOpts) {
       }
     }
   }
-  const paramDiffs = assertParams(target, fired, ctx)
-  if (paramDiffs.length) {
-    return {
-      status: 'fail',
-      reason: 'param_mismatch',
-      fired,
-      http,
-      paramDiffs,
-      emptyParams,
-      screenshot,
-      pageScreenshot,
-      pageUrl,
-      diagnostic: await writeFailureDiagnostic(page, target, 'param_mismatch', shotOpts)
-    }
-  }
-  return {
-    status: 'pass',
-    reason: '',
+  const compared = await acceptDataDepOutcome(
+    target,
+    runtime && runtime.apiStore,
+    targetRuntimeStart,
+    snapshot,
+    fired.action
+  )
+  const verdict = compared.verdict
+  const outcome = {
+    status: verdict.status,
+    reason: verdict.reason,
+    skipReason: verdict.skipReason || '',
+    skipKind: verdict.skipKind || '',
     fired,
     http,
-    paramDiffs: [],
+    dataDepResults: compared.dataDepResults,
+    paramDiffs: verdict.paramDiffs,
     emptyParams,
     screenshot,
     pageScreenshot,
     pageUrl,
     diagnostic: null
   }
+  if (verdict.status === 'fail') {
+    outcome.diagnostic = await writeFailureDiagnostic(page, target, verdict.reason, shotOpts)
+  }
+  return outcome
 }
 
 async function runBrowser(chain, opts) {
@@ -1029,6 +1003,12 @@ async function runBrowser(chain, opts) {
   const { browser, context, page } = session
   const profile = resolveAcceptProfile(opts.adaptorPath)
   const httpRecords = attachReportListener(page, profile)
+  const apiStore = createApiRuntimeStore()
+  attachApiRuntimeCollector(context, apiStore, {
+    skipUrl: function (url) {
+      return isReportUrl(url, profile)
+    }
+  })
   const results = []
 
   const skipForced = forcedSkipSet(opts)
@@ -1038,7 +1018,7 @@ async function runBrowser(chain, opts) {
       const openedAt = Date.now()
       let ctx
       try {
-        ctx = await openPath(page, context, pathItem, opts, probeUrl)
+        ctx = await openPath(page, context, pathItem, opts, probeUrl, apiStore)
       } catch (error) {
         const setupReason = String(error.message || error)
         ;(pathItem.targets || []).forEach(function (target) {
@@ -1062,7 +1042,7 @@ async function runBrowser(chain, opts) {
         }
         if (needReseed) {
           try {
-            ctx = await openPath(page, context, pathItem, opts, probeUrl)
+            ctx = await openPath(page, context, pathItem, opts, probeUrl, apiStore)
             needReseed = false
           } catch (error) {
             const setupReason = String(error.message || error)
@@ -1084,7 +1064,7 @@ async function runBrowser(chain, opts) {
         const urlBefore = await currentPageUrl(page)
         let outcome
         try {
-          outcome = await acceptOne(page, pathItem, target, ctx, openedAt, {
+          outcome = await acceptOne(page, pathItem, target, { apiStore: apiStore }, openedAt, {
             absPath: shotAbs,
             relPath: shotRel,
             pageAbsPath: pageAbs,
@@ -1107,6 +1087,7 @@ async function runBrowser(chain, opts) {
             reason: String(error.message || error),
             fired: null,
             http: null,
+            dataDepResults: [],
             paramDiffs: [],
             emptyParams: [],
             screenshot: '',
@@ -1117,12 +1098,15 @@ async function runBrowser(chain, opts) {
         }
         const urlAfter = await currentPageUrl(page)
         const leftPage = pageLeftPath(urlBefore, urlAfter)
-        if (hasRest && isClickTarget(target) && (outcome.status === 'fail' || outcome.status === 'pass')) {
+        const executedClick = outcome.status === 'fail'
+          || outcome.status === 'pass'
+          || outcome.skipKind === 'unverifiable'
+        if (hasRest && isClickTarget(target) && executedClick) {
           const nextMissingNow = nextTarget ? !(await probeTrigger(page, nextTarget)) : false
           const polluteFail = mayBlockRest(target, outcome, hasRest)
           if (leftPage || nextMissingNow) {
             try {
-              ctx = await openPath(page, context, pathItem, opts, probeUrl)
+              ctx = await openPath(page, context, pathItem, opts, probeUrl, apiStore)
               needReseed = false
             } catch (error) {
               if (polluteFail) {
@@ -1172,6 +1156,7 @@ async function runBrowser(chain, opts) {
       code: {},
       steps: [],
       dataDeps: [],
+      dataDepResults: [],
       assertParams: [],
       fired: null,
       http: null,

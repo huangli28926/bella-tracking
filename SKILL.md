@@ -1,5 +1,5 @@
 ---
-name: bella-tracking
+name: bella-tracking-github
 description: >-
   EN: Turns a Beike tracking-requirements Excel into landing HTML with SDK/project
   wrapper snippets and parameter provenance, then runs Playwright critical-path

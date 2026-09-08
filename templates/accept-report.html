@@ -422,8 +422,11 @@
         return '';
       }
       function depText(d) {
-        if (d.from === 'url') return 'url.' + (d.queryKey || 'housedelCode');
-        if (d.from === 'user') return 'window.__user';
+        if (d.from === 'url') return 'url.' + (d.queryKey || '');
+        if (d.from === 'user') {
+          var up = d.user && d.user.runtime && d.user.runtime.path;
+          return up ? 'window.' + up : 'user';
+        }
         if (d.from === 'api') {
           var api = d.api || {};
           if (api.field) return 'api.' + api.field;
@@ -710,9 +713,15 @@
         }
       }
 
+      function diffKey(d) {
+        return (d && (d.paramKey || d.key)) || '';
+      }
       function collectParamKeys(item) {
         var diffs = {};
-        (item.paramDiffs || []).forEach(function (d) { diffs[d.key] = d; });
+        (item.paramDiffs || []).forEach(function (d) {
+          var k = diffKey(d);
+          if (k) diffs[k] = d;
+        });
         var empties = emptySet(item);
         var fired = item.fired;
         var action = (fired && fired.action) || null;
@@ -748,12 +757,18 @@
         html += shown.map(function (row) {
           var diff = pack.diffs[row.key];
           var empty = !!pack.empties[row.key];
-          var cls = diff ? 'dep err' : (empty ? 'dep warn' : 'dep');
+          var pending = diff && (diff.status === 'PENDING' || item.status === 'skip' && item.skipKind === 'unverifiable' && diff.status !== 'PASS');
+          var cls = (diff && diff.status === 'FAIL') || (diff && diff.reason) ? 'dep err' : (pending || empty ? 'dep warn' : 'dep');
           var actual = pack.action && Object.prototype.hasOwnProperty.call(pack.action, row.key)
             ? fmtVal(pack.action[row.key])
             : (pack.fired ? '(缺失)' : '-');
+          var expected = diff && diff.expectedValue !== undefined && diff.expectedValue !== null
+            ? ' 期望 ' + fmtVal(diff.expectedValue)
+            : '';
           var src = row.dep ? ' ← ' + depText(row.dep) : '';
-          var extra = diff ? '  · ' + (diff.reason || '不一致') : (empty ? '  · 未取到值，请确认' : '');
+          var extra = diff
+            ? '  · ' + (diff.reason || diff.code || diff.status || '不一致') + expected
+            : (empty ? '  · 未取到值，请确认' : '');
           return '<div class="' + cls + '"><code>' + esc(row.key) + '</code> = <span class="val">' +
             esc(actual) + '</span>' + esc(src) + esc(extra) + '</div>';
         }).join('');
@@ -1021,7 +1036,10 @@
             }
             if (act === 'expand-deps') {
               var diffs = {};
-              (item.paramDiffs || []).forEach(function (d) { diffs[d.key] = d; });
+              (item.paramDiffs || []).forEach(function (d) {
+                var k = d.paramKey || d.key;
+                if (k) diffs[k] = d;
+              });
               var empties = emptySet(item);
               var action = (item.fired && item.fired.action) || {};
               var lines = [];
@@ -1036,10 +1054,17 @@
                   ? fmtVal(action[d.paramKey]) : '(缺失)';
                 var diff = diffs[d.paramKey];
                 var empty = !!empties[d.paramKey];
+                var depResult = ((item.dataDepResults || []).filter(function (r) {
+                  return r && r.paramKey === d.paramKey;
+                })[0]) || null;
                 lines.push(d.paramKey + ' = ' + actual + ' ← ' + depText(d) +
-                  (d.sourcePath ? '\n  source: ' + d.sourcePath : '') +
-                  (d.expression ? '\n  expr: ' + d.expression : '') +
-                  (diff ? '\n  DIFF: ' + (diff.reason || '') : '') +
+                  (depResult && depResult.runtimeSource
+                    ? '\n  runtime: ' + JSON.stringify(depResult.runtimeSource)
+                    : '') +
+                  (depResult && depResult.status === 'resolved'
+                    ? '\n  expected: ' + fmtVal(depResult.value)
+                    : '') +
+                  (diff ? '\n  DIFF: ' + (diff.reason || diff.code || diff.status || '') : '') +
                   (empty && !diff ? '\n  未取到值，请人工确认' : ''));
               });
               Object.keys(action).forEach(function (k) {
