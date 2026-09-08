@@ -3,6 +3,7 @@ const { defaultPaths } = require('../extract/report')
 
 const { viewportForDevice } = require('./accept-device')
 const { pathIdForCandidate } = require('./path-id')
+const { dataDepGate } = require('./validate-data-dep')
 
 const CHAIN_VERSION = 1
 const DEFAULT_VIEWPORT = viewportForDevice('mobile')
@@ -105,49 +106,14 @@ function resolveTrigger(impl, docEvent) {
   }
 }
 
-function inferDataDep(param) {
-  const src = param && typeof param === 'object' ? param : {}
-  const hintApi = src.hint && src.hint.api ? src.hint.api : {}
-  const blob = `${src.sourcePath || ''} ${src.expression || ''}`
-  const key = String(src.key || '')
-  const dep = {
-    paramKey: key,
-    sourcePath: src.sourcePath || '',
-    expression: src.expression || ''
-  }
-  if (hintApi.url || hintApi.field) {
-    return Object.assign(dep, {
-      from: 'api',
-      api: {
-        urlIncludes: hintApi.url || '',
-        field: hintApi.field || ''
-      }
-    })
-  }
-  if (/\burl\b|URL|query|searchParams|location\.search/i.test(blob)) {
-    const fromExpr = String(src.expression || '').match(/\b([a-zA-Z_][\w]*)\b/)
-    return Object.assign(dep, {
-      from: 'url',
-      queryKey: (fromExpr && fromExpr[1]) || key
-    })
-  }
-  if (/window\.__user|__user/.test(blob)) {
-    return Object.assign(dep, { from: 'user' })
-  }
-  if (/接口|api\//i.test(blob)) {
-    return Object.assign(dep, {
-      from: 'api',
-      api: { urlIncludes: '', field: '' }
-    })
-  }
-  return Object.assign(dep, { from: 'page' })
+function cloneDataDep(dep) {
+  return JSON.parse(JSON.stringify(dep))
 }
 
 function resolveDataDeps(impl) {
-  if (impl.accept && Array.isArray(impl.accept.dataDeps) && impl.accept.dataDeps.length) {
-    return impl.accept.dataDeps.slice()
-  }
-  return (impl.parameters || []).map(inferDataDep)
+  return Array.isArray(impl && impl.accept && impl.accept.dataDeps)
+    ? impl.accept.dataDeps.map(cloneDataDep)
+    : []
 }
 
 function inferAssertParams(impl) {
@@ -223,6 +189,13 @@ function buildTarget(impl, docEvent, seedUrl) {
   const pathRes = accept.pathResolution
   if (pathRes && pathRes.status === 'needsConfirm') {
     return { error: 'accept.pathResolution needsConfirm' }
+  }
+  const depGate = dataDepGate(impl)
+  if (depGate.status === 'INVALID') {
+    return { error: 'invalid accept.dataDeps' }
+  }
+  if (depGate.status === 'NEEDS_CONFIRM') {
+    return { error: 'accept.dataDeps needsConfirm' }
   }
   const dataDeps = resolveDataDeps(impl)
   return {
@@ -457,7 +430,6 @@ module.exports = {
   defaultAcceptPaths,
   describeSteps,
   filterChainByEvt,
-  inferDataDep,
   inferKind,
   listChainEvtIds,
   quotedTexts,

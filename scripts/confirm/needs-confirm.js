@@ -2,6 +2,7 @@
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
 const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
+const { dataDepConfirmReasons, dataDepGate, eventDataDepNeedsConfirm } = require('../accept/validate-data-dep')
 
 function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'
@@ -12,10 +13,11 @@ function eventNeedsConfirm(event) {
     return true
   }
   const paramGate = eventParameterGate(event)
-  if (paramGate.status === 'INVALID') {
+  const depGate = dataDepGate(event)
+  if (paramGate.status === 'INVALID' || depGate.status === 'INVALID') {
     return false
   }
-  if (paramGate.status === 'NEEDS_CONFIRM') {
+  if (paramGate.status === 'NEEDS_CONFIRM' || depGate.status === 'NEEDS_CONFIRM') {
     return true
   }
   const status = event.status || 'pending'
@@ -81,7 +83,15 @@ function getConfirmReasons(event) {
   if (pathRes && pathRes.status === 'needsConfirm') {
     reasons.push('请确认验收入口路径')
   }
+  dataDepConfirmReasons(event).forEach(reason => reasons.push(reason))
   return reasons
+}
+
+function isConfirmQueuePending(item) {
+  if (!item || !item.needsConfirm) return false
+  if (item.event && item.event.deferred) return false
+  if (eventDataDepNeedsConfirm(item.event)) return true
+  return !item.confirmed
 }
 
 function implById(implPayload) {
@@ -121,7 +131,7 @@ function buildConfirmQueue(eventsPayload, implPayload, options) {
     }
   }).sort((a, b) => (a.docIndex || 0) - (b.docIndex || 0))
 
-  const pending = items.filter(item => item.needsConfirm && !item.confirmed && !item.event.deferred)
+  const pending = items.filter(item => isConfirmQueuePending(item))
   const deferredCount = items.filter(item => item.needsConfirm && !item.confirmed && item.event.deferred).length
   const queue = onlyPending ? pending : items
   return {
@@ -155,7 +165,7 @@ function findNextPending(queueInfo, afterEvtId) {
     return list[0] ? list[0].evtId : ''
   }
   for (let i = idx + 1; i < list.length; i += 1) {
-    if (list[i].needsConfirm && !list[i].confirmed && !(list[i].event && list[i].event.deferred)) {
+    if (isConfirmQueuePending(list[i])) {
       return list[i].evtId
     }
   }
@@ -261,5 +271,6 @@ module.exports = {
   buildConfirmQueue,
   loadConfirmQueue,
   findNextPending,
-  queueProgress
+  queueProgress,
+  isConfirmQueuePending
 }

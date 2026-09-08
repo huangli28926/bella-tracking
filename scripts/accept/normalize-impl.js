@@ -108,6 +108,12 @@ function normalizeImpl(payload) {
       if ('by' in t) t.by = str(t.by)
       if ('value' in t) t.value = str(t.value)
     }
+    if (event.accept && Array.isArray(event.accept.dataDeps)) {
+      event.accept.dataDeps.forEach(dep => {
+        if (!dep || typeof dep !== 'object' || Array.isArray(dep)) return
+        if (!Object.prototype.hasOwnProperty.call(dep, 'unresolved')) dep.unresolved = []
+      })
+    }
   })
   return next
 }

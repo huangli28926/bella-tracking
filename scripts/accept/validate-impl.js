@@ -7,6 +7,7 @@ const { defaultPaths } = require('../extract/report')
 const { PARAMETER_EVIDENCE_TYPES } = require('./calculate-confidence')
 const { eventParameterGate, validateParameter } = require('./validate-parameter')
 const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
+const { dataDepGate, validateEventDataDeps, worseStatus } = require('./validate-data-dep')
 
 const SCRIPT_DIR = __dirname
 const STATUS = ['pending', 'existing', 'located', 'unresolved']
@@ -14,7 +15,6 @@ const CONFIDENCE = ['high', 'medium', 'low', '']
 const LOCATOR_BY = ['text', 'testid', 'css', 'role', '']
 const TRIGGER_KIND = ['click', 'scrollIntoView', 'waitVisible', 'pageLoad']
 const STEP_ACTION = ['click', 'scrollIntoView', 'waitVisible', 'waitApi', 'waitUrl', 'pageLoad']
-const DEP_FROM = ['api', 'url', 'user', 'page']
 const LIFECYCLE = ['onClick', 'useEffect', 'IntersectionObserver', 'pageLoad', '']
 const PATH_STATUS = ['resolved', 'needsConfirm']
 const PATH_SELECTED_BY = ['current-change', 'historical-human-decision', 'unique-candidate', 'deterministic-tie-break', 'human', '']
@@ -103,22 +103,10 @@ function validateTrigger(issues, evtId, trigger) {
   })
 }
 
-function validateDataDeps(issues, evtId, deps) {
-  ;(deps || []).forEach((dep, idx) => {
-    const field = `accept.dataDeps[${idx}]`
-    if (!dep || typeof dep !== 'object') {
-      add(issues, 'error', evtId, field, 'dataDep must be object')
-      return
-    }
-    if (!dep.paramKey) add(issues, 'error', evtId, `${field}.paramKey`, 'missing paramKey')
-    if (DEP_FROM.indexOf(dep.from) === -1) add(issues, 'error', evtId, `${field}.from`, `invalid source: ${dep.from || '(empty)'}`)
-    if (dep.from === 'url' && !dep.queryKey) add(issues, 'warn', evtId, `${field}.queryKey`, 'url dataDep should declare queryKey')
-    if (dep.from === 'api') {
-      const api = dep.api || {}
-      if (!(api.urlIncludes || api.field || dep.urlIncludes || dep.field)) {
-        add(issues, 'warn', evtId, field, 'api dataDep should declare api.urlIncludes or api.field')
-      }
-    }
+function validateDataDeps(issues, evtId, event) {
+  validateEventDataDeps(event).issues.forEach(item => {
+    if (item.level !== 'error') return
+    add(issues, 'error', evtId, item.field || 'accept.dataDeps', `${item.code}: ${item.message}`)
   })
 }
 
@@ -228,7 +216,7 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
     })
     if (event.accept && typeof event.accept === 'object') {
       validateTrigger(issues, evtId, event.accept.trigger)
-      validateDataDeps(issues, evtId, event.accept.dataDeps || [])
+      validateDataDeps(issues, evtId, event)
       const pathRes = event.accept.pathResolution
       if (pathRes && typeof pathRes === 'object') {
         if (pathRes.status && PATH_STATUS.indexOf(pathRes.status) === -1) {
@@ -256,11 +244,15 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
 
 function collectImplGates(implPayload) {
   return ((implPayload && implPayload.events) || []).map(event => {
-    const gate = eventParameterGate(event)
+    const paramGate = eventParameterGate(event)
+    const depGate = dataDepGate(event)
+    const status = worseStatus(paramGate.status, depGate.status)
     return {
       evtId: event && event.evtId ? String(event.evtId) : '',
-      status: gate.status,
-      needsConfirm: gate.needsConfirm
+      status,
+      needsConfirm: status === 'NEEDS_CONFIRM',
+      parameterStatus: paramGate.status,
+      dataDepStatus: depGate.status
     }
   })
 }

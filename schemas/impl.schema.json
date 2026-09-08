@@ -237,9 +237,9 @@
     },
     "dataDep": {
       "type": "object",
-      "required": ["paramKey", "from"],
+      "required": ["paramKey", "from", "status", "unresolved"],
       "properties": {
-        "paramKey": { "type": "string" },
+        "paramKey": { "type": "string", "minLength": 1 },
         "from": { "enum": ["api", "url", "user", "page"] },
         "queryKey": { "type": "string" },
         "expression": { "type": "string" },
@@ -249,6 +249,33 @@
           "properties": {
             "urlIncludes": { "type": "string" },
             "field": { "type": "string" }
+          }
+        },
+        "user": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string" }
+          }
+        },
+        "page": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string" }
+          }
+        },
+        "status": { "enum": ["resolved", "needsConfirm"] },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "MISSING_QUERY_KEY",
+              "MISSING_API_URL",
+              "MISSING_API_FIELD",
+              "MISSING_USER_PATH",
+              "MISSING_PAGE_PATH",
+              "SOURCE_UNRESOLVED",
+              "PAGE_SOURCE_UNRESOLVED"
+            ]
           }
         }
       }
