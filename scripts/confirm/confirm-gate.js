@@ -1,4 +1,5 @@
 const { eventParameterGate } = require('../accept/validate-parameter')
+const { stampHumanConfirmation } = require('../accept/validate-confirmation-reuse')
 
 function flattenGateIssues(gate) {
   const issues = []
@@ -28,8 +29,11 @@ function applyConfirmAction(event) {
   const next = attachValidation(event, gate)
   next.deferred = false
   if (gate.status === 'READY') {
-    next.confirmed = true
-    return { ok: true, confirmed: true, pending: false, event: next, gate }
+    const stamped = stampHumanConfirmation(next)
+    stamped.confirmed = true
+    stamped.deferred = false
+    stamped.validation = next.validation
+    return { ok: true, confirmed: true, pending: false, event: stamped, gate }
   }
   next.confirmed = false
   if (gate.status === 'INVALID') {

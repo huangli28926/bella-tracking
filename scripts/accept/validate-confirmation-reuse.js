@@ -63,28 +63,77 @@ function sourceRootOf(parameter, confirmation) {
   return nodes[0] || ''
 }
 
+function currentSourceRoot(parameter) {
+  return sourcePathNodes(parameter)[0] || ''
+}
+
 function parameterKeyOf(parameter, confirmation) {
   const fromEvidence = str(confirmation && confirmation.evidence && confirmation.evidence.parameterKey)
   if (fromEvidence) return fromEvidence
   return str(parameter && parameter.key)
 }
 
-function eventTargetFile(event, confirmation) {
-  const fromEvidence = confirmation && confirmation.evidence ? confirmation.evidence.targetFile : undefined
-  if (fromEvidence != null && str(fromEvidence)) return str(fromEvidence)
-  return str(event && event.targetFile)
+function readProvenanceField(confirmation, key) {
+  const evidence = confirmation && confirmation.evidence
+  if (!evidence || !hasOwn(evidence, key)) return { present: false, value: '' }
+  const raw = evidence[key]
+  if (raw == null) return { present: true, value: '' }
+  return { present: true, value: str(raw) }
 }
 
-function eventTargetSymbol(event, confirmation) {
-  const fromEvidence = confirmation && confirmation.evidence ? confirmation.evidence.targetSymbol : undefined
-  if (fromEvidence != null && str(fromEvidence)) return str(fromEvidence)
-  return str(event && event.functionName)
+function readEventField(event, key) {
+  if (!event || !hasOwn(event, key)) return { present: false, value: '' }
+  const raw = event[key]
+  if (raw == null) return { present: true, value: '' }
+  return { present: true, value: str(raw) }
 }
 
-function componentBoundaryOf(event, confirmation) {
-  const fromEvidence = str(confirmation && confirmation.evidence && confirmation.evidence.componentBoundary)
-  if (fromEvidence) return fromEvidence
-  return ''
+function previousSourceRoot(parameter, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'sourceRoot')
+  if (fromEvidence.present) return fromEvidence
+  const nodes = sourcePathNodes(parameter)
+  if (nodes[0]) return { present: true, value: nodes[0] }
+  return { present: false, value: '' }
+}
+
+function previousParameterKey(parameter, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'parameterKey')
+  if (fromEvidence.present && fromEvidence.value) return fromEvidence
+  const key = str(parameter && parameter.key)
+  if (key) return { present: true, value: key }
+  return { present: false, value: '' }
+}
+
+function previousTargetFile(event, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'targetFile')
+  if (fromEvidence.present) return fromEvidence
+  return readEventField(event, 'targetFile')
+}
+
+function previousTargetSymbol(event, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'targetSymbol')
+  if (fromEvidence.present) return fromEvidence
+  return readEventField(event, 'functionName')
+}
+
+function previousBoundary(event, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'componentBoundary')
+  if (fromEvidence.present) return fromEvidence
+  return readEventField(event, 'componentBoundary')
+}
+
+function previousLifecycle(event, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'lifecycle')
+  if (fromEvidence.present) return fromEvidence
+  return readEventField(event, 'lifecycle')
+}
+
+function previousTransform(parameter, confirmation) {
+  const fromEvidence = readProvenanceField(confirmation, 'transformKind')
+  if (fromEvidence.present && fromEvidence.value) return fromEvidence.value
+  const semantic = readProvenanceField(confirmation, 'semanticFingerprint')
+  if (semantic.present && semantic.value) return semantic.value
+  return transformFingerprint(parameter)
 }
 
 function hasCurrentEvidence(parameter) {
@@ -133,9 +182,7 @@ function historicalReusable(parameter) {
 }
 
 function reuseScopeOf(confirmation) {
-  const scope = str(confirmation && confirmation.reuseScope)
-  if (!scope) return 'same-dataflow'
-  return scope
+  return str(confirmation && confirmation.reuseScope)
 }
 
 function failReason(checks) {
@@ -156,7 +203,6 @@ function validateConfirmationReuse(previousFact, currentFact) {
   const currEvent = (currentFact && currentFact.event) || {}
   const currParam = (currentFact && currentFact.parameter) || {}
   const prevConf = confirmationOf(prevParam)
-  const currConf = confirmationOf(currParam) || {}
   const checks = emptyChecks()
 
   if (!historicalReusable(prevParam)) {
@@ -180,50 +226,50 @@ function validateConfirmationReuse(previousFact, currentFact) {
     }
   }
 
-  const prevKey = parameterKeyOf(prevParam, prevConf)
-  const currKey = parameterKeyOf(currParam, currConf)
+  const prevKey = previousParameterKey(prevParam, prevConf)
+  const currKey = str(currParam && currParam.key)
   const prevEvt = str(prevEvent.evtId)
   const currEvt = str(currEvent.evtId)
-  checks.parameterIdentity = !!(prevKey && currKey && prevKey === currKey && prevEvt && currEvt && prevEvt === currEvt)
+  checks.parameterIdentity = !!(prevKey.present && prevKey.value && currKey && prevKey.value === currKey && prevEvt && currEvt && prevEvt === currEvt)
 
   checks.currentEvidencePresent = hasCurrentEvidence(currParam)
 
-  const prevRoot = sourceRootOf(prevParam, prevConf)
-  const currRoot = sourceRootOf(currParam, currConf)
-  checks.sourceIdentity = !!(prevRoot && currRoot && prevRoot === currRoot)
+  const prevRoot = previousSourceRoot(prevParam, prevConf)
+  const currRoot = currentSourceRoot(currParam)
+  checks.sourceIdentity = !!(prevRoot.present && prevRoot.value && currRoot && prevRoot.value === currRoot)
 
   checks.scopeReachable = currParam.scopeReachable === true
 
-  const prevFile = eventTargetFile(prevEvent, prevConf)
-  const currFile = eventTargetFile(currEvent, currConf)
-  const prevSymbol = eventTargetSymbol(prevEvent, prevConf)
-  const currSymbol = eventTargetSymbol(currEvent, currConf)
+  const prevFile = previousTargetFile(prevEvent, prevConf)
+  const currFile = readEventField(currEvent, 'targetFile')
+  const prevSymbol = previousTargetSymbol(prevEvent, prevConf)
+  const currSymbol = readEventField(currEvent, 'functionName')
   if (scope === 'exact-target') {
-    checks.targetCompatible = !!(prevFile && currFile && prevFile === currFile && prevSymbol === currSymbol)
+    checks.targetCompatible = !!(
+      prevFile.present && currFile.present && prevSymbol.present && currSymbol.present
+      && prevFile.value && currFile.value
+      && prevFile.value === currFile.value
+      && prevSymbol.value === currSymbol.value
+    )
   } else {
     checks.targetCompatible = true
   }
 
-  const prevBoundary = componentBoundaryOf(prevEvent, prevConf)
-  const currentBoundary = componentBoundaryOf(currEvent, currConf) || str(currEvent.componentBoundary)
-  if (!prevBoundary) {
-    checks.componentBoundaryCompatible = true
-  } else {
-    checks.componentBoundaryCompatible = prevBoundary === currentBoundary
-  }
+  const prevBoundary = previousBoundary(prevEvent, prevConf)
+  const currBoundary = readEventField(currEvent, 'componentBoundary')
+  checks.componentBoundaryCompatible = !!(
+    prevBoundary.present && currBoundary.present && prevBoundary.value === currBoundary.value
+  )
 
-  const prevLife = str(prevEvent.lifecycle)
-  const currLife = str(currEvent.lifecycle)
-  if (!prevLife || !currLife) {
-    checks.lifecycleCompatible = !!(prevLife || currLife)
-    if (!prevLife && !currLife) checks.lifecycleCompatible = true
-  } else {
-    checks.lifecycleCompatible = prevLife === currLife
-  }
+  const prevLife = previousLifecycle(prevEvent, prevConf)
+  const currLife = readEventField(currEvent, 'lifecycle')
+  checks.lifecycleCompatible = !!(
+    prevLife.present && currLife.present && prevLife.value === currLife.value
+  )
 
-  const prevTransform = transformFingerprint(prevParam)
+  const prevTransform = previousTransform(prevParam, prevConf)
   const currTransform = transformFingerprint(currParam)
-  checks.transformationCompatible = prevTransform === currTransform
+  checks.transformationCompatible = !!(prevTransform && currTransform && prevTransform === currTransform)
 
   const valid = allChecksPass(checks)
   return {
@@ -250,13 +296,93 @@ function applyConfirmationReuse(previousFact, currentFact) {
     source: prevConf.source || 'human',
     reuseScope: reuseScopeOf(prevConf),
     confirmedAt: prevConf.confirmedAt || null,
-    evidence: Object.assign({}, prevConf.evidence || {}, currConf.evidence || {}),
+    evidence: Object.assign({}, prevConf.evidence || {}),
     reuseChecks: result.checks,
     invalidReason: result.invalidReason
   }
   if (result.status === 'reused') {
     next.invalidReason = null
   }
+  return next
+}
+
+function buildHumanConfirmation(event, parameter, now) {
+  const existing = confirmationOf(parameter) || {}
+  const scope = reuseScopeOf(existing) || 'same-dataflow'
+  return {
+    status: 'confirmed',
+    source: 'human',
+    reuseScope: REUSE_SCOPES.includes(scope) ? scope : 'same-dataflow',
+    confirmedAt: existing.confirmedAt || now || new Date().toISOString(),
+    invalidReason: null,
+    evidence: {
+      parameterKey: str(parameter && parameter.key),
+      sourceRoot: currentSourceRoot(parameter),
+      targetFile: str(event && event.targetFile) || null,
+      targetSymbol: str(event && event.functionName) || null,
+      componentBoundary: hasOwn(event, 'componentBoundary') ? str(event.componentBoundary) : '',
+      lifecycle: hasOwn(event, 'lifecycle') ? str(event.lifecycle) : '',
+      semanticFingerprint: transformFingerprint(parameter),
+      transformKind: transformFingerprint(parameter)
+    }
+  }
+}
+
+function stampHumanConfirmation(event, now) {
+  const next = Object.assign({}, event)
+  const stampedAt = now || new Date().toISOString()
+  next.parameters = (Array.isArray(event && event.parameters) ? event.parameters : []).map(parameter => {
+    return Object.assign({}, parameter, {
+      confirmation: buildHumanConfirmation(next, parameter, stampedAt)
+    })
+  })
+  return next
+}
+
+function historicalFactFromParameter(event, parameter) {
+  const confirmation = confirmationOf(parameter) || {}
+  const evidence = confirmation.evidence || {}
+  const prevEvent = { evtId: event && event.evtId }
+  if (hasOwn(evidence, 'targetFile')) prevEvent.targetFile = evidence.targetFile
+  if (hasOwn(evidence, 'targetSymbol')) prevEvent.functionName = evidence.targetSymbol
+  if (hasOwn(evidence, 'lifecycle')) prevEvent.lifecycle = evidence.lifecycle
+  if (hasOwn(evidence, 'componentBoundary')) prevEvent.componentBoundary = evidence.componentBoundary
+  return {
+    event: prevEvent,
+    parameter: Object.assign({}, parameter, { confirmation })
+  }
+}
+
+function currentFactFromParameter(event, parameter) {
+  const current = Object.assign({}, parameter)
+  delete current.confirmation
+  const currEvent = { evtId: event && event.evtId }
+  if (event && hasOwn(event, 'targetFile')) currEvent.targetFile = event.targetFile
+  if (event && hasOwn(event, 'functionName')) currEvent.functionName = event.functionName
+  if (event && hasOwn(event, 'lifecycle')) currEvent.lifecycle = event.lifecycle
+  if (event && hasOwn(event, 'componentBoundary')) currEvent.componentBoundary = event.componentBoundary
+  return {
+    event: currEvent,
+    parameter: current
+  }
+}
+
+function applyConfirmationReuseToEvent(event) {
+  const next = Object.assign({}, event)
+  next.parameters = (Array.isArray(event && event.parameters) ? event.parameters : []).map(parameter => {
+    if (!historicalReusable(parameter)) return parameter
+    const confirmation = applyConfirmationReuse(
+      historicalFactFromParameter(event, parameter),
+      currentFactFromParameter(event, parameter)
+    )
+    return Object.assign({}, parameter, { confirmation })
+  })
+  return next
+}
+
+function applyConfirmationReuseToPayload(payload) {
+  const next = payload && typeof payload === 'object' ? payload : { events: [] }
+  next.events = (Array.isArray(next.events) ? next.events : []).map(applyConfirmationReuseToEvent)
   return next
 }
 
@@ -318,18 +444,32 @@ function validateConfirmationRecord(parameter, event) {
         message: 'confirmed/reused requires reuseScope'
       })
     }
-    if (!str(evidence.parameterKey) && !str(parameter.key)) {
+    if (!str(evidence.parameterKey)) {
       issues.push({
         code: 'PARAM_CONFIRMATION_PROVENANCE_MISSING',
         field: 'confirmation.evidence.parameterKey',
-        message: 'confirmed/reused requires parameterKey'
+        message: 'confirmed/reused requires stored parameterKey'
       })
     }
-    if (!str(evidence.sourceRoot) && !sourceRootOf(parameter, confirmation)) {
+    if (!str(evidence.sourceRoot)) {
       issues.push({
         code: 'PARAM_CONFIRMATION_PROVENANCE_MISSING',
         field: 'confirmation.evidence.sourceRoot',
-        message: 'confirmed/reused requires sourceRoot'
+        message: 'confirmed/reused requires stored sourceRoot'
+      })
+    }
+    if (!hasOwn(evidence, 'targetFile') && !hasOwn(evidence, 'targetSymbol')) {
+      issues.push({
+        code: 'PARAM_CONFIRMATION_PROVENANCE_MISSING',
+        field: 'confirmation.evidence.targetFile',
+        message: 'confirmed/reused requires stored target identity'
+      })
+    }
+    if (!hasOwn(evidence, 'lifecycle')) {
+      issues.push({
+        code: 'PARAM_CONFIRMATION_PROVENANCE_MISSING',
+        field: 'confirmation.evidence.lifecycle',
+        message: 'confirmed/reused requires stored lifecycle'
       })
     }
     if (str(evidence.sourceRoot) && sourceRootOf(parameter, null) && str(evidence.sourceRoot) !== sourceRootOf(parameter, null) && status === 'reused') {
@@ -354,6 +494,10 @@ module.exports = {
   sourceRootOf,
   validateConfirmationReuse,
   applyConfirmationReuse,
+  applyConfirmationReuseToEvent,
+  applyConfirmationReuseToPayload,
+  buildHumanConfirmation,
+  stampHumanConfirmation,
   validateConfirmationRecord,
   reusedChecksComplete,
   transformFingerprint

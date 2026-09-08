@@ -358,6 +358,7 @@ function runStage(paths, args, repoRoot, state, id, execFn) {
     return runStageA(args, repoRoot, execFn)
   }
   if (id === 'D') {
+    runNode('accept/normalize-impl.js', [excelArg], repoRoot)
     runNode('accept/validate-impl.js', [excelArg], repoRoot)
     const chainArgs = [excelArg]
     if (args.device) chainArgs.push(`--device=${args.device}`)

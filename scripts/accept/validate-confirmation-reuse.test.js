@@ -41,7 +41,10 @@ function confirmedParam(overrides) {
         sourceRoot: 'api.detail.houseCode',
         targetFile: 'src/pages/detail/index.tsx',
         targetSymbol: 'handleClick',
-        componentBoundary: 'LocalCard'
+        componentBoundary: 'LocalCard',
+        lifecycle: 'onClick',
+        transformKind: 'identity',
+        semanticFingerprint: 'identity'
       }
     }
   }, overrides)
@@ -52,7 +55,8 @@ function eventBase(overrides) {
     evtId: '1001',
     targetFile: 'src/pages/detail/index.tsx',
     functionName: 'handleClick',
-    lifecycle: 'onClick'
+    lifecycle: 'onClick',
+    componentBoundary: 'LocalCard'
   }, overrides)
 }
 
@@ -130,11 +134,7 @@ test('case 5 source unreachable → stale source_unreachable', () => {
 
 test('case 6 component boundary changed → stale', () => {
   const previous = fact()
-  const current = currentFrom(previous, {
-    confirmation: {
-      evidence: { componentBoundary: 'SharedCard' }
-    }
-  })
+  const current = currentFrom(previous, {}, { componentBoundary: 'SharedCard' })
   const result = validateConfirmationReuse(previous, current)
   assert.equal(result.status, 'stale')
   assert.equal(result.invalidReason, 'component_boundary_changed')
@@ -174,15 +174,8 @@ test('case 9 unrelated file modification still reused (not whole-file hash)', ()
 
 test('case 10 stale confirmation does not force needsConfirm when current facts READY', () => {
   const previous = fact()
-  const current = currentFrom(previous, {}, { targetFile: 'src/pages/other.tsx', functionName: 'onShow' })
-  current.parameter.confirmation = applyConfirmationReuse(previous, {
-    event: current.event,
-    parameter: Object.assign({}, current.parameter, {
-      confirmation: {
-        evidence: { componentBoundary: 'SharedCard', targetFile: 'src/pages/other.tsx', targetSymbol: 'onShow' }
-      }
-    })
-  })
+  const current = currentFrom(previous, {}, { targetFile: 'src/pages/other.tsx', functionName: 'onShow', componentBoundary: 'SharedCard' })
+  current.parameter.confirmation = applyConfirmationReuse(previous, current)
   current.parameter.evidence = [{ type: 'same-component-tracking' }]
   current.parameter.scopeReachable = true
   current.parameter.confidence = 'high'
@@ -256,7 +249,11 @@ test('validate-impl accepts reused with program checks', () => {
           reuseScope: 'same-dataflow',
           evidence: {
             parameterKey: 'house_id',
-            sourceRoot: 'api.detail.houseCode'
+            sourceRoot: 'api.detail.houseCode',
+            targetFile: 'src/pages/detail/index.tsx',
+            targetSymbol: 'handleClick',
+            lifecycle: 'onClick',
+            componentBoundary: 'LocalCard'
           },
           reuseChecks: allPassChecks()
         }
@@ -276,4 +273,45 @@ test('applyConfirmationReuse writes reused checks', () => {
   assert.equal(confirmation.status, 'reused')
   assert.equal(confirmation.reuseChecks.parameterIdentity, true)
   assert.equal(confirmation.invalidReason, null)
+})
+
+test('missing reuseScope cannot reuse', () => {
+  const previous = fact({
+    confirmation: Object.assign({}, confirmedParam().confirmation, { reuseScope: '' })
+  })
+  const current = currentFrom(previous)
+  const result = validateConfirmationReuse(previous, current)
+  assert.equal(result.status, 'stale')
+  assert.equal(result.invalidReason, 'not_provable')
+})
+
+test('missing historical sourceRoot cannot reuse', () => {
+  const previous = fact({
+    confirmation: Object.assign({}, confirmedParam().confirmation, {
+      evidence: Object.assign({}, confirmedParam().confirmation.evidence, { sourceRoot: '' })
+    })
+  })
+  const current = currentFrom(previous)
+  const result = validateConfirmationReuse(previous, current)
+  assert.equal(result.status, 'stale')
+  assert.equal(result.valid, false)
+})
+
+test('missing componentBoundary provenance cannot reuse', () => {
+  const previous = fact()
+  delete previous.parameter.confirmation.evidence.componentBoundary
+  delete previous.event.componentBoundary
+  const current = currentFrom(previous, {}, { componentBoundary: 'LocalCard' })
+  const result = validateConfirmationReuse(previous, current)
+  assert.equal(result.status, 'stale')
+  assert.equal(result.checks.componentBoundaryCompatible, false)
+})
+
+test('normalizeImpl applies confirmation reuse in official pipeline', () => {
+  const { normalizeImpl } = require('./normalize-impl')
+  const after = normalizeImpl({
+    events: [Object.assign(eventBase(), { parameters: [confirmedParam()] })]
+  })
+  assert.equal(after.events[0].parameters[0].confirmation.status, 'reused')
+  assert.equal(after.events[0].parameters[0].confirmation.reuseChecks.currentEvidencePresent, true)
 })

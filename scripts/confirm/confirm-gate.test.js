@@ -17,13 +17,27 @@ function highParam(overrides) {
   }, overrides)
 }
 
-test('confirm READY allows confirmed=true', () => {
-  const event = { evtId: '1', parameters: [highParam()] }
+test('confirm READY stamps confirmation provenance', () => {
+  const event = {
+    evtId: '1',
+    targetFile: 'src/pages/detail/index.tsx',
+    functionName: 'handleClick',
+    lifecycle: 'onClick',
+    componentBoundary: 'LocalCard',
+    parameters: [highParam()]
+  }
   const result = applyConfirmAction(event)
-  assert.equal(result.ok, true)
   assert.equal(result.confirmed, true)
-  assert.equal(result.event.confirmed, true)
-  assert.equal(result.gate.status, 'READY')
+  const confirmation = result.event.parameters[0].confirmation
+  assert.equal(confirmation.status, 'confirmed')
+  assert.equal(confirmation.source, 'human')
+  assert.equal(confirmation.reuseScope, 'same-dataflow')
+  assert.equal(confirmation.evidence.parameterKey, 'house_id')
+  assert.equal(confirmation.evidence.sourceRoot, 'api.house.id')
+  assert.equal(confirmation.evidence.targetFile, 'src/pages/detail/index.tsx')
+  assert.equal(confirmation.evidence.targetSymbol, 'handleClick')
+  assert.equal(confirmation.evidence.lifecycle, 'onClick')
+  assert.ok(confirmation.confirmedAt)
 })
 
 test('confirm NEEDS_CONFIRM keeps pending', () => {

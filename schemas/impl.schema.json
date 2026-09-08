@@ -128,7 +128,9 @@
             "targetFile": { "type": ["string", "null"] },
             "targetSymbol": { "type": ["string", "null"] },
             "componentBoundary": { "type": ["string", "null"] },
-            "semanticFingerprint": { "type": ["string", "null"] }
+            "lifecycle": { "type": ["string", "null"] },
+            "semanticFingerprint": { "type": ["string", "null"] },
+            "transformKind": { "type": ["string", "null"] }
           }
         },
         "reuseChecks": {
