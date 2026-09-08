@@ -7,8 +7,9 @@ const DATADEP_UNRESOLVED_CODES = [
   'MISSING_QUERY_KEY',
   'MISSING_API_URL',
   'MISSING_API_FIELD',
-  'MISSING_USER_PATH',
-  'MISSING_PAGE_PATH',
+  'MISSING_USER_RUNTIME_SELECTOR',
+  'MISSING_PAGE_RUNTIME_SELECTOR',
+  'UNSUPPORTED_RUNTIME_SELECTOR',
   'SOURCE_UNRESOLVED',
   'PAGE_SOURCE_UNRESOLVED'
 ]
@@ -17,8 +18,9 @@ const DATADEP_UNRESOLVED_LABELS = {
   MISSING_QUERY_KEY: '请确认 URL queryKey',
   MISSING_API_URL: '请确认 API urlIncludes',
   MISSING_API_FIELD: '请确认 API field',
-  MISSING_USER_PATH: '请确认 user.path',
-  MISSING_PAGE_PATH: '请确认 page.path',
+  MISSING_USER_RUNTIME_SELECTOR: '请确认 user.runtime',
+  MISSING_PAGE_RUNTIME_SELECTOR: '请确认 page.runtime',
+  UNSUPPORTED_RUNTIME_SELECTOR: '请确认受支持的 Runtime Selector',
   SOURCE_UNRESOLVED: '请确认 DataDep 运行时来源',
   PAGE_SOURCE_UNRESOLVED: '请确认 page 运行时来源'
 }
@@ -45,6 +47,22 @@ function parameterKeys(event) {
   return keys
 }
 
+function hasOwn(obj, key) {
+  return !!(obj && Object.prototype.hasOwnProperty.call(obj, key))
+}
+
+function validRuntimeSelector(runtime) {
+  return !!(runtime && runtime.kind === 'windowPath' && str(runtime.path))
+}
+
+function forbiddenLegacySourcePath(node) {
+  return hasOwn(node, 'path')
+}
+
+function runtimeKindUnsupported(runtime) {
+  return !!(runtime && typeof runtime === 'object' && !Array.isArray(runtime) && str(runtime.kind) && runtime.kind !== 'windowPath')
+}
+
 function selectorComplete(dep) {
   const from = dep && dep.from
   if (from === 'url') return !!str(dep.queryKey)
@@ -52,8 +70,12 @@ function selectorComplete(dep) {
     const api = dep.api || {}
     return !!str(api.urlIncludes) && !!str(api.field)
   }
-  if (from === 'user') return !!(dep.user && str(dep.user.path))
-  if (from === 'page') return !!(dep.page && str(dep.page.path))
+  if (from === 'user') {
+    return !forbiddenLegacySourcePath(dep.user) && validRuntimeSelector(dep.user && dep.user.runtime)
+  }
+  if (from === 'page') {
+    return !forbiddenLegacySourcePath(dep.page) && validRuntimeSelector(dep.page && dep.page.runtime)
+  }
   return false
 }
 
@@ -67,8 +89,12 @@ function missingSelectorCodes(dep) {
     if (!str(api.field)) codes.push('MISSING_API_FIELD')
     return codes
   }
-  if (from === 'user' && !(dep.user && str(dep.user.path))) return ['MISSING_USER_PATH']
-  if (from === 'page' && !(dep.page && str(dep.page.path))) return ['MISSING_PAGE_PATH']
+  if (from === 'user' && !validRuntimeSelector(dep.user && dep.user.runtime)) {
+    return ['MISSING_USER_RUNTIME_SELECTOR']
+  }
+  if (from === 'page' && !validRuntimeSelector(dep.page && dep.page.runtime)) {
+    return ['MISSING_PAGE_RUNTIME_SELECTOR']
+  }
   return []
 }
 
@@ -114,12 +140,35 @@ function validateDataDep(dep, event) {
   const unresolved = Array.isArray(dep.unresolved) ? dep.unresolved : []
   const knownFrom = DATADEP_FROM.indexOf(dep.from) !== -1
   const knownStatus = DATADEP_STATUS.indexOf(dep.status) !== -1
+  const userRuntime = dep.user && dep.user.runtime
+  const pageRuntime = dep.page && dep.page.runtime
+  const legacyPath = (dep.from === 'user' && forbiddenLegacySourcePath(dep.user))
+    || (dep.from === 'page' && forbiddenLegacySourcePath(dep.page))
+  const unsupportedKind = (dep.from === 'user' && runtimeKindUnsupported(userRuntime))
+    || (dep.from === 'page' && runtimeKindUnsupported(pageRuntime))
+
+  if (legacyPath) {
+    issues.push(issue(
+      'DATADEP_LEGACY_PATH',
+      ISSUE_LEVEL.error,
+      dep.from === 'user' ? 'user.path' : 'page.path',
+      'user.path/page.path is not allowed; use runtime selector'
+    ))
+  }
+  if (unsupportedKind) {
+    issues.push(issue(
+      'DATADEP_RUNTIME_SELECTOR_INVALID',
+      ISSUE_LEVEL.error,
+      dep.from === 'user' ? 'user.runtime.kind' : 'page.runtime.kind',
+      'runtime.kind must be windowPath'
+    ))
+  }
 
   if (dep.status === 'resolved') {
     if (unresolved.length) {
       issues.push(issue('DATADEP_STATUS_INCONSISTENT', ISSUE_LEVEL.error, 'unresolved', 'resolved dataDep cannot have unresolved'))
     }
-    if (knownFrom && !selectorComplete(dep)) {
+    if (knownFrom && !selectorComplete(dep) && !legacyPath && !unsupportedKind) {
       missingSelectorCodes(dep).forEach(code => {
         issues.push(issue('DATADEP_SELECTOR_INCOMPLETE', ISSUE_LEVEL.error, code, `resolved dataDep missing selector: ${code}`))
       })
@@ -211,5 +260,6 @@ module.exports = {
   dataDepGate,
   eventDataDepNeedsConfirm,
   dataDepConfirmReasons,
-  worseStatus
+  worseStatus,
+  validRuntimeSelector
 }

@@ -2115,7 +2115,7 @@ DataDep 必须自身变为 status=resolved 后才能通过 DataDep Gate
 
 ```text
 缺 status 自动补 needsConfirm / resolved
-根据 expression 猜 from / queryKey / api.field / user.path / page.path
+根据 expression 猜 from / queryKey / api.field / user.runtime / page.runtime
 unknown 自动变 page
 ```
 
@@ -2129,11 +2129,14 @@ unknown 自动变 page
 MISSING_QUERY_KEY
 MISSING_API_URL
 MISSING_API_FIELD
-MISSING_USER_PATH
-MISSING_PAGE_PATH
+MISSING_USER_RUNTIME_SELECTOR
+MISSING_PAGE_RUNTIME_SELECTOR
+UNSUPPORTED_RUNTIME_SELECTOR
 SOURCE_UNRESOLVED
 PAGE_SOURCE_UNRESOLVED
 ```
+
+P2-1.1 已删除 `MISSING_USER_PATH` / `MISSING_PAGE_PATH`。User/Page resolved 必须有 `runtime.kind=windowPath` 与非空 `runtime.path`，禁止 `user.path` / `page.path`。
 
 展示文案由 `DATADEP_UNRESOLVED_LABELS`（UI / report）映射，不作为机器输入。
 
@@ -2149,7 +2152,7 @@ required: paramKey, from, status, unresolved
 
 两套定义必须语义一致，由测试防漂移。
 
-P2-1 是 Contract Closure，不为旧的不完整 DataDep 保留隐式兼容。
+P2-1 是 Contract Closure，不为旧的不完整 DataDep 保留隐式兼容。P2-1.1 起 `user`/`page` 只允许 `runtime`，`additionalProperties: false`。
 
 ## 35.7 已落地文件
 

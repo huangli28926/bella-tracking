@@ -66,16 +66,6 @@ function codes(result) {
   return (result.issues || []).map(item => item.code)
 }
 
-function implSchemaDataDep() {
-  const impl = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/impl.schema.json'), 'utf8'))
-  return impl.$defs.dataDep
-}
-
-function chainSchemaDataDep() {
-  const chain = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/accept-chain.schema.json'), 'utf8'))
-  return chain.$defs.target.properties.dataDeps.items
-}
-
 test('case 1 legal URL → READY', () => {
   const result = validateDataDep(readyUrlDep(), eventWith(readyUrlDep()))
   assert.equal(result.status, 'READY')
@@ -166,46 +156,123 @@ test('case 10 resolved DataDep is copied verbatim', () => {
   assert.deepEqual(target.dataDeps[0], dep)
 })
 
-test('user path resolved → READY', () => {
+test('p2-1.1 case 1 user windowPath → READY', () => {
   const dep = {
     paramKey: 'ucid',
     from: 'user',
-    user: { path: 'user.ucid' },
+    user: { runtime: { kind: 'windowPath', path: '__user.id' } },
     status: 'resolved',
     unresolved: []
   }
   assert.equal(validateDataDep(dep, eventWith(dep)).status, 'READY')
+  const target = buildTarget(eventWith(dep), { evtId: '1001', eventType: 'Module_Click' }, '/detail')
+  assert.ok(!target.error)
+  assert.deepEqual(target.dataDeps[0], dep)
 })
 
-test('user missing path + resolved → INVALID', () => {
+test('user missing runtime + resolved → INVALID', () => {
   const dep = {
     paramKey: 'ucid',
     from: 'user',
     status: 'resolved',
     unresolved: []
   }
-  assert.equal(validateDataDep(dep, eventWith(dep)).status, 'INVALID')
+  const result = validateDataDep(dep, eventWith(dep))
+  assert.equal(result.status, 'INVALID')
+  assert.ok(codes(result).includes('DATADEP_SELECTOR_INCOMPLETE'))
 })
 
-test('page missing path + needsConfirm → NEEDS_CONFIRM', () => {
+test('p2-1.1 case 2 user legacy path only + resolved → INVALID', () => {
+  const dep = {
+    paramKey: 'ucid',
+    from: 'user',
+    user: { path: 'user.id' },
+    status: 'resolved',
+    unresolved: []
+  }
+  const result = validateDataDep(dep, eventWith(dep))
+  assert.equal(result.status, 'INVALID')
+  assert.ok(codes(result).includes('DATADEP_LEGACY_PATH'))
+})
+
+test('p2-1.1 legacy path + runtime together → INVALID', () => {
+  const dep = {
+    paramKey: 'ucid',
+    from: 'user',
+    user: {
+      path: 'user.id',
+      runtime: { kind: 'windowPath', path: '__user.id' }
+    },
+    status: 'resolved',
+    unresolved: []
+  }
+  const result = validateDataDep(dep, eventWith(dep))
+  assert.equal(result.status, 'INVALID')
+  assert.ok(codes(result).includes('DATADEP_LEGACY_PATH'))
+})
+
+test('p2-1.1 case 3 page runtime selector missing → NEEDS_CONFIRM', () => {
   const dep = {
     paramKey: 'community_name',
     from: 'page',
     status: 'needsConfirm',
-    unresolved: ['PAGE_SOURCE_UNRESOLVED']
+    unresolved: ['MISSING_PAGE_RUNTIME_SELECTOR']
   }
   assert.equal(validateDataDep(dep, eventWith(dep)).status, 'NEEDS_CONFIRM')
 })
 
-test('page resolved requires page.path', () => {
+test('p2-1.1 case 4 unknown runtime kind → INVALID', () => {
   const dep = {
     paramKey: 'community_name',
     from: 'page',
-    page: { path: 'community.name' },
+    page: { runtime: { kind: 'reactState', path: 'community.name' } },
+    status: 'needsConfirm',
+    unresolved: ['UNSUPPORTED_RUNTIME_SELECTOR']
+  }
+  const result = validateDataDep(dep, eventWith(dep))
+  assert.equal(result.status, 'INVALID')
+  assert.ok(codes(result).includes('DATADEP_RUNTIME_SELECTOR_INVALID'))
+})
+
+test('p2-1.1 unsupported selector without illegal kind → NEEDS_CONFIRM', () => {
+  const dep = {
+    paramKey: 'ucid',
+    from: 'user',
+    status: 'needsConfirm',
+    unresolved: ['UNSUPPORTED_RUNTIME_SELECTOR']
+  }
+  assert.equal(validateDataDep(dep, eventWith(dep)).status, 'NEEDS_CONFIRM')
+})
+
+test('p2-1.1 page windowPath resolved → READY', () => {
+  const dep = {
+    paramKey: 'community_name',
+    from: 'page',
+    page: { runtime: { kind: 'windowPath', path: '__PAGE_DATA__.community.name' } },
     status: 'resolved',
     unresolved: []
   }
   assert.equal(validateDataDep(dep, eventWith(dep)).status, 'READY')
+})
+
+test('p2-1.1 case 5 build-accept-chain does not infer runtime from expression', () => {
+  const impl = eventWith(null)
+  impl.parameters = [highParam({
+    key: 'ucid',
+    expression: 'window.__user.id',
+    sourcePath: 'window.__user -> id'
+  })]
+  impl.accept.dataDeps = [{
+    paramKey: 'ucid',
+    from: 'user',
+    status: 'needsConfirm',
+    unresolved: ['MISSING_USER_RUNTIME_SELECTOR']
+  }]
+  const target = buildTarget(impl, { evtId: '1001', eventType: 'Module_Click' }, '/detail')
+  assert.ok(target.error)
+  assert.equal(target.error, 'accept.dataDeps needsConfirm')
+  const pendingDep = impl.accept.dataDeps[0]
+  assert.ok(!pendingDep.user || !pendingDep.user.runtime)
 })
 
 test('unknown unresolved code → INVALID', () => {
@@ -337,8 +404,10 @@ test('confirm-gate does not auto-resolve dataDep', () => {
 })
 
 test('impl and accept-chain dataDep schemas stay aligned', () => {
-  const implDep = implSchemaDataDep()
-  const chainDep = chainSchemaDataDep()
+  const impl = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/impl.schema.json'), 'utf8'))
+  const chain = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/accept-chain.schema.json'), 'utf8'))
+  const implDep = impl.$defs.dataDep
+  const chainDep = chain.$defs.target.properties.dataDeps.items
   assert.deepEqual(implDep.required, chainDep.required)
   assert.deepEqual(implDep.properties.from, chainDep.properties.from)
   assert.deepEqual(implDep.properties.status, chainDep.properties.status)
@@ -346,5 +415,8 @@ test('impl and accept-chain dataDep schemas stay aligned', () => {
   assert.deepEqual(implDep.properties.api, chainDep.properties.api)
   assert.deepEqual(implDep.properties.user, chainDep.properties.user)
   assert.deepEqual(implDep.properties.page, chainDep.properties.page)
+  assert.deepEqual(impl.$defs.runtimeSelector, chain.$defs.runtimeSelector)
   assert.deepEqual(DATADEP_UNRESOLVED_CODES, implDep.properties.unresolved.items.enum)
+  assert.ok(!implDep.properties.user.properties.path)
+  assert.ok(!implDep.properties.page.properties.path)
 })

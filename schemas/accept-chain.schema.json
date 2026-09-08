@@ -43,6 +43,15 @@
     }
   },
   "$defs": {
+    "runtimeSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "enum": ["windowPath"] },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
     "locator": {
       "type": "object",
       "required": ["by", "value"],
@@ -169,14 +178,16 @@
               },
               "user": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
-                  "path": { "type": "string" }
+                  "runtime": { "$ref": "#/$defs/runtimeSelector" }
                 }
               },
               "page": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
-                  "path": { "type": "string" }
+                  "runtime": { "$ref": "#/$defs/runtimeSelector" }
                 }
               },
               "status": { "enum": ["resolved", "needsConfirm"] },
@@ -187,8 +198,9 @@
                     "MISSING_QUERY_KEY",
                     "MISSING_API_URL",
                     "MISSING_API_FIELD",
-                    "MISSING_USER_PATH",
-                    "MISSING_PAGE_PATH",
+                    "MISSING_USER_RUNTIME_SELECTOR",
+                    "MISSING_PAGE_RUNTIME_SELECTOR",
+                    "UNSUPPORTED_RUNTIME_SELECTOR",
                     "SOURCE_UNRESOLVED",
                     "PAGE_SOURCE_UNRESOLVED"
                   ]
