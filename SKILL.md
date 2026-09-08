@@ -21,12 +21,17 @@ description: >-
 
 ## 主循环
 
-1. 从用户消息取 `--excel=`。没有路径不要编造。未明确入口时不要自己选阶段。
-2. 先跑：`node scripts/workflow/tracking-workflow.js --status --json`（有文档再加 `--excel=docs/{文档名}.xlsx`；用户已选则加 `--entry=1..8` 或 `--run=`）。
-3. `prompt` 非空或 `nextAction` 为 `choose_*` / `confirm_*` / `ask_excel`：把 `prompt` **原样**发给用户后停。禁止从记忆或本文件补菜单。exit 10 = 未选入口。
-4. `executor=script`：只跑返回的 `nextTask.command`。
-5. `executor=agent`：只读 `nextTask.inputs` + 下表对应 reference，写 `outputs`。写入 `impl.json` 后立刻 `normalize-impl` + `validate-impl --json`。error / `status=blocked` 则停。
-6. 成功后再 `--status --json`。聊天解释不是下一跳输入。`confirm-event --wait` 会阻塞，超时 exit 2。
+初始化：只从用户消息抄 `--excel=` / `--entry=` / `--run=`，没有就不要编造。
+
+**本轮第一条且唯一允许的命令**（有用户给出的路径/入口才追加对应参数）：
+
+`node scripts/workflow/tracking-workflow.js --status --json`
+
+发出 `prompt` 之前禁止：列出 `docs/`、猜测 xlsx、读 `scripts/` 或 `reference/`、自己生成选项、执行任何阶段。
+
+`prompt` 非空或 `nextAction` 为 `choose_*` / `confirm_*` / `ask_excel`：把 `prompt` **原样**发给用户后**本轮结束**。禁止从记忆或本文件补菜单，禁止再加解释或「先看脚本」。exit 10 = 未选入口。用户下一条消息再带路径或入口，重新 `--status`。
+
+其后：`executor=script` 只跑返回的 `nextTask.command`。`executor=agent` 只读 `nextTask.inputs` + 下表对应 reference，写 `outputs`。写入 `impl.json` 后立刻 `normalize-impl` + `validate-impl --json`。error / `status=blocked` 则停。成功后再 `--status --json`。聊天解释不是下一跳输入。`confirm-event --wait` 会阻塞，超时 exit 2。
 
 `--run=A` 只 dump+render，不等于路径 A 完成。公司 SDK 是 `$ULOG.send`；项目封装进仓后探测，不写进本文件。
 
@@ -63,3 +68,4 @@ description: >-
 6. 真实验收未选设备不跑 Playwright。
 7. 未选入口不跑任何阶段。
 8. dump 失败（缺示意图）不分析、不写码。
+9. 未给路径时不扫描 `docs/` 代选 xlsx。
