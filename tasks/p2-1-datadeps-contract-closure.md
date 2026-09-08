@@ -3,11 +3,13 @@
 ## 0. 状态
 
 ```text
-方案状态：正式候选 Closure
+方案状态：CLOSED
 阶段：P2-1
 目标：关闭 DataDep 事实契约的不确定性
-后续阶段：DataDep Runtime Resolver
+后续阶段：DataDep Runtime Resolver（P2-2）
 ```
+
+实施锁定口径见文末 **# 35. 确认口径与落地记录**。该节覆盖本文初稿中尚未写死的歧义（INVALID vs NEEDS_CONFIRM、是否为 assertParams 补桩、Event Gate 接入范围、unresolved 词表）。**与第 35 节冲突时，以第 35 节为准。**
 
 本任务只解决：
 
@@ -2008,3 +2010,196 @@ tests passed
 ```
 
 作为 CLOSED 依据。
+
+---
+
+# 35. 确认口径与落地记录
+
+本节是 P2-1 实施前拍板、并已写入代码的补充 Contract。后续 Agent 不得回退到本文前半的模糊写法。
+
+## 35.1 INVALID vs NEEDS_CONFIRM
+
+```text
+status=resolved 但 source-specific selector 不完整
+→ INVALID
+
+status=needsConfirm 且 unresolved 用合法 reason code 记录缺口
+→ NEEDS_CONFIRM
+```
+
+```text
+INVALID = Contract 自相矛盾
+NEEDS_CONFIRM = 事实尚未闭环
+```
+
+身份/结构错误一律 INVALID：
+
+```text
+missing paramKey
+unknown from
+paramKey 不在 parameters[].key
+缺 status
+resolved 且 unresolved 非空
+needsConfirm 且 unresolved 为空
+unresolved 含非 enum 值
+```
+
+## 35.2 不自动生成 dataDep，也不绑定 assertParams
+
+```text
+脚本不得自动生成任何 dataDep 桩
+不得根据 expression / sourcePath / hint.api 推断 from
+```
+
+不要建立：
+
+```text
+assertParams 中存在 paramKey
+→ 必须存在 dataDep
+```
+
+职责分离：
+
+```text
+assertParams = 要对账的埋点参数列表
+dataDeps     = 显式的 Runtime Source Compare 事实
+```
+
+```text
+未声明 dataDep
+→ 不因 assertParams 自动进入 NEEDS_CONFIRM
+
+已声明 dataDep
+→ 必须通过 DataDep Gate
+```
+
+## 35.3 Event Gate 接入范围（最小集）
+
+接入：
+
+```text
+validate-impl.collectImplGates
+  = worse(Parameter Gate, DataDep Gate)
+
+needs-confirm.js
+  DataDep NEEDS_CONFIRM 必须进入待确认队列
+  event.confirmed=true 不得绕过 dataDep.status=needsConfirm
+
+build-accept-chain / buildTarget
+  INVALID  → pending: invalid accept.dataDeps
+  NEEDS_CONFIRM → pending: accept.dataDeps needsConfirm
+  不得进入可执行 target
+```
+
+明确不接入：
+
+```text
+confirm-gate.applyConfirmAction
+仍只确认 Parameter
+不得把 DataDep 自动标为 resolved
+```
+
+```text
+DataDep 必须自身变为 status=resolved 后才能通过 DataDep Gate
+```
+
+## 35.4 normalize-impl
+
+允许：
+
+```text
+已有 dataDep 缺 unresolved → 补 []
+```
+
+禁止：
+
+```text
+缺 status 自动补 needsConfirm / resolved
+根据 expression 猜 from / queryKey / api.field / user.path / page.path
+unknown 自动变 page
+```
+
+缺 `status` 交给 validator 判 INVALID。
+
+## 35.5 unresolved 封闭 reason code
+
+机器 Contract 只用 enum，不用英文自然语言，也不复用事件级中文 `unresolved` 句式。
+
+```text
+MISSING_QUERY_KEY
+MISSING_API_URL
+MISSING_API_FIELD
+MISSING_USER_PATH
+MISSING_PAGE_PATH
+SOURCE_UNRESOLVED
+PAGE_SOURCE_UNRESOLVED
+```
+
+展示文案由 `DATADEP_UNRESOLVED_LABELS`（UI / report）映射，不作为机器输入。
+
+不在表内的字符串 → INVALID。
+
+## 35.6 Schema
+
+`schemas/impl.schema.json` 与 `schemas/accept-chain.schema.json` 中：
+
+```text
+required: paramKey, from, status, unresolved
+```
+
+两套定义必须语义一致，由测试防漂移。
+
+P2-1 是 Contract Closure，不为旧的不完整 DataDep 保留隐式兼容。
+
+## 35.7 已落地文件
+
+```text
+schemas/impl.schema.json
+schemas/accept-chain.schema.json
+scripts/accept/validate-data-dep.js
+scripts/accept/validate-data-dep.test.js
+scripts/accept/validate-impl.js
+scripts/accept/normalize-impl.js
+scripts/accept/accept-chain.js
+scripts/confirm/needs-confirm.js
+```
+
+已删除：`inferDataDep()` 文本推断与 unknown→page fallback。
+
+未改（本阶段禁止）：
+
+```text
+confirm-gate.applyConfirmAction
+Parameter confidence / confirmation reuse
+Accept Path determinism
+run-accept Runtime 读数
+真实业务项目代码
+```
+
+## 35.8 测试
+
+```text
+npm test
+136 / 136 通过
+（原有 P0/P1 + P2-1 DataDep cases）
+```
+
+## 35.9 明确留给 P2-2 的缺口
+
+本阶段不实现 Runtime Resolver。
+
+`run-accept.js` 中仍存在：
+
+```text
+queryKey || 'housedelCode'
+```
+
+这类 Runtime 对账兜底。按第 30 节不得在 P2-1 修改，**不构成 P2-1 Contract 缺口**，由 P2-2 消费已闭环的 DataDep Contract。
+
+## 35.10 Closure 结论
+
+```text
+P2-1 CLOSED
+```
+
+依据第 31 节 + 本节锁定口径，而非“代码已改 / tests passed”单独成立。
