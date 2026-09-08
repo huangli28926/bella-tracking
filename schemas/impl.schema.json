@@ -98,6 +98,51 @@
               }
             }
           }
+        },
+        "confirmation": { "$ref": "#/$defs/parameterConfirmation" }
+      }
+    },
+    "parameterConfirmation": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": ["unconfirmed", "confirmed", "reused", "stale"]
+        },
+        "source": {
+          "enum": ["human", ""]
+        },
+        "reuseScope": {
+          "enum": ["exact-target", "same-dataflow", "none"]
+        },
+        "confirmedAt": {
+          "type": ["string", "null"]
+        },
+        "invalidReason": {
+          "type": ["string", "null"]
+        },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "parameterKey": { "type": "string" },
+            "sourceRoot": { "type": "string" },
+            "targetFile": { "type": ["string", "null"] },
+            "targetSymbol": { "type": ["string", "null"] },
+            "componentBoundary": { "type": ["string", "null"] },
+            "semanticFingerprint": { "type": ["string", "null"] }
+          }
+        },
+        "reuseChecks": {
+          "type": "object",
+          "properties": {
+            "parameterIdentity": { "type": "boolean" },
+            "sourceIdentity": { "type": "boolean" },
+            "scopeReachable": { "type": "boolean" },
+            "targetCompatible": { "type": "boolean" },
+            "componentBoundaryCompatible": { "type": "boolean" },
+            "lifecycleCompatible": { "type": "boolean" },
+            "transformationCompatible": { "type": "boolean" },
+            "currentEvidencePresent": { "type": "boolean" }
+          }
         }
       }
     },

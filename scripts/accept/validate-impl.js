@@ -6,6 +6,7 @@ const { findRepoRoot, parseArgs, readJson, toPosix } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
 const { PARAMETER_EVIDENCE_TYPES } = require('./calculate-confidence')
 const { eventParameterGate, validateParameter } = require('./validate-parameter')
+const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
 const SCRIPT_DIR = __dirname
 const STATUS = ['pending', 'existing', 'located', 'unresolved']
@@ -220,6 +221,10 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
           add(issues, 'error', evtId, `${field}.conflicts`, 'conflicts items must be strings')
         }
       }
+      validateConfirmationRecord(param, event).forEach(item => {
+        const confField = item.field ? `${field}.${item.field}` : field
+        add(issues, 'error', evtId, confField, `${item.code}: ${item.message}`)
+      })
     })
     if (event.accept && typeof event.accept === 'object') {
       validateTrigger(issues, evtId, event.accept.trigger)

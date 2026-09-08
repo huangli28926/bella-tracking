@@ -72,6 +72,8 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 
 用户确认一条埋点后，其参数 `expression` / `valueKind` / `sourcePath` 按 **key** 写入 `_raw/field-memory.json`。后续未确认事件出现同一 key，且表达式为空或 confidence 为 `low`/`medium` 时，自动回填上次确认值（confidence 设为 `medium`），向导提示「已回填上次确认值」，**仍须勾选确认**。不覆盖 `high` 且非空的表达式；不回填落点文件 / uicode。跳过（deferred）不写入记忆。
 
+`field-memory` 只是跨事件同名 key 的提示回填，**不是** confirmation reuse。同一 `evtId`+`key` 的历史 `confirmation` 必须先按当前源码重建参数事实，再经 `validate-confirmation-reuse` 得到 `reused` 或 `stale`。不得只因为上一轮 `confirmed=true` 就跳过解析。`stale` 不等于 `needsConfirm=true`。
+
 落库页参数栏为「表达式或备注」：可填 JS，也可填自然语言（`valueKind: prompt`），后者在路径 C 作为写码提示词，不直接粘进源码。
 
 ## 产物

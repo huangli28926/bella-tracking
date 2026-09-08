@@ -1,3 +1,5 @@
+const { isAuthorizedManualConfirm } = require('./validate-confirmation-reuse')
+
 const PARAMETER_EVIDENCE_TYPES = [
   'same-component-tracking',
   'same-page-tracking',
@@ -75,11 +77,16 @@ function hasValidEvidence(parameter) {
 }
 
 function hasStrongEvidence(parameter) {
-  return evidenceList(parameter).some(item => STRONG_EVIDENCE_TYPES.has(evidenceType(item)))
+  return evidenceList(parameter).some(item => {
+    const type = evidenceType(item)
+    if (type === 'manual-confirm') return isAuthorizedManualConfirm(parameter)
+    return STRONG_EVIDENCE_TYPES.has(type)
+  })
 }
 
 function hasManualConfirm(parameter) {
   return evidenceList(parameter).some(item => evidenceType(item) === 'manual-confirm')
+    && isAuthorizedManualConfirm(parameter)
 }
 
 function hasConflicts(parameter) {

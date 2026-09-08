@@ -5,6 +5,7 @@ const {
   isLegacyParameter,
   isParameterUnresolved
 } = require('./calculate-confidence')
+const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
 const GATE_STATUS = ['READY', 'NEEDS_CONFIRM', 'INVALID']
 const ISSUE_LEVEL = { error: 'error', confirm: 'confirm', info: 'info' }
@@ -216,6 +217,12 @@ function validateConfidenceConsistency(parameter, eventContext, issues) {
   }
 }
 
+function validateConfirmation(parameter, eventContext, issues) {
+  validateConfirmationRecord(parameter, eventContext).forEach(item => {
+    issues.push(issue(item.code, ISSUE_LEVEL.error, item.field, item.message))
+  })
+}
+
 function validateUnresolved(parameter, eventContext, issues) {
   if (isOptionalOmitted(parameter)) return
   if (!isParameterUnresolved(parameter, eventContext)) return
@@ -284,6 +291,7 @@ function validateParameter(parameter, eventContext) {
   validateScopeReachability(parameter, issues)
   validateExpression(parameter, eventContext, issues)
   validateTransform(parameter, issues)
+  validateConfirmation(parameter, eventContext, issues)
   validateConfidenceConsistency(parameter, eventContext, issues)
   validateUnresolved(parameter, eventContext, issues)
 

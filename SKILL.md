@@ -51,6 +51,7 @@ description: >-
 - `unresolved[]` 只允许：`请确认埋点位置`、`请确认参数 {key} 的取值`。
 - 未确认事实留空或进 `unresolved`，禁止「可能 / 大概 / 建议 / 推测」。
 - 数组按 `docIndex`；同一 `evtId` 一条。路径用仓库相对 POSIX。JSON 文件必须是纯 JSON。
+- 不得只因历史上 `confirmed` 就复用参数事实。先重建当前 `expression` / `sourcePath` / `evidence` / `scopeReachable`，再对上一份同 `evtId`+`key` 的 confirmation 跑 `validate-confirmation-reuse.js`。只有程序判定 `reused` 才可写 `confirmation.status=reused`。
 
 ## 硬禁止（展开见 skill-hard-stops.md）
 
