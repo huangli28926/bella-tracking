@@ -16,3 +16,15 @@ test('reset clears path store without replacing object', () => {
   resetApiRuntimeStore(store)
   assert.equal(store.responses.length, 0)
 })
+
+test('path reopen resets store; acceptOne does not', () => {
+  const store = createApiRuntimeStore()
+  store.responses.push({ t: 5, url: 'seed' })
+  resetApiRuntimeStore(store)
+  store.responses.push({ t: 20, url: 'sharedSteps' })
+  store.responses.push({ t: 40, url: 'targetA' })
+  assert.equal(store.responses.length, 2)
+  assert.equal(store.responses[0].url, 'sharedSteps')
+  resetApiRuntimeStore(store)
+  assert.equal(store.responses.length, 0)
+})

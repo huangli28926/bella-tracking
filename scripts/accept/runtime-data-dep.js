@@ -112,10 +112,10 @@ function resolveUrlDataDep(dep, ctx) {
   return scalarOrUnsupported(dep, found.value, source)
 }
 
-function inTargetWindow(item, ctx) {
+function inApiRuntimeWindow(item, ctx) {
   const t = Number(item && item.t) || 0
-  const start = Number(ctx && ctx.targetRuntimeStart)
-  const end = Number(ctx && ctx.targetRuntimeEnd)
+  const start = Number(ctx && ctx.apiRuntimeStart)
+  const end = Number(ctx && ctx.apiRuntimeEnd)
   if (!Number.isFinite(start) || !Number.isFinite(end)) {
     return false
   }
@@ -131,7 +131,7 @@ function resolveApiDataDep(dep, ctx) {
     : []
 
   const urlMatched = responses.filter(item => {
-    return inTargetWindow(item, ctx)
+    return inApiRuntimeWindow(item, ctx)
       && item
       && typeof item.url === 'string'
       && item.url.includes(urlIncludes)

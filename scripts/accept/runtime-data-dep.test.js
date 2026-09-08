@@ -140,8 +140,8 @@ test('case 7 unsupported runtime kind', async () => {
 
 test('case 8 API single candidate', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 10,
-    targetRuntimeEnd: 30,
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
     api: {
       responses: [{
         t: 20,
@@ -158,8 +158,8 @@ test('case 8 API single candidate', async () => {
 
 test('case 9 API no response', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 10,
-    targetRuntimeEnd: 30,
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
     api: { responses: [] }
   })
   assert.equal(result.code, 'RUNTIME_API_NOT_CAPTURED')
@@ -167,8 +167,8 @@ test('case 9 API no response', async () => {
 
 test('API outside window is not captured', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 50,
-    targetRuntimeEnd: 60,
+    apiRuntimeStart: 50,
+    apiRuntimeEnd: 60,
     api: {
       responses: [{
         t: 20,
@@ -184,8 +184,8 @@ test('API outside window is not captured', async () => {
 
 test('case 10 API field missing', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 10,
-    targetRuntimeEnd: 30,
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
     api: {
       responses: [{
         t: 20,
@@ -201,8 +201,8 @@ test('case 10 API field missing', async () => {
 
 test('case 11 API multiple same values uses latest', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 10,
-    targetRuntimeEnd: 40,
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 40,
     api: {
       responses: [
         {
@@ -229,8 +229,8 @@ test('case 11 API multiple same values uses latest', async () => {
 
 test('case 12 API ambiguous values', async () => {
   const result = await resolveDataDep(apiDep(), {
-    targetRuntimeStart: 10,
-    targetRuntimeEnd: 40,
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 40,
     api: {
       responses: [
         {
@@ -304,4 +304,73 @@ test('resolveDataDeps runs all deps', async () => {
   assert.equal(results.length, 2)
   assert.equal(results[0].value, '9')
   assert.equal(results[1].value, 2)
+})
+
+function apiResponse(t, price) {
+  return {
+    t: t,
+    url: 'https://x.test/api/detail',
+    status: 200,
+    bodyParsed: true,
+    body: { data: { price: price } }
+  }
+}
+
+test('API window includes sharedSteps response before trigger', async () => {
+  const result = await resolveDataDep(apiDep(), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 50,
+    targetRuntimeStart: 40,
+    api: { responses: [apiResponse(20, 88)] }
+  })
+  assert.equal(result.status, 'resolved')
+  assert.equal(result.value, 88)
+})
+
+test('API response before apiRuntimeStart is excluded', async () => {
+  const result = await resolveDataDep(apiDep(), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 50,
+    api: { responses: [apiResponse(5, 88)] }
+  })
+  assert.equal(result.code, 'RUNTIME_API_NOT_CAPTURED')
+})
+
+test('API response after apiRuntimeEnd is excluded', async () => {
+  const result = await resolveDataDep(apiDep(), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 50,
+    api: { responses: [apiResponse(60, 88)] }
+  })
+  assert.equal(result.code, 'RUNTIME_API_NOT_CAPTURED')
+})
+
+test('API resolver ignores late targetRuntimeStart', async () => {
+  const result = await resolveDataDep(apiDep(), {
+    targetRuntimeStart: 40,
+    targetRuntimeEnd: 50,
+    api: { responses: [apiResponse(20, 88)] }
+  })
+  assert.equal(result.code, 'RUNTIME_API_NOT_CAPTURED')
+})
+
+test('multiple targets share path store including sharedSteps API', async () => {
+  const api = {
+    responses: [apiResponse(20, 88)]
+  }
+  const first = await resolveDataDep(apiDep(), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
+    api: api
+  })
+  api.responses.push(apiResponse(45, 88))
+  const second = await resolveDataDep(apiDep(), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 50,
+    api: api
+  })
+  assert.equal(first.status, 'resolved')
+  assert.equal(first.value, 88)
+  assert.equal(second.status, 'resolved')
+  assert.equal(second.value, 88)
 })

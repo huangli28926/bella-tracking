@@ -132,3 +132,36 @@ test('integration: DataDep → Expected → Actual → Compare', async () => {
   const outcome = eventOutcomeFromDataDeps(mismatch, [])
   assert.equal(outcome.status, 'fail')
 })
+
+test('integration: sharedSteps API before late trigger still PASS', async () => {
+  const deps = [{
+    paramKey: 'price',
+    from: 'api',
+    status: 'resolved',
+    unresolved: [],
+    api: {
+      urlIncludes: '/api/detail',
+      field: 'data.price'
+    }
+  }]
+  const dataDepResults = await resolveDataDeps(deps, {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 50,
+    targetRuntimeStart: 40,
+    api: {
+      responses: [{
+        t: 20,
+        url: 'https://x.test/api/detail',
+        status: 200,
+        bodyParsed: true,
+        body: { data: { price: 88 } }
+      }]
+    }
+  })
+  assert.equal(dataDepResults[0].status, 'resolved')
+  assert.equal(dataDepResults[0].value, 88)
+  const diffs = compareDataDepResults(dataDepResults, { price: 88 })
+  assert.equal(diffs[0].status, 'PASS')
+  const outcome = eventOutcomeFromDataDeps(diffs, [])
+  assert.equal(outcome.status, 'pass')
+})

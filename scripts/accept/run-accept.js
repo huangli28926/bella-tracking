@@ -543,10 +543,13 @@ async function gotoSeed(page, context, opts, probeUrl) {
 async function openPath(page, context, pathItem, opts, probeUrl, apiStore) {
   resetApiRuntimeStore(apiStore)
   await gotoSeed(page, context, opts, probeUrl)
+  const apiRuntimeStart = Date.now()
   for (let s = 0; s < (pathItem.sharedSteps || []).length; s += 1) {
     await runStep(page, pathItem.sharedSteps[s])
   }
-  return {}
+  return {
+    apiRuntimeStart
+  }
 }
 
 function toResultRow(pathItem, target, outcome) {
@@ -778,11 +781,11 @@ function pickFired(logs, since, evtId) {
   return logs.filter(item => item.t >= since && String(item.evtId) === String(evtId)).pop() || null
 }
 
-async function acceptDataDepOutcome(target, apiStore, targetRuntimeStart, snapshot, action) {
-  const targetRuntimeEnd = Date.now()
+async function acceptDataDepOutcome(target, apiStore, apiRuntimeStart, snapshot, action) {
+  const apiRuntimeEnd = Date.now()
   const dataDepResults = await resolveDataDeps(target.dataDeps || [], {
-    targetRuntimeStart: targetRuntimeStart,
-    targetRuntimeEnd: targetRuntimeEnd,
+    apiRuntimeStart: apiRuntimeStart,
+    apiRuntimeEnd: apiRuntimeEnd,
     urlSnapshot: snapshot && snapshot.urlSnapshot,
     windowSnapshot: snapshot && snapshot.windowSnapshot,
     api: apiStore
@@ -803,7 +806,6 @@ async function acceptOne(page, pathItem, target, runtime, openedAt, shotOpts) {
   let pageScreenshot = ''
   let pageUrl = await currentPageUrl(page)
   const wantShot = shotOpts && shotOpts.absPath
-  const targetRuntimeStart = Date.now()
   const snapshot = await captureRuntimeExpectedSnapshot(page, target.dataDeps || []).catch(function () {
     return { urlSnapshot: { href: '', query: {} }, windowSnapshot: null }
   })
@@ -946,7 +948,7 @@ async function acceptOne(page, pathItem, target, runtime, openedAt, shotOpts) {
   const compared = await acceptDataDepOutcome(
     target,
     runtime && runtime.apiStore,
-    targetRuntimeStart,
+    runtime && runtime.apiRuntimeStart,
     snapshot,
     fired.action
   )
@@ -1064,7 +1066,10 @@ async function runBrowser(chain, opts) {
         const urlBefore = await currentPageUrl(page)
         let outcome
         try {
-          outcome = await acceptOne(page, pathItem, target, { apiStore: apiStore }, openedAt, {
+          outcome = await acceptOne(page, pathItem, target, {
+            apiStore: apiStore,
+            apiRuntimeStart: ctx && ctx.apiRuntimeStart
+          }, openedAt, {
             absPath: shotAbs,
             relPath: shotRel,
             pageAbsPath: pageAbs,
