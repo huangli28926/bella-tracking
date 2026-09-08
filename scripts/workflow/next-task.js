@@ -3,6 +3,8 @@ const { readDotEnv, readJson, toPosix } = require('../lib/lib')
 const { getConfirmReasons } = require('../confirm/needs-confirm')
 const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/accept-device')
 const {
+  ASK_EXCEL,
+  ASK_EXCEL_INVALID,
   ASK_HISTORY_EXCEL,
   D_FAIL_CHOICE,
   ENTRY_MENU,
@@ -14,6 +16,8 @@ const {
 
 const TASK_IDS = [
   'CHOOSE_ENTRY',
+  'ASK_EXCEL',
+  'ASK_EXCEL_INVALID',
   'ASK_HISTORY_EXCEL',
   'A_DUMP',
   'A_RENDER',
@@ -146,6 +150,16 @@ function fillContract(task, ctx) {
       prompt = ENTRY_MENU
       nextAction = 'choose_entry'
       break
+    case 'ASK_EXCEL':
+      command = null
+      prompt = ASK_EXCEL
+      nextAction = 'ask_excel'
+      break
+    case 'ASK_EXCEL_INVALID':
+      command = null
+      prompt = ASK_EXCEL_INVALID
+      nextAction = 'ask_excel'
+      break
     case 'ASK_HISTORY_EXCEL':
       command = null
       prompt = ASK_HISTORY_EXCEL
@@ -225,7 +239,7 @@ function resolveNextTask(paths, state, landing, validation, accept, queueInfo, e
   const validationOk = !!(validation && validation.ok)
   const analyzed = analysisComplete(landing)
   const aDone = stageADone(landing, validation, accept)
-  const bDone = acceptDone || (aDone && (queue.pendingCount || 0) === 0 && stageDone(state, 'B'))
+  const bDone = acceptDone || (aDone && landing.queueCleared && stageDone(state, 'B'))
   const pending = firstUnanalyzedEvent(paths)
   const subject = pending && pending.evtId ? { evtId: String(pending.evtId) } : {}
   const ctx = {
@@ -355,7 +369,22 @@ function resolveNextTask(paths, state, landing, validation, accept, queueInfo, e
       subject: { evtId: String(pendingConfirm.evtId || '') },
       inputs: [relPath(extra.repoRoot, paths.implPath) || 'impl.json'],
       outputs: ['impl.json', '_raw/field-memory.json'],
-      completionCondition: ['confirmed=true or deferred=true']
+      completionCondition: ['gate READY then confirmed=true, or deferred=true']
+    }), ctx)
+  }
+
+  const needsConfirmGate = ((landing && landing.implGates && landing.implGates.gates) || [])
+    .find(item => item.status === 'NEEDS_CONFIRM')
+  if (needsConfirmGate) {
+    return fillContract(taskBase({
+      id: 'B_CONFIRM_EVENT',
+      stage: 'B',
+      executor: 'user',
+      status: 'ready',
+      subject: { evtId: String(needsConfirmGate.evtId || '') },
+      inputs: [relPath(extra.repoRoot, paths.implPath) || 'impl.json'],
+      outputs: ['impl.json', '_raw/field-memory.json'],
+      completionCondition: ['gate READY then confirmed=true, or deferred=true']
     }), ctx)
   }
 

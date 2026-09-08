@@ -21,8 +21,8 @@ description: >-
 
 ## 主循环
 
-1. 从用户消息取 `--excel=`。未明确入口时不要自己选阶段。
-2. 先跑：`node scripts/workflow/tracking-workflow.js --excel=docs/{文档名}.xlsx --status --json`（用户已选则加 `--entry=1..8` 或 `--run=`）。
+1. 从用户消息取 `--excel=`。没有路径不要编造。未明确入口时不要自己选阶段。
+2. 先跑：`node scripts/workflow/tracking-workflow.js --status --json`（有文档再加 `--excel=docs/{文档名}.xlsx`；用户已选则加 `--entry=1..8` 或 `--run=`）。
 3. `prompt` 非空或 `nextAction` 为 `choose_*` / `confirm_*` / `ask_excel`：把 `prompt` **原样**发给用户后停。禁止从记忆或本文件补菜单。exit 10 = 未选入口。
 4. `executor=script`：只跑返回的 `nextTask.command`。
 5. `executor=agent`：只读 `nextTask.inputs` + 下表对应 reference，写 `outputs`。写入 `impl.json` 后立刻 `normalize-impl` + `validate-impl --json`。error / `status=blocked` 则停。
@@ -51,6 +51,7 @@ description: >-
 - `unresolved[]` 只允许：`请确认埋点位置`、`请确认参数 {key} 的取值`。
 - 未确认事实留空或进 `unresolved`，禁止「可能 / 大概 / 建议 / 推测」。
 - 数组按 `docIndex`；同一 `evtId` 一条。路径用仓库相对 POSIX。JSON 文件必须是纯 JSON。
+- 不得只因历史上 `confirmed` 就复用参数事实。先重建当前 `expression` / `sourcePath` / `evidence` / `scopeReachable`，再对上一份同 `evtId`+`key` 的 confirmation 跑 `validate-confirmation-reuse.js`。只有程序判定 `reused` 才可写 `confirmation.status=reused`。
 
 ## 硬禁止（展开见 skill-hard-stops.md）
 

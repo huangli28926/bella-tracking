@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
+const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { defaultAcceptPaths } = require('../accept/accept-chain')
 const { loadConfirmQueue } = require('../confirm/needs-confirm')
 const { ensureExcelInDocs, findRepoRoot, parseArgs, readJson, resolveExcel, toPosix, writeJson } = require('../lib/lib')
 const { fileOk, inspectLanding } = require('../lib/landing-ready')
-const { validateFiles } = require('../accept/validate-impl')
+const { summarizeImplGates, validateFiles } = require('../accept/validate-impl')
 const { scriptPath } = require('../lib/skill-paths')
 const { resolveTrackingMode } = require('../lib/period-diff')
 const {
@@ -237,7 +238,7 @@ function buildStatus(paths, args, repoRoot) {
   }
   const nextTask = resolveNextTask(paths, state, landing, validation, accept, queueInfo, extras)
   const stageAComplete = stageADone(landing, validation, accept)
-  const stageBComplete = !!(accept.ok || (stageAComplete && landing.pendingConfirm === 0 && stageDone(state, 'B')))
+  const stageBComplete = !!(accept.ok || (stageAComplete && landing.queueCleared && stageDone(state, 'B')))
   const stageCComplete = !!(accept.ok || (stageBComplete && stageDone(state, 'C')))
   const stageStatus = {
     A: {
@@ -261,12 +262,16 @@ function buildStatus(paths, args, repoRoot) {
       done: stageCComplete,
       gate: !stageAComplete
         ? 'blocked: need A then B'
-        : (landing.needB
-          ? 'blocked: need B'
-          : (!stageBComplete
-            ? 'blocked: need full-page confirmation'
-          : (validation.ok ? `impl valid; located=${confirmed.located}/${confirmed.total}; need 进入 C` : validation.message))
-          )
+        : (landing.needInvalid
+          ? `blocked: invalid impl facts (${(landing.implGates && landing.implGates.invalidCount) || 0})`
+          : (landing.needB
+            ? 'blocked: need B'
+            : (!stageBComplete
+              ? 'blocked: need full-page confirmation'
+            : (validation.ok && landing.implGates && landing.implGates.allReady
+              ? `impl READY; located=${confirmed.located}/${confirmed.total}; need 进入 C`
+              : validation.message))
+            ))
     },
     D: {
       name: stageName('D'),
@@ -353,6 +358,7 @@ function runStage(paths, args, repoRoot, state, id, execFn) {
     return runStageA(args, repoRoot, execFn)
   }
   if (id === 'D') {
+    runNode('accept/normalize-impl.js', [excelArg], repoRoot)
     runNode('accept/validate-impl.js', [excelArg], repoRoot)
     const chainArgs = [excelArg]
     if (args.device) chainArgs.push(`--device=${args.device}`)
@@ -395,6 +401,21 @@ function gateStage(paths, id) {
     payload.exitCode = 3
     return payload
   }
+  if (id === 'C') {
+    const implGates = landing.implGates || summarizeImplGates(readJson(paths.implPath, { events: [] }))
+    payload.implGates = implGates
+    if (implGates.invalidCount > 0) {
+      payload.message = 'Implementation blocked: invalid impl facts'
+      payload.exitCode = 1
+      return payload
+    }
+    if (implGates.needsConfirmCount > 0) {
+      payload.bootstrap = ['B']
+      payload.message = '落库仍有 NEEDS_CONFIRM：须先路径 B，禁止直接写业务源码'
+      payload.exitCode = 4
+      return payload
+    }
+  }
   if (id === 'B') {
     payload.message = landing.needB
       ? 'A 已就绪，待确认未清：跑 confirm-sweep.js --wait（禁止 --no-open），再整页 serve-impl'
@@ -409,6 +430,7 @@ function gateStage(paths, id) {
     return payload
   }
   payload.needFullPageConfirm = true
+  payload.readyForC = true
   payload.message = '落库与待确认队列已就绪：须 serve-impl 打开整份落库页，用户回复「进入 C」后再写业务源码'
   payload.exitCode = 0
   return payload
@@ -467,11 +489,10 @@ function emitChooseEntry(args) {
   process.exitCode = 10
 }
 
-function emitAskExcel(args, stage) {
-  const { ASK_HISTORY_EXCEL } = require('./prompts')
+function emitAskPrompt(args, spec) {
   const nextTask = {
-    id: 'ASK_HISTORY_EXCEL',
-    stage: stage || '7',
+    id: spec.id,
+    stage: spec.stage,
     executor: 'user',
     status: 'ready',
     subject: {},
@@ -480,7 +501,7 @@ function emitAskExcel(args, stage) {
     completionCondition: ['valid xlsx under docs/'],
     blockingReason: null,
     command: null,
-    prompt: ASK_HISTORY_EXCEL,
+    prompt: spec.prompt,
     nextAction: 'ask_excel'
   }
   if (args && args.json) {
@@ -490,14 +511,51 @@ function emitAskExcel(args, stage) {
       status: 'needs_user_input',
       next: nextTask.stage,
       nextAction: 'ask_excel',
-      prompt: ASK_HISTORY_EXCEL,
+      prompt: spec.prompt,
       command: null,
       nextTask
     }, null, 2))
   } else {
-    console.log(ASK_HISTORY_EXCEL)
+    console.log(spec.prompt)
   }
-  process.exitCode = 2
+  process.exitCode = spec.exitCode == null ? 2 : spec.exitCode
+}
+
+function emitAskExcel(args) {
+  const { ASK_EXCEL } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_EXCEL',
+    stage: 'excel',
+    prompt: ASK_EXCEL
+  })
+}
+
+function emitAskExcelInvalid(args) {
+  const { ASK_EXCEL_INVALID } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_EXCEL_INVALID',
+    stage: 'excel',
+    prompt: ASK_EXCEL_INVALID
+  })
+}
+
+function emitAskHistoryExcel(args, stage) {
+  const { ASK_HISTORY_EXCEL } = require('./prompts')
+  emitAskPrompt(args, {
+    id: 'ASK_HISTORY_EXCEL',
+    stage: stage || '7',
+    prompt: ASK_HISTORY_EXCEL
+  })
+}
+
+function isValidExcelFile(abs) {
+  if (!abs || !fs.existsSync(abs)) return false
+  try {
+    if (!fs.statSync(abs).isFile()) return false
+  } catch (error) {
+    return false
+  }
+  return /\.xlsx?$/i.test(abs)
 }
 
 function main() {
@@ -510,19 +568,24 @@ function main() {
   const parsedEntry = parseEntry(args.entry)
   const entryHint = parsedEntry ? parsedEntry.entry : entryFromRun(args.run)
   if (!args.excel) {
-    if (!hasEntryIntent(args, null)) {
-      emitChooseEntry(args)
-      return
-    }
     if (entryHint === 7 || entryHint === 8) {
-      emitAskExcel(args, String(entryHint))
+      emitAskHistoryExcel(args, String(entryHint))
       return
     }
+    emitAskExcel(args)
+    return
   }
-  if (args.excel) {
-    const moved = ensureExcelInDocs(repoRoot, resolveExcel(repoRoot, args.excel))
-    args.excel = toPosix(path.relative(repoRoot, moved)) || moved
+  const resolvedExcel = resolveExcel(repoRoot, args.excel)
+  if (!isValidExcelFile(resolvedExcel) && !isValidExcelFile(path.join(repoRoot, 'docs', path.basename(resolvedExcel)))) {
+    emitAskExcelInvalid(args)
+    return
   }
+  const moved = ensureExcelInDocs(repoRoot, resolvedExcel)
+  if (!isValidExcelFile(moved)) {
+    emitAskExcelInvalid(args)
+    return
+  }
+  args.excel = toPosix(path.relative(repoRoot, moved)) || moved
   const paths = defaultAcceptPaths(repoRoot, args)
   if (!paths.outDir) {
     printHelp()

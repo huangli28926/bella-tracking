@@ -15,6 +15,7 @@
 6. 定 `targetFile` / `functionName` / `lifecycle`（click→onClick；view→useEffect 或 IntersectionObserver）。
 7. `styleId`：`fileStyle[targetFile]` > 同目录最常见 > `defaultStyleId` > `sdk-send`。用对应 snippet 填 `code`。
 8. 参数解析顺序：已有 `expression`（及 `valueKind`）→ `_raw/field-memory.json`（或同文档已确认事件）同 key 上次确认值 → `hint.api` → hint 图/note + 示意图 → 仓级惯例 → 同文件已有埋点 → 按「用途说明」追变量。抄不到：`expression` 留空，`confidence: low`，`unresolved` 只写 `请确认参数 {key} 的取值`。记忆回填后 `confidence` 为 `medium`，**仍须人工确认**；禁止用记忆覆盖 `high` 且非空的表达式；代码里已有调用优先于记忆。不回填 `targetFile` / `uicode`。用户在落库页可填 **JS 表达式** 或 **备注**（`valueKind: prompt`，自然语言说明取值，给路径 C 当提示词）；备注非空也算已给出取值，不要因为不像 JS 再列入 unresolved。
+8b. **每次**根据当前源码重建参数事实（禁止因上一轮 `confirmed` / `confirmation.status` 跳过定位与 sourcePath）。若上一份 impl 同 `evtId`+`key` 已有 `confirmation.status=confirmed|reused`：用 `validate-confirmation-reuse.js` 的 `applyConfirmationReuse(previous, current)` 写入 `reused` 或 `stale`。不得手写 `reused`。`stale` 只表示旧确认失效，**不等于** `needsConfirm=true`；当前事实仍走 P1-2 / P1-3。`field-memory` 不是 confirmation reuse。
 9. 按 evtId 合并写回 `_raw/{文档名}.impl.json`。**不要覆盖 hint / confirmed。**
 10. 写回后立刻重渲 HTML（`render-html` / `lockImplFile` 会把记忆回填进未确认条）。若该条 `needsConfirm` 且尚未 `confirmed`：跑 `confirm-event.js --excel=... --evt={evtId} --if-needed --wait`。**本轮第一次**必须打开浏览器；服务已在跑则不再新开 tab。禁止整轮 `--no-open`。用户在页面改完、勾选「已确认」并保存后脚本退出 0，再分析下一条。全部参数 `high` 且落点明确的条不打断（`medium` / `low` 须人工确认）。
 

@@ -4,6 +4,9 @@ const fs = require('fs')
 const path = require('path')
 const { findRepoRoot, parseArgs, readJson, toPosix } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
+const { PARAMETER_EVIDENCE_TYPES } = require('./calculate-confidence')
+const { eventParameterGate, validateParameter } = require('./validate-parameter')
+const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
 const SCRIPT_DIR = __dirname
 const STATUS = ['pending', 'existing', 'located', 'unresolved']
@@ -13,6 +16,9 @@ const TRIGGER_KIND = ['click', 'scrollIntoView', 'waitVisible', 'pageLoad']
 const STEP_ACTION = ['click', 'scrollIntoView', 'waitVisible', 'waitApi', 'waitUrl', 'pageLoad']
 const DEP_FROM = ['api', 'url', 'user', 'page']
 const LIFECYCLE = ['onClick', 'useEffect', 'IntersectionObserver', 'pageLoad', '']
+const PATH_STATUS = ['resolved', 'needsConfirm']
+const PATH_SELECTED_BY = ['current-change', 'historical-human-decision', 'unique-candidate', 'deterministic-tie-break', 'human', '']
+const PATH_SOURCE = ['deterministic-rule', 'human', '']
 
 function printHelp() {
   console.log(`
@@ -178,10 +184,67 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
       if (CONFIDENCE.indexOf(param.confidence || '') === -1) {
         add(issues, 'warn', evtId, `${field}.confidence`, `unexpected confidence: ${param.confidence}`)
       }
+      const gate = validateParameter(param, event)
+      gate.issues.forEach(item => {
+        if (item.level !== 'error') return
+        const gateField = item.field ? `${field}.${item.field}` : field
+        add(issues, 'error', evtId, gateField, item.code === 'PARAM_CONFIDENCE_INCONSISTENT'
+          ? item.message
+          : `${item.code}: ${item.message}`)
+      })
+      if (Object.prototype.hasOwnProperty.call(param, 'evidence')) {
+        if (!Array.isArray(param.evidence)) {
+          add(issues, 'error', evtId, `${field}.evidence`, 'evidence must be an array')
+        } else {
+          param.evidence.forEach((item, eIdx) => {
+            const eField = `${field}.evidence[${eIdx}]`
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              add(issues, 'error', evtId, eField, 'evidence item must be object')
+              return
+            }
+            if (PARAMETER_EVIDENCE_TYPES.indexOf(item.type) === -1) {
+              add(issues, 'error', evtId, `${eField}.type`, `invalid evidence type: ${item.type || '(empty)'}`)
+            }
+          })
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(param, 'scopeReachable')) {
+        const reach = param.scopeReachable
+        if (reach !== true && reach !== false && reach !== null) {
+          add(issues, 'error', evtId, `${field}.scopeReachable`, 'scopeReachable must be true, false, or null')
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(param, 'conflicts')) {
+        if (!Array.isArray(param.conflicts)) {
+          add(issues, 'error', evtId, `${field}.conflicts`, 'conflicts must be an array')
+        } else if (param.conflicts.some(item => typeof item !== 'string')) {
+          add(issues, 'error', evtId, `${field}.conflicts`, 'conflicts items must be strings')
+        }
+      }
+      validateConfirmationRecord(param, event).forEach(item => {
+        const confField = item.field ? `${field}.${item.field}` : field
+        add(issues, 'error', evtId, confField, `${item.code}: ${item.message}`)
+      })
     })
     if (event.accept && typeof event.accept === 'object') {
       validateTrigger(issues, evtId, event.accept.trigger)
       validateDataDeps(issues, evtId, event.accept.dataDeps || [])
+      const pathRes = event.accept.pathResolution
+      if (pathRes && typeof pathRes === 'object') {
+        if (pathRes.status && PATH_STATUS.indexOf(pathRes.status) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.status', `invalid status: ${pathRes.status}`)
+        }
+        if (pathRes.selectedBy && PATH_SELECTED_BY.indexOf(pathRes.selectedBy) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.selectedBy', `invalid selectedBy: ${pathRes.selectedBy}`)
+        }
+        const src = pathRes.decision && pathRes.decision.source
+        if (src && PATH_SOURCE.indexOf(src) === -1) {
+          add(issues, 'error', evtId, 'accept.pathResolution.decision.source', `invalid source: ${src}`)
+        }
+        if (pathRes.status === 'resolved' && !pathRes.selectedPathId) {
+          add(issues, 'error', evtId, 'accept.pathResolution.selectedPathId', 'resolved path requires selectedPathId')
+        }
+      }
     }
   })
 
@@ -191,18 +254,42 @@ function validateImpl(implPayload, eventsPayload, adaptor) {
   return issues
 }
 
+function collectImplGates(implPayload) {
+  return ((implPayload && implPayload.events) || []).map(event => {
+    const gate = eventParameterGate(event)
+    return {
+      evtId: event && event.evtId ? String(event.evtId) : '',
+      status: gate.status,
+      needsConfirm: gate.needsConfirm
+    }
+  })
+}
+
+function summarizeImplGates(implPayload) {
+  const gates = collectImplGates(implPayload)
+  const invalid = gates.filter(item => item.status === 'INVALID')
+  const needsConfirm = gates.filter(item => item.status === 'NEEDS_CONFIRM')
+  return {
+    gates,
+    invalidCount: invalid.length,
+    needsConfirmCount: needsConfirm.length,
+    allReady: gates.length > 0 && invalid.length === 0 && needsConfirm.length === 0
+  }
+}
+
 function validateFiles(paths, args, repoRoot) {
   const implPath = resolveMaybe(repoRoot, args.impl, paths.implPath)
   const eventsPath = resolveMaybe(repoRoot, args.events, paths.eventsPath)
   const adaptorPath = resolveMaybe(repoRoot, args.adaptor, paths.adaptorPath)
   if (!implPath || !fs.existsSync(implPath)) throw new Error(`impl.json 不存在: ${implPath || '(missing --impl / --excel)'}`)
   if (!eventsPath || !fs.existsSync(eventsPath)) throw new Error(`events.json 不存在: ${eventsPath || '(missing --events / --excel)'}`)
+  const implPayload = readJson(implPath, { events: [] })
   const issues = validateImpl(
-    readJson(implPath, { events: [] }),
+    implPayload,
     readJson(eventsPath, { events: [] }),
     readJson(adaptorPath, null)
   )
-  return { implPath, eventsPath, adaptorPath, issues }
+  return { implPath, eventsPath, adaptorPath, issues, gates: collectImplGates(implPayload) }
 }
 
 function assertValidImpl(paths, args, repoRoot) {
@@ -227,7 +314,13 @@ function main() {
   const errors = result.issues.filter(item => item.severity === 'error').length
   const warnings = result.issues.filter(item => item.severity === 'warn').length
   if (args.json) {
-    console.log(JSON.stringify({ ok: !errors && !(args.strict && warnings), errors, warnings, issues: result.issues }, null, 2))
+    console.log(JSON.stringify({
+      ok: !errors && !(args.strict && warnings),
+      errors,
+      warnings,
+      issues: result.issues,
+      gates: result.gates || []
+    }, null, 2))
   } else {
     console.log('== validate-impl ==')
     console.log(`Impl: ${result.implPath}`)
@@ -249,4 +342,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { assertValidImpl, validateFiles, validateImpl }
+module.exports = {
+  assertValidImpl,
+  validateFiles,
+  validateImpl,
+  collectImplGates,
+  summarizeImplGates,
+  PARAMETER_EVIDENCE_TYPES
+}

@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
+const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
 
-function paramNeedsConfirm(item) {
-  const expr = String((item && item.expression) || '').trim()
-  const confidence = String((item && item.confidence) || '').trim()
-  return !expr || confidence === 'low' || confidence === 'medium'
+function paramNeedsConfirm(item, event) {
+  return validateParameter(item, event).status === 'NEEDS_CONFIRM'
 }
 
 function eventNeedsConfirm(event) {
   if (!event || typeof event !== 'object') {
+    return true
+  }
+  const paramGate = eventParameterGate(event)
+  if (paramGate.status === 'INVALID') {
+    return false
+  }
+  if (paramGate.status === 'NEEDS_CONFIRM') {
     return true
   }
   const status = event.status || 'pending'
@@ -19,14 +25,17 @@ function eventNeedsConfirm(event) {
   if (Array.isArray(event.unresolved) && event.unresolved.length) {
     return true
   }
+  const pathRes = event.accept && event.accept.pathResolution
+  if (pathRes && pathRes.status === 'needsConfirm') {
+    return true
+  }
   if (!String(event.targetFile || '').trim()) {
     return true
   }
   if (String(event.uicodeConflict || '').trim()) {
     return true
   }
-  const params = Array.isArray(event.parameters) ? event.parameters : []
-  return params.some(paramNeedsConfirm)
+  return false
 }
 
 function locationNeedsConfirm(event) {
@@ -46,7 +55,7 @@ function paramKeysNeedingConfirm(event) {
   params.forEach(item => {
     const key = String((item && item.key) || '').trim()
     if (!key) return
-    if (paramNeedsConfirm(item)) {
+    if (paramNeedsConfirm(item, event)) {
       keys.push(key)
     }
   })
@@ -67,6 +76,10 @@ function getConfirmReasons(event) {
   })
   if (String(event.uicodeConflict || '').trim()) {
     reasons.push('请确认 uicode（文档与落点不一致）')
+  }
+  const pathRes = event.accept && event.accept.pathResolution
+  if (pathRes && pathRes.status === 'needsConfirm') {
+    reasons.push('请确认验收入口路径')
   }
   return reasons
 }

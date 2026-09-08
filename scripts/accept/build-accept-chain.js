@@ -24,6 +24,7 @@ Usage:
 
 说明:
   pageKey / trigger / sharedSteps / navigatesAway 由模型根据代码写入 impl.json.accept。
+  候选路径由模型发现；最终 Accept Path 由 resolve-accept-path 确定性收敛。
   本脚本只聚类与校验，不按业务硬编码猜 locator 或入口步骤。
 
 Options:

@@ -9,6 +9,8 @@
 - 改写文档 `uicode`：只从 Excel → `events.json` 读取；禁止写入 `impl.json`、禁止落库页编辑、禁止用现网旧值覆盖。不一致只填 `uicodeConflict`
 - 不确定时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`
 - 打断确认时向用户输出与「埋点位置 / 参数取值 / uicode」无关的说明
+- 未给埋点文档路径时不打印 `prompts.ASK_EXCEL`（请输入本次埋点需求Excel）就开跑或编造路径
+- 埋点文档路径无效时不打印 `prompts.ASK_EXCEL_INVALID` 就继续 dump / 选入口 / 写码
 - 未明确入口时不列完整选项（8 项：全流程 / A→B→C / 只 A / D / E / F / 缺失列表 / 补全历史缺失）就自行开跑，或替用户选择默认跑 A
 - 选 7 或 8 且无可用埋点 Excel、也无 `{文档名}-缺失埋点.json` 时不打印 `prompts.ASK_HISTORY_EXCEL` 就开跑 dump/扫描/对账/写码
 - 未走入口 8 / 路径 H、未确认「进入 C」，仅凭缺失 HTML/JSON 改业务源码
@@ -23,6 +25,7 @@
 - 真实验收（非 plan-only）未得到用户设备选择就启动 Playwright，或自行默认 iPhone 13
 - 因 fail / skip 就不生成终稿（终稿是结果快照，不是全绿奖状）
 - 路径 C / 改业务源码时删除旧埋点（已有 `$ULOG.send` / 封装调用 / DOM 埋点，含本期文档未列出的 evtId）。只允许新增本期调用，或在同一 evtId 原处改参。若 diff 出现净删除：必须停下来列出 evtId/文件并让用户确认；未回复不得继续写码、不进 D。用户选保留则撤回删除。
+- 不得因为一个事实历史上经过人工确认，就直接继续使用。只有当前源码能够重新证明其参数身份、数据源、数据流可达性、目标边界以及转换语义仍符合既定复用范围时，才允许将历史确认状态转换为 `reused`。禁止用 `field-memory` 同 key 回填代替 confirmation reuse。
 
 ### 源码根（`.env` `sourceRoot`）
 
@@ -43,12 +46,12 @@
 4. 查找范围始终是全部 `adaptor.sourceRoots`（全局 Grep），不是只扫本期 diff。
 5. 多处命中时：`targetFile` **优先**取 diff 内文件；`pageKey` / 前置步骤 / 种子入口只描述从本期代码能走到该控件的路径。旧页同 evtId 只作对照，不写入主 `accept`。允许落在 diff 外文件（全局查找结果仍有效）。
 6. 基线 ref 不存在时停下来问用户，禁止默默改用别的分支。
-7. **旧页新埋点锁验收路径**：路径 C 写 `accept.preconditions` 前跑 `resolve-entry-path.js`（倒推仓内 `history.push` / `Link` 入边，再和基线 diff 比跳转行是否本期新增）。
-   - 有本期新增跳转 → 主 `accept` 只走这条新边（`lockMode=new_jump`）。
-   - 入边都是历史跳转 → 从 `seedUrl` 走已有最短路径进旧页再触发本期控件（`existing_shortest`），**禁止编新入口、禁止把全部历史入边都跑一遍**。
+7. **旧页新埋点锁验收路径**：路径 C 写 `accept.preconditions` 前跑 `resolve-entry-path.js`（从种子页沿仓内 `history.push` / `Link` 走到落点页，再和基线 diff 比跳转行是否本期新增）。最终路径由 `resolve-accept-path` 确定性收敛，禁止 Agent 凭「更常见 / 更好跑」挑选。
+   - 有本期新增跳转 → 主 `accept` 只走含这条新边的完整页路径（`lockMode=new_jump`）；多条同级新增路径按固定排序，仍无法区分则 `needs_confirm`。
+   - 都是历史跳转且只有一条从种子可走的完整路径 → `existing_shortest`。多条历史路径且无有效 `pathResolution` → `needs_confirm`，用户选一次后写入 `impl.json`。
    - seed 已在落点页 → `preconditions: []`（`seed_is_page`）。
-   - 仓内无入边 → 以 seed 直达为准（外链/原生扫不到，`no_inbound`）。
-   脚本只输出入边与 `lockMode`，**不写 locator**；具体 click 文案 / testid 仍由模型按代码填写。
+   - 仓内无从种子走到落点的路径 → 以 seed 直达为准（外链/原生扫不到，`no_inbound`）。
+   脚本输出完整 `lockEdges` 与 `lockMode`，**不写 locator**；具体 click 文案 / testid 仍由模型按代码填写。`run-accept` 失败不得改选 Candidate。
 
 Playwright / `run-accept` 不读 `trackingBaseline`；D 仍只跑 `impl.accept` 已锁定的那条链。
 

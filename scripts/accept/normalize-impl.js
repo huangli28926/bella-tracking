@@ -4,6 +4,8 @@ const fs = require('fs')
 const path = require('path')
 const { findRepoRoot, parseArgs, readJson } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
+const { calculateParameterConfidence, isLegacyParameter } = require('./calculate-confidence')
+const { applyConfirmationReuseToEvent } = require('./validate-confirmation-reuse')
 
 const SCRIPT_DIR = __dirname
 const STATUS = new Set(['pending', 'existing', 'located', 'unresolved'])
@@ -31,9 +33,9 @@ function normalizeLifecycle(value) {
   return LIFECYCLE_ALIAS.has(key) ? LIFECYCLE_ALIAS.get(key) : raw
 }
 
-function normalizeUnresolved(event) {
+function phrasesFromUnresolved(list) {
   const out = []
-  ;(event.unresolved || []).forEach(item => {
+  ;(list || []).forEach(item => {
     if (item && typeof item === 'object') {
       const code = str(item.reasonCode || item.code)
       const field = str(item.field || (Array.isArray(item.fields) ? item.fields[0] : ''))
@@ -49,6 +51,11 @@ function normalizeUnresolved(event) {
       if (m) out.push(`请确认参数 ${m[1]} 的取值`)
     }
   })
+  return out
+}
+
+function normalizeUnresolved(event) {
+  const out = phrasesFromUnresolved(event.unresolved)
   if (!event.targetFile && ['pending', 'unresolved'].includes(event.status)) out.push('请确认埋点位置')
   ;(event.parameters || []).forEach(p => {
     if (!str(p.expression) || ['low', 'medium'].includes(str(p.confidence))) {
@@ -71,11 +78,28 @@ function normalizeImpl(payload) {
     if ('lifecycle' in event) event.lifecycle = normalizeLifecycle(event.lifecycle)
     event.parameters = Array.isArray(event.parameters) ? event.parameters : []
     event.parameters.forEach(p => {
+      const legacy = isLegacyParameter(p)
       p.key = str(p.key)
       if ('expression' in p) p.expression = str(p.expression)
       if ('sourcePath' in p) p.sourcePath = str(p.sourcePath)
       p.confidence = CONFIDENCE.has(str(p.confidence)) ? str(p.confidence) : ''
       if ('valueKind' in p) p.valueKind = ['expression', 'prompt', ''].includes(str(p.valueKind)) ? str(p.valueKind) : ''
+      if (!Object.prototype.hasOwnProperty.call(p, 'evidence')) p.evidence = []
+      if (!Object.prototype.hasOwnProperty.call(p, 'scopeReachable')) p.scopeReachable = null
+      if (!Object.prototype.hasOwnProperty.call(p, 'conflicts')) p.conflicts = []
+      if (legacy) {
+        p.legacyUnverified = true
+      } else {
+        delete p.legacyUnverified
+      }
+    })
+    event.unresolved = phrasesFromUnresolved(event.unresolved)
+    const withReuse = applyConfirmationReuseToEvent(event)
+    event.parameters = withReuse.parameters
+    event.parameters.forEach(p => {
+      if (!p.legacyUnverified) {
+        p.confidence = calculateParameterConfidence(p, event)
+      }
     })
     event.unresolved = normalizeUnresolved(event)
     if (event.accept && event.accept.trigger) {

@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "evtId": "1001",
+      "status": "located",
+      "targetFile": "src/pages/house.js",
+      "unresolved": [],
+      "parameters": [
+        {
+          "key": "house_id",
+          "expression": "houseInfo.id",
+          "sourcePath": "api.house.id -> props.houseInfo -> handleClick",
+          "evidence": [{ "type": "same-component-tracking" }],
+          "scopeReachable": false,
+          "confidence": "low",
+          "unresolved": [],
+          "conflicts": []
+        }
+      ]
+    }
+  ]
+}

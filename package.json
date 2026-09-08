@@ -2,6 +2,9 @@
   "name": "bella-tracking",
   "private": true,
   "description": "埋点落库 + 关键路径验收脚本（Playwright 按需安装）",
+  "scripts": {
+    "test": "node --test scripts"
+  },
   "devDependencies": {
     "playwright": "^1.62.1"
   }

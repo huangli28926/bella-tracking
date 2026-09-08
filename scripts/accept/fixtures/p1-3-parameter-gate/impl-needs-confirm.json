@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "evtId": "1001",
+      "status": "located",
+      "targetFile": "src/pages/house.js",
+      "unresolved": ["请确认参数 house_id 的取值"],
+      "parameters": [
+        {
+          "key": "house_id",
+          "expression": "houseInfo.id",
+          "sourcePath": "api.house.id -> props.houseInfo -> handleClick",
+          "evidence": [{ "type": "field-memory" }],
+          "scopeReachable": true,
+          "confidence": "medium",
+          "unresolved": [],
+          "conflicts": []
+        }
+      ]
+    }
+  ]
+}

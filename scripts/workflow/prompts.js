@@ -8,6 +8,8 @@ const ENTRY_MENU = `请选择本次入口（回复字母或序号）：
 7. 文档 vs 代码：缺失埋点列表
 8. 补全历史缺失埋点（依赖入口 7 的缺失表；只写 missing，不改 found）`
 
+const ASK_EXCEL = '请输入本次埋点需求Excel'
+const ASK_EXCEL_INVALID = '当前埋点文档路径无效，请核实后，重新输入'
 const ASK_HISTORY_EXCEL = '需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel'
 
 const DEVICE_PROMPT = `请选择 Playwright 打开方式（回复 1 或 2）：
@@ -99,6 +101,8 @@ function formatDeleteOldTracking(evtIds) {
 const DELETE_OLD_TRACKING = formatDeleteOldTracking('{evtId 列表}')
 
 module.exports = {
+  ASK_EXCEL,
+  ASK_EXCEL_INVALID,
   ASK_HISTORY_EXCEL,
   CONFIRM_PROMPT_TAIL,
   DELETE_OLD_TRACKING,

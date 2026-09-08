@@ -77,6 +77,8 @@
       "properties": {
         "pathId": { "type": "string" },
         "pageKey": { "type": "string" },
+        "pathDecisionSource": { "type": "string" },
+        "selectedPathId": { "type": "string" },
         "entry": {
           "type": "object",
           "required": ["url"],

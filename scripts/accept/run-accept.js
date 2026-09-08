@@ -23,6 +23,7 @@ const {
 } = require('./accept-chain')
 const { buildAcceptReport, collectEmptyParams, enrichReportMedia, renderAcceptReport } = require('./accept-report')
 const { lockChainExpect, lockImplPayload } = require('../lib/lock-doc-uicode')
+const { runtimeKeepLockedPath } = require('./resolve-accept-path')
 const {
   defaultStoragePath,
   ensureLoggedIn,
@@ -537,10 +538,11 @@ async function openPath(page, context, pathItem, opts, probeUrl) {
 }
 
 function toResultRow(pathItem, target, outcome) {
+  const locked = runtimeKeepLockedPath(pathItem.pathId, outcome && outcome.status === 'fail' ? outcome : null)
   return {
     evtId: target.evtId,
     eventName: target.eventName || '',
-    pathId: pathItem.pathId,
+    pathId: locked.pathId,
     status: outcome.status,
     reason: outcome.reason,
     skipReason: outcome.skipReason || '',
