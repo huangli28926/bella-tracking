@@ -73,13 +73,14 @@ function requiresStoredSourceRoot(parameter) {
   return sourcePathNodes(parameter).length > 0
 }
 
-function keepPromptConfirmation(parameter, confirmation) {
+function keepHumanConfirmation(parameter, confirmation) {
   const status = str(confirmation && confirmation.status) || confirmationStatus(parameter)
   if (status !== 'confirmed' && status !== 'reused') return false
   if (normalizeValueKind(parameter) === 'prompt') return true
   if (!requiresStoredSourceRoot(parameter) && !str(confirmation && confirmation.evidence && confirmation.evidence.sourceRoot)) {
     return true
   }
+  if (parameter.scopeReachable !== true) return true
   return false
 }
 
@@ -231,7 +232,7 @@ function validateConfirmationReuse(previousFact, currentFact) {
     }
   }
 
-  if (keepPromptConfirmation(prevParam, prevConf)) {
+  if (keepHumanConfirmation(prevParam, prevConf)) {
     return {
       status: str(prevConf && prevConf.status) || 'confirmed',
       valid: true,

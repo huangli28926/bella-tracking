@@ -70,7 +70,8 @@ test('confirm prompt without sourcePath stays confirmed', () => {
     functionName: 'handleClick',
     lifecycle: 'onClick',
     componentBoundary: 'LocalCard',
-    unresolved: ['请确认参数 shop_leader_ucid 的取值'],
+    status: 'unresolved',
+    unresolved: ['请确认埋点位置', '请确认参数 shop_leader_ucid 的取值'],
     parameters: [{
       key: 'shop_leader_ucid',
       expression: 'brokerList.length > 0，则 shop_leader_ucid=window.__user.id;反之为空',
@@ -90,6 +91,7 @@ test('confirm prompt without sourcePath stays confirmed', () => {
   const confirmation = result.event.parameters[0].confirmation
   assert.equal(confirmation.status, 'confirmed')
   assert.equal(confirmation.evidence.sourceRoot, '')
+  assert.equal(result.event.status, 'located')
   assert.deepEqual(result.event.unresolved, [])
 })
 

@@ -55,10 +55,28 @@ function phrasesFromUnresolved(list) {
   return out
 }
 
+function paramConfirmed(parameter) {
+  const status = str(parameter && parameter.confirmation && parameter.confirmation.status)
+  return status === 'confirmed' || status === 'reused'
+}
+
 function normalizeUnresolved(event) {
-  const out = phrasesFromUnresolved(event.unresolved)
-  if (!event.targetFile && ['pending', 'unresolved'].includes(event.status)) out.push('请确认埋点位置')
+  let out = phrasesFromUnresolved(event.unresolved)
+  if (str(event.targetFile)) {
+    out = out.filter(item => item !== '请确认埋点位置')
+  } else if (['pending', 'unresolved'].includes(event.status)) {
+    out.push('请确认埋点位置')
+  }
+  const confirmedKeys = new Set()
   ;(event.parameters || []).forEach(p => {
+    if (paramConfirmed(p) && str(p.expression) && p.key) confirmedKeys.add(p.key)
+  })
+  out = out.filter(item => {
+    const m = item.match(/^请确认参数\s+(.+?)\s+的取值$/)
+    return !(m && confirmedKeys.has(m[1]))
+  })
+  ;(event.parameters || []).forEach(p => {
+    if (paramConfirmed(p) && str(p.expression)) return
     if (!str(p.expression) || ['low', 'medium'].includes(str(p.confidence))) {
       if (p.key) out.push(`请确认参数 ${p.key} 的取值`)
     }
@@ -108,6 +126,9 @@ function normalizeImpl(payload) {
       }
     })
     event.unresolved = normalizeUnresolved(event)
+    if (event.confirmed && str(event.targetFile) && event.status === 'unresolved') {
+      event.status = 'located'
+    }
     if (event.accept && event.accept.trigger) {
       const t = event.accept.trigger
       if ('kind' in t) t.kind = str(t.kind)
