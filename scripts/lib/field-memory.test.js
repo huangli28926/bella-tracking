@@ -28,9 +28,26 @@ test('empty expression still backfills last confirmed value', () => {
     }
   }
   const event = {
+    status: 'located',
+    targetFile: 'src/a.jsx',
     parameters: [{ key: 'houseCode', expression: '', confidence: 'low' }]
   }
   const result = applyToEvent(event, memory)
   assert.equal(result.changed, true)
   assert.equal(result.event.parameters[0].expression, 'memory.houseCode')
+})
+
+test('unanalyzed pending event is not backfilled from memory', () => {
+  const memory = {
+    parameters: {
+      houseCode: { expression: 'memory.houseCode', sourcePath: 'mem' }
+    }
+  }
+  const event = {
+    status: 'pending',
+    parameters: [{ key: 'houseCode', expression: '' }]
+  }
+  const result = applyToEvent(event, memory)
+  assert.equal(result.changed, false)
+  assert.equal(result.event.parameters[0].expression, '')
 })

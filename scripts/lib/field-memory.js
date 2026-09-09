@@ -89,6 +89,10 @@ function applyToEvent(event, memory) {
   if (!event || event.confirmed) {
     return { event, changed: false }
   }
+  const { eventAnalysisReady } = require('../confirm/needs-confirm')
+  if (!eventAnalysisReady(event)) {
+    return { event, changed: false }
+  }
   const memParams = (memory && memory.parameters) || {}
   let changed = false
   const parameters = (Array.isArray(event.parameters) ? event.parameters : []).map(param => {

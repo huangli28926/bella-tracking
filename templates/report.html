@@ -653,6 +653,7 @@
     }
     .wizard-footer .btn { padding: 10px 18px; font-size: 13px; }
     .wizard-footer .btn.primary { min-width: 140px; }
+    body.wizard-waiting .wizard-footer { display: none; }
     @media (max-width: 980px) {
       .app { grid-template-columns: 1fr; }
       .side { position: relative; min-height: auto; }
@@ -712,6 +713,8 @@
       var editing = false;
       var confirmMode = false;
       var confirmQueue = null;
+      var waitingForAnalysis = false;
+      var analysisWaitTimer = null;
       var apiList = [];
       var pasteTarget = '';
 
@@ -821,6 +824,47 @@
         return reasons;
       }
 
+      function stopAnalysisWaitPoll() {
+        if (analysisWaitTimer) {
+          clearInterval(analysisWaitTimer);
+          analysisWaitTimer = null;
+        }
+      }
+
+      function startAnalysisWaitPoll() {
+        stopAnalysisWaitPoll();
+        analysisWaitTimer = setInterval(function () {
+          refreshWaitingAnalysis();
+        }, 2000);
+      }
+
+      function refreshWaitingAnalysis() {
+        if (!serving || !waitingForAnalysis) {
+          stopAnalysisWaitPoll();
+          return;
+        }
+        fetch('/api/report').then(function (res) {
+          return res.ok ? res.json() : Promise.reject();
+        }).then(function (data) {
+          if (data && data.ok && data.report) applyReport(data.report);
+        }).catch(function () {});
+        fetchConfirmQueue().then(function () {
+          var next = confirmQueue && confirmQueue.queue && confirmQueue.queue[0];
+          if (next && next.evtId) {
+            waitingForAnalysis = false;
+            stopAnalysisWaitPoll();
+            navigateWizard(next.evtId, '');
+          }
+        });
+      }
+
+      function enterWaitForAnalysis() {
+        waitingForAnalysis = true;
+        document.body.classList.add('wizard-waiting');
+        renderWizard();
+        startAnalysisWaitPoll();
+      }
+
       function renderWizard() {
         var bar = document.getElementById('wizard-bar');
         var footer = document.getElementById('wizard-footer');
@@ -829,13 +873,25 @@
           bar.hidden = true;
           footer.hidden = true;
           document.body.classList.remove('confirm-mode');
+          document.body.classList.remove('wizard-waiting');
           return;
         }
         document.body.classList.add('confirm-mode');
+        if (waitingForAnalysis) document.body.classList.add('wizard-waiting');
+        else document.body.classList.remove('wizard-waiting');
         bar.hidden = false;
-        footer.hidden = false;
+        footer.hidden = waitingForAnalysis;
         var event = currentEvent();
         var progress = (confirmQueue && confirmQueue.progress) || { label: '-', index: 0, total: 0 };
+        var unanalyzed = (confirmQueue && confirmQueue.unanalyzedCount) || 0;
+        if (waitingForAnalysis) {
+          document.getElementById('wizard-title').textContent = '本条已保存，请等待下一条分析';
+          document.getElementById('wizard-progress').textContent =
+            '还有 ' + unanalyzed + ' 条未分析，分析完成后会自动进入确认';
+          document.getElementById('wizard-reasons').innerHTML =
+            '<li>请不要确认尚未分析的埋点</li>';
+          return;
+        }
         document.getElementById('wizard-title').textContent =
           '审核 AI 推断 · ' + (event ? (event.eventName || event.evtId) : currentId);
         document.getElementById('wizard-progress').textContent =
@@ -877,6 +933,9 @@
           return;
         }
         if (nextEvtId) {
+          waitingForAnalysis = false;
+          stopAnalysisWaitPoll();
+          document.body.classList.remove('wizard-waiting');
           currentId = nextEvtId;
           syncUrl(currentId);
           renderNav();
@@ -1575,11 +1634,21 @@
         return postJson('/api/save-impl', patch).then(function (data) {
           applyReport(data.report);
           if (data.wizard && data.wizard.action === 'skip') {
+            if (data.wizard.waitingForAnalysis && !data.wizard.nextEvtId) {
+              toast('已跳过，请等待下一条分析');
+              enterWaitForAnalysis();
+              return data;
+            }
             toast('已跳过，进入下一条');
             navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
             return data;
           }
           if (data.wizard && data.wizard.action === 'confirm') {
+            if (data.wizard.waitingForAnalysis && !data.wizard.nextEvtId && !data.wizard.reviewUrl) {
+              toast('已确认，请等待下一条分析');
+              enterWaitForAnalysis();
+              return data;
+            }
             if (data.wizard.nextEvtId || data.wizard.reviewUrl) {
               toast('已确认，进入下一条');
               navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
@@ -1734,12 +1803,27 @@
       document.getElementById('nav').addEventListener('click', function (e) {
         var btn = e.target.closest('button');
         if (!btn) return;
+        var nextId = btn.getAttribute('data-id');
+        if (confirmMode) {
+          var target = (report.events || []).find(function (item) {
+            return String(item.evtId) === String(nextId);
+          });
+          var status = String(((target && target.impl) || {}).status || 'pending');
+          var ready = status === 'located' || status === 'existing' || status === 'unresolved';
+          if (!ready) {
+            toast('该条尚未分析，请等待');
+            return;
+          }
+        }
         stashForm();
-        currentId = btn.getAttribute('data-id');
+        waitingForAnalysis = false;
+        stopAnalysisWaitPoll();
+        currentId = nextId;
         pasteTarget = '';
         syncUrl(currentId);
         renderNav();
         renderMain();
+        fetchConfirmQueue();
       });
       document.getElementById('btn-edit').addEventListener('click', function () {
         if (!serving) {

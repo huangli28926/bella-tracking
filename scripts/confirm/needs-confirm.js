@@ -8,9 +8,20 @@ function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'
 }
 
+function eventAnalysisReady(event) {
+  if (!event || typeof event !== 'object') {
+    return false
+  }
+  const status = String(event.status || 'pending').trim()
+  return status === 'located' || status === 'existing' || status === 'unresolved'
+}
+
 function eventNeedsConfirm(event) {
   if (!event || typeof event !== 'object') {
     return true
+  }
+  if (!eventAnalysisReady(event)) {
+    return false
   }
   const paramGate = eventParameterGate(event)
   const depGate = dataDepGate(event)
@@ -21,7 +32,7 @@ function eventNeedsConfirm(event) {
     return true
   }
   const status = event.status || 'pending'
-  if (status === 'unresolved' || status === 'pending') {
+  if (status === 'unresolved') {
     return true
   }
   if (Array.isArray(event.unresolved) && event.unresolved.length) {
@@ -132,16 +143,24 @@ function buildConfirmQueue(eventsPayload, implPayload, options) {
 
   const pending = items.filter(item => isConfirmQueuePending(item))
   const deferredCount = items.filter(item => item.needsConfirm && !item.confirmed && item.event.deferred).length
+  const unanalyzed = items.filter(item => {
+    if (item.confirmed) return false
+    if (item.event && item.event.deferred) return false
+    return !eventAnalysisReady(item.event)
+  })
   const queue = onlyPending ? pending : items
+  const waitingForAnalysis = pending.length === 0 && unanalyzed.length > 0
   return {
     total: docEvents.length,
     needsConfirmCount: items.filter(item => item.needsConfirm).length,
     confirmedCount: items.filter(item => item.confirmed).length,
     pendingCount: pending.length,
     deferredCount,
+    unanalyzedCount: unanalyzed.length,
+    waitingForAnalysis,
     items,
     queue,
-    done: pending.length === 0
+    done: pending.length === 0 && unanalyzed.length === 0
   }
 }
 
@@ -263,6 +282,7 @@ if (require.main === module) {
 
 module.exports = {
   paramNeedsConfirm,
+  eventAnalysisReady,
   eventNeedsConfirm,
   locationNeedsConfirm,
   paramKeysNeedingConfirm,

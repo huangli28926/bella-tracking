@@ -42,3 +42,78 @@ test('deferred needsConfirm is not pending', () => {
   )
   assert.equal(queue.pendingCount, 0)
 })
+
+test('unanalyzed pending stub is not confirmable', () => {
+  const queue = buildConfirmQueue(
+    {
+      events: [
+        { evtId: '96791', eventName: 'a', docIndex: 1 },
+        { evtId: '96792', eventName: 'b', docIndex: 2 }
+      ]
+    },
+    {
+      events: [
+        {
+          evtId: '96791',
+          confirmed: true,
+          status: 'located',
+          targetFile: 'src/a.jsx',
+          parameters: []
+        },
+        {
+          evtId: '96792',
+          confirmed: false,
+          status: 'pending',
+          targetFile: '',
+          parameters: [{ key: 'city_id', expression: 'from-memory' }]
+        }
+      ]
+    }
+  )
+  assert.equal(queue.pendingCount, 0)
+  assert.equal(queue.unanalyzedCount, 1)
+  assert.equal(queue.waitingForAnalysis, true)
+  assert.equal(queue.done, false)
+  assert.equal(queue.queue.length, 0)
+})
+
+test('analyzed next event stays in confirm queue', () => {
+  const queue = buildConfirmQueue(
+    {
+      events: [
+        { evtId: '96791', eventName: 'a', docIndex: 1 },
+        { evtId: '96792', eventName: 'b', docIndex: 2 }
+      ]
+    },
+    {
+      events: [
+        {
+          evtId: '96791',
+          confirmed: true,
+          status: 'located',
+          targetFile: 'src/a.jsx',
+          parameters: []
+        },
+        {
+          evtId: '96792',
+          confirmed: false,
+          status: 'located',
+          targetFile: 'src/b.jsx',
+          unresolved: ['请确认参数 is_agent 的取值'],
+          parameters: [{
+            key: 'is_agent',
+            expression: 'canEdit',
+            confidence: 'medium',
+            evidence: [{ type: 'local-binding' }],
+            scopeReachable: true,
+            unresolved: [],
+            conflicts: []
+          }]
+        }
+      ]
+    }
+  )
+  assert.equal(queue.pendingCount, 1)
+  assert.equal(queue.queue[0].evtId, '96792')
+  assert.equal(queue.waitingForAnalysis, false)
+})

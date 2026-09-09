@@ -497,6 +497,8 @@ function createServer(paths) {
             nextEvtId,
             reviewUrl,
             done: queueInfo.done,
+            waitingForAnalysis: !!queueInfo.waitingForAnalysis,
+            unanalyzedCount: queueInfo.unanalyzedCount || 0,
             progress: queueProgress(queueInfo, evtId)
           }
         })
