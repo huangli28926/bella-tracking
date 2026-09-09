@@ -37,13 +37,51 @@ test('Expected resolved, Actual "-" → FAIL', () => {
   assert.equal(diff.status, 'FAIL')
 })
 
-test('1 !== "1"', () => {
+test('number and decimal string are equal', () => {
   const diff = compareDataDepResult({
     paramKey: 'n',
     status: 'resolved',
     value: 1
   }, { n: '1' })
+  assert.equal(diff.status, 'PASS')
+  const ucid = compareDataDepResult({
+    paramKey: 'shop_leader_ucid',
+    status: 'resolved',
+    value: 1000000010023473
+  }, { shop_leader_ucid: '1000000010023473' })
+  assert.equal(ucid.status, 'PASS')
+  const reverse = compareDataDepResult({
+    paramKey: 'n',
+    status: 'resolved',
+    value: '1'
+  }, { n: 1 })
+  assert.equal(reverse.status, 'PASS')
+})
+
+test('boolean stays strict', () => {
+  const diff = compareDataDepResult({
+    paramKey: 'flag',
+    status: 'resolved',
+    value: true
+  }, { flag: 'true' })
   assert.equal(diff.status, 'FAIL')
+})
+
+test('valueSet membership PASS and miss FAIL', () => {
+  const pass = compareDataDepResult({
+    paramKey: 'housedel_id',
+    status: 'resolved',
+    value: 'A',
+    valueSet: ['A', 'B']
+  }, { housedel_id: 'B' })
+  assert.equal(pass.status, 'PASS')
+  const miss = compareDataDepResult({
+    paramKey: 'housedel_id',
+    status: 'resolved',
+    value: 'A',
+    valueSet: ['A', 'B']
+  }, { housedel_id: 'C' })
+  assert.equal(miss.status, 'FAIL')
 })
 
 test('Runtime source missing → PENDING / unverifiable', () => {

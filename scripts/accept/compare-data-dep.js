@@ -12,6 +12,43 @@ function actualForKey(action, paramKey) {
   return action[paramKey]
 }
 
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isNumericString(value) {
+  if (typeof value !== 'string' || value === '') {
+    return false
+  }
+  return String(Number(value)) === value || (
+    /^-?\d+(\.\d+)?$/.test(value) && Number.isFinite(Number(value))
+  )
+}
+
+/** 标量宽松相等：number 与其十进制字符串视为同一值；boolean 仍严格比较。 */
+function valuesLooselyEqual(expected, actual) {
+  if (expected === actual) {
+    return true
+  }
+  if (expected == null || actual == null) {
+    return false
+  }
+  if (typeof expected === 'boolean' || typeof actual === 'boolean') {
+    return expected === actual
+  }
+  const expectedNum = isFiniteNumber(expected)
+  const actualNum = isFiniteNumber(actual)
+  const expectedStr = typeof expected === 'string'
+  const actualStr = typeof actual === 'string'
+  if ((expectedNum && actualStr) || (actualNum && expectedStr) || (expectedStr && actualStr && isNumericString(expected) && isNumericString(actual))) {
+    return String(expected) === String(actual)
+  }
+  if (expectedNum && actualNum) {
+    return expected === actual
+  }
+  return false
+}
+
 function compareDataDepResult(resolved, action) {
   const paramKey = resolved && resolved.paramKey != null ? resolved.paramKey : ''
   const actualValue = actualForKey(action, paramKey)
@@ -27,10 +64,16 @@ function compareDataDepResult(resolved, action) {
     }
   }
   const expectedValue = resolved.value
-  if (expectedValue === actualValue) {
+  const valueSet = Array.isArray(resolved.valueSet) && resolved.valueSet.length
+    ? resolved.valueSet
+    : [expectedValue]
+  const matched = valueSet.some(function (item) {
+    return valuesLooselyEqual(item, actualValue)
+  })
+  if (matched) {
     return {
       paramKey: paramKey,
-      expectedValue: expectedValue,
+      expectedValue: valueSet.length > 1 ? valueSet : expectedValue,
       actualValue: actualValue,
       status: 'PASS',
       code: ''
@@ -38,7 +81,7 @@ function compareDataDepResult(resolved, action) {
   }
   return {
     paramKey: paramKey,
-    expectedValue: expectedValue,
+    expectedValue: valueSet.length > 1 ? valueSet : expectedValue,
     actualValue: actualValue === undefined ? null : actualValue,
     status: 'FAIL',
     code: 'DATADEP_VALUE_MISMATCH'
@@ -116,6 +159,7 @@ function eventOutcomeFromDataDeps(dataDepDiffs, legacyDiffs) {
 
 module.exports = {
   CONTRACT_VIOLATION_CODES,
+  valuesLooselyEqual,
   compareDataDepResult,
   compareDataDepResults,
   compareLegacyAssertParams,

@@ -2,6 +2,7 @@ const assert = require('assert')
 const test = require('node:test')
 const {
   getByPath,
+  collectByPath,
   resolveDataDep,
   resolveDataDeps
 } = require('./runtime-data-dep')
@@ -67,6 +68,13 @@ test('getByPath own properties and array index', () => {
   assert.equal(getByPath(obj, 'toString').found, false)
   assert.equal(getByPath({ a: undefined }, 'a').found, false)
   assert.deepEqual(getByPath({ a: null }, 'a'), { found: true, value: null })
+})
+
+test('collectByPath expands list[]', () => {
+  const body = { data: { list: [{ housedelCode: 'A' }, { housedelCode: 'B' }] } }
+  const collected = collectByPath(body, 'data.list[].housedelCode')
+  assert.deepEqual(collected, { found: true, values: ['A', 'B'] })
+  assert.equal(collectByPath(body, 'list[].housedelCode').found, false)
 })
 
 test('case 1 URL resolved', async () => {
@@ -251,6 +259,65 @@ test('case 12 API ambiguous values', async () => {
     }
   })
   assert.equal(result.code, 'RUNTIME_API_AMBIGUOUS')
+})
+
+test('applyApiValueMap is generic and case-insensitive', () => {
+  const { applyApiValueMap } = require('./runtime-data-dep')
+  const selector = { map: { In: 'yes', Out: 'no' }, default: 'other' }
+  assert.equal(applyApiValueMap('in', selector), 'yes')
+  assert.equal(applyApiValueMap(null, selector), 'other')
+  assert.equal(applyApiValueMap('unknown', selector), 'other')
+  assert.equal(applyApiValueMap('keep', { field: 'x' }), 'keep')
+})
+
+test('API map + list[] valueSet uses mapped enums', async () => {
+  const result = await resolveDataDep(apiDep({
+    paramKey: 'flag',
+    api: {
+      urlIncludes: '/api/detail',
+      field: 'data.list[].state',
+      map: { on: 'yes', off: 'no' },
+      default: 'other'
+    }
+  }), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
+    api: {
+      responses: [{
+        t: 20,
+        url: 'https://x.test/api/detail',
+        status: 200,
+        bodyParsed: true,
+        body: { data: { list: [{ state: 'ON' }, { state: null }, {}] } }
+      }]
+    }
+  })
+  assert.equal(result.status, 'resolved')
+  assert.deepEqual(result.valueSet.sort(), ['other', 'yes'])
+})
+
+test('API list[] collects valueSet instead of ambiguous', async () => {
+  const result = await resolveDataDep(apiDep({
+    paramKey: 'housedel_id',
+    api: {
+      urlIncludes: '/api/detail',
+      field: 'data.list[].housedelCode'
+    }
+  }), {
+    apiRuntimeStart: 10,
+    apiRuntimeEnd: 30,
+    api: {
+      responses: [{
+        t: 20,
+        url: 'https://x.test/api/detail',
+        status: 200,
+        bodyParsed: true,
+        body: { data: { list: [{ housedelCode: 'A' }, { housedelCode: 'B' }] } }
+      }]
+    }
+  })
+  assert.equal(result.status, 'resolved')
+  assert.deepEqual(result.valueSet, ['A', 'B'])
 })
 
 test('case 13 unsupported runtime value', async () => {

@@ -284,7 +284,14 @@
           "type": "object",
           "properties": {
             "urlIncludes": { "type": "string" },
-            "field": { "type": "string" }
+            "field": { "type": "string" },
+            "map": {
+              "type": "object",
+              "description": "Map API leaf values to reported enum values. Keys are matched case-insensitively."
+            },
+            "default": {
+              "description": "Used when the leaf is empty or not present in map."
+            }
           }
         },
         "user": {

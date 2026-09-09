@@ -54,8 +54,10 @@ Playwright 监听匹配 URL（档案 `reportUrlIncludes`），按 query `evt` / 
 |---|---|
 | `url` | `action[key]` 等于当前页 query（如 `housedelCode`），空则 `'-'` 也可接受 |
 | `user` | 等于 `window.__user` 对应字段（id / officeAddress / officeAddressName） |
-| `api` | 若运行时录到匹配 `urlIncludes` 的响应，按 `field` 取值对账；没录到接口则只检查 key 存在且非 `undefined` |
+| `api` | 若运行时录到匹配 `urlIncludes` 的响应，按 `field` 取值对账；没录到接口则只检查 key 存在且非 `undefined`。`field` 含 `list[]`（如 `data.list[].housedelCode`）时，收集数组里全部标量，**实际上报值落在该集合内即通过**，不必等于 `list[0]`。不含 `[]` 而多响应解出多个不同标量，仍为歧义。可选 `api.map` + `api.default`：先把接口叶子值映射成上报枚举（键忽略大小写，空值/未命中用 default），再对账；映射表由各项目 `impl.json` 填写，skill 不写死业务枚举。 |
 | `page` | 只检查 key 存在；值允许 `'-'` / `false` / `0` |
+
+值比较用**宽松相等**，不要求 JS 类型一致：`1000000010023473`（number）与 `"1000000010023473"`（string）视为通过。boolean 仍严格比较（`true` ≠ `"true"`）。语义不同的值（`123` vs `654`）仍 fail。
 
 `'-'` 视为合法兜底，**不判 fail**，但写入报告 `results[].emptyParams`，验收 HTML / 终稿须提醒人工确认。key 缺失 → `fail`，写入 `paramDiffs`；同时也进入 `emptyParams`。
 

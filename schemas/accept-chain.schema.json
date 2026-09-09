@@ -173,7 +173,9 @@
                 "type": "object",
                 "properties": {
                   "urlIncludes": { "type": "string" },
-                  "field": { "type": "string" }
+                  "field": { "type": "string" },
+                  "map": { "type": "object" },
+                  "default": {}
                 }
               },
               "user": {
