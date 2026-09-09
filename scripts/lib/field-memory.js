@@ -38,9 +38,7 @@ function writeFieldMemory(paths, memory) {
 }
 
 function paramNeedsBackfill(param) {
-  const expr = String((param && param.expression) || '').trim()
-  const confidence = String((param && param.confidence) || '').trim()
-  return !expr || confidence === 'low' || confidence === 'medium'
+  return !String((param && param.expression) || '').trim()
 }
 
 function upsertFromConfirmedEvent(memory, event) {
@@ -89,6 +87,10 @@ function loadMergedMemory(paths, implPayload) {
 
 function applyToEvent(event, memory) {
   if (!event || event.confirmed) {
+    return { event, changed: false }
+  }
+  const { eventAnalysisReady } = require('../confirm/needs-confirm')
+  if (!eventAnalysisReady(event)) {
     return { event, changed: false }
   }
   const memParams = (memory && memory.parameters) || {}
@@ -149,6 +151,7 @@ module.exports = {
   applyFieldMemoryToImplFile,
   applyToEvent,
   applyToPayload,
+  paramNeedsBackfill,
   emptyMemory,
   fieldMemoryPath,
   loadFieldMemory,

@@ -6,6 +6,7 @@ const { findRepoRoot, parseArgs, readJson } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
 const { calculateParameterConfidence, isLegacyParameter } = require('./calculate-confidence')
 const { applyConfirmationReuseToEvent } = require('./validate-confirmation-reuse')
+const { materializeParameter } = require('../params/normalize-parameter-facts')
 
 const SCRIPT_DIR = __dirname
 const STATUS = new Set(['pending', 'existing', 'located', 'unresolved'])
@@ -81,7 +82,11 @@ function normalizeImpl(payload) {
       const legacy = isLegacyParameter(p)
       p.key = str(p.key)
       if ('expression' in p) p.expression = str(p.expression)
-      if ('sourcePath' in p) p.sourcePath = str(p.sourcePath)
+      if ('sourcePath' in p) {
+        p.sourcePath = Array.isArray(p.sourcePath)
+          ? p.sourcePath.map(str).filter(Boolean)
+          : str(p.sourcePath)
+      }
       p.confidence = CONFIDENCE.has(str(p.confidence)) ? str(p.confidence) : ''
       if ('valueKind' in p) p.valueKind = ['expression', 'prompt', ''].includes(str(p.valueKind)) ? str(p.valueKind) : ''
       if (!Object.prototype.hasOwnProperty.call(p, 'evidence')) p.evidence = []
@@ -98,6 +103,7 @@ function normalizeImpl(payload) {
     event.parameters = withReuse.parameters
     event.parameters.forEach(p => {
       if (!p.legacyUnverified) {
+        materializeParameter(p, event, { computeReachability: false })
         p.confidence = calculateParameterConfidence(p, event)
       }
     })
@@ -107,6 +113,12 @@ function normalizeImpl(payload) {
       if ('kind' in t) t.kind = str(t.kind)
       if ('by' in t) t.by = str(t.by)
       if ('value' in t) t.value = str(t.value)
+    }
+    if (event.accept && Array.isArray(event.accept.dataDeps)) {
+      event.accept.dataDeps.forEach(dep => {
+        if (!dep || typeof dep !== 'object' || Array.isArray(dep)) return
+        if (!Object.prototype.hasOwnProperty.call(dep, 'unresolved')) dep.unresolved = []
+      })
     }
   })
   return next

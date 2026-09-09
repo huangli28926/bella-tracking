@@ -30,6 +30,7 @@ function walkForRepoRoot(startDir) {
   return ''
 }
 
+/** Project root (cwd git/docs), not the skill install directory. */
 function findRepoRoot(startDir) {
   const fromCwd = walkForRepoRoot(process.cwd())
   if (fromCwd) {

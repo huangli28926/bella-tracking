@@ -178,6 +178,30 @@
       background: #fff8ee;
       box-shadow: inset 3px 0 0 var(--warn);
     }
+    .ai-guess {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: #e8f1fb;
+      color: #2b5a8a;
+      font-size: 11px;
+    }
+    .conf-label { font-size: 12px; color: var(--muted); }
+    .candidate-list { display: grid; gap: 6px; margin: 8px 0 4px; }
+    .candidate-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .candidate-item.selected { border-color: #3a7d44; background: #f3faf4; }
+    .candidate-item input { margin-top: 3px; }
+    .reason-list, .evidence-list { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
     table tr.needs-confirm td { background: #fff8ee; }
     .toast {
       position: fixed;
@@ -629,6 +653,7 @@
     }
     .wizard-footer .btn { padding: 10px 18px; font-size: 13px; }
     .wizard-footer .btn.primary { min-width: 140px; }
+    body.wizard-waiting .wizard-footer { display: none; }
     @media (max-width: 980px) {
       .app { grid-template-columns: 1fr; }
       .side { position: relative; min-height: auto; }
@@ -666,7 +691,7 @@
       </div>
       <div class="interrupt-banner" id="interrupt-banner" hidden></div>
       <div class="wizard-bar" id="wizard-bar" hidden>
-        <h3 id="wizard-title">矫正向导</h3>
+        <h3 id="wizard-title">审核 AI 推断</h3>
         <div class="wizard-progress" id="wizard-progress"></div>
         <ul class="wizard-reasons" id="wizard-reasons"></ul>
       </div>
@@ -675,7 +700,7 @@
   </div>
   <div class="wizard-footer" id="wizard-footer" hidden>
     <button type="button" class="btn" id="btn-wizard-skip">跳过稍后处理</button>
-    <button type="button" class="btn primary" id="btn-wizard-confirm" disabled>确认并继续</button>
+    <button type="button" class="btn primary" id="btn-wizard-confirm" disabled>确认并关闭</button>
   </div>
   <div class="toast" id="toast"></div>
   <script id="report-data" type="application/json">__REPORT_JSON__</script>
@@ -688,6 +713,8 @@
       var editing = false;
       var confirmMode = false;
       var confirmQueue = null;
+      var waitingForAnalysis = false;
+      var analysisWaitTimer = null;
       var apiList = [];
       var pasteTarget = '';
 
@@ -768,7 +795,7 @@
         var show = !!(evt && event && String(event.evtId) === String(evt) && !isConfirmed(impl));
         el.hidden = !show;
         if (show) {
-          el.innerHTML = '当前打断：<b>' + esc(evt) + '</b>。只确认埋点位置或参数取值，勾选后保存。';
+          el.innerHTML = '当前打断：<b>' + esc(evt) + '</b>。请审核预填结果，确认 / 修改 / 从候选中选择后勾选保存。';
         }
       }
 
@@ -797,6 +824,47 @@
         return reasons;
       }
 
+      function stopAnalysisWaitPoll() {
+        if (analysisWaitTimer) {
+          clearInterval(analysisWaitTimer);
+          analysisWaitTimer = null;
+        }
+      }
+
+      function startAnalysisWaitPoll() {
+        stopAnalysisWaitPoll();
+        analysisWaitTimer = setInterval(function () {
+          refreshWaitingAnalysis();
+        }, 2000);
+      }
+
+      function refreshWaitingAnalysis() {
+        if (!serving || !waitingForAnalysis) {
+          stopAnalysisWaitPoll();
+          return;
+        }
+        fetch('/api/report').then(function (res) {
+          return res.ok ? res.json() : Promise.reject();
+        }).then(function (data) {
+          if (data && data.ok && data.report) applyReport(data.report);
+        }).catch(function () {});
+        fetchConfirmQueue().then(function () {
+          var next = confirmQueue && confirmQueue.queue && confirmQueue.queue[0];
+          if (next && next.evtId) {
+            waitingForAnalysis = false;
+            stopAnalysisWaitPoll();
+            navigateWizard(next.evtId, '');
+          }
+        });
+      }
+
+      function enterWaitForAnalysis() {
+        waitingForAnalysis = true;
+        document.body.classList.add('wizard-waiting');
+        renderWizard();
+        startAnalysisWaitPoll();
+      }
+
       function renderWizard() {
         var bar = document.getElementById('wizard-bar');
         var footer = document.getElementById('wizard-footer');
@@ -805,15 +873,27 @@
           bar.hidden = true;
           footer.hidden = true;
           document.body.classList.remove('confirm-mode');
+          document.body.classList.remove('wizard-waiting');
           return;
         }
         document.body.classList.add('confirm-mode');
+        if (waitingForAnalysis) document.body.classList.add('wizard-waiting');
+        else document.body.classList.remove('wizard-waiting');
         bar.hidden = false;
-        footer.hidden = false;
+        footer.hidden = waitingForAnalysis;
         var event = currentEvent();
         var progress = (confirmQueue && confirmQueue.progress) || { label: '-', index: 0, total: 0 };
+        var unanalyzed = (confirmQueue && confirmQueue.unanalyzedCount) || 0;
+        if (waitingForAnalysis) {
+          document.getElementById('wizard-title').textContent = '本条已保存，请等待下一条分析';
+          document.getElementById('wizard-progress').textContent =
+            '还有 ' + unanalyzed + ' 条未分析，分析完成后会自动进入确认';
+          document.getElementById('wizard-reasons').innerHTML =
+            '<li>请不要确认尚未分析的埋点</li>';
+          return;
+        }
         document.getElementById('wizard-title').textContent =
-          '矫正向导 · ' + (event ? esc(event.eventName || event.evtId) : currentId);
+          '审核 AI 推断 · ' + (event ? (event.eventName || event.evtId) : currentId);
         document.getElementById('wizard-progress').textContent =
           '进度 ' + (progress.label || '-') + ' · 待处理 ' + ((confirmQueue && confirmQueue.pendingCount) || 0);
         var reasons = eventConfirmReasons(event);
@@ -853,6 +933,9 @@
           return;
         }
         if (nextEvtId) {
+          waitingForAnalysis = false;
+          stopAnalysisWaitPoll();
+          document.body.classList.remove('wizard-waiting');
           currentId = nextEvtId;
           syncUrl(currentId);
           renderNav();
@@ -862,6 +945,18 @@
         }
         toast('当前队列已处理完');
         fetchConfirmQueue();
+      }
+
+      function closeWizardPage(message) {
+        stopAnalysisWaitPoll();
+        waitingForAnalysis = false;
+        toast(message || '已处理，本页将关闭');
+        setTimeout(function () {
+          window.close();
+          document.body.className = '';
+          document.body.innerHTML =
+            '<p style="padding:24px;font:16px/1.6 sans-serif;color:#222">本条已处理，可关闭本页。下一条需要确认时会重新打开。</p>';
+        }, 250);
       }
 
       function statusLabel(status) {
@@ -1012,7 +1107,9 @@
             expression: expr,
             valueKind: kindEl ? paramVal(key, 'valueKind') : inferValueKind(expr, prev.valueKind),
             sourcePath: paramVal(key, 'sourcePath') || prev.sourcePath || '',
-            confidence: paramVal(key, 'confidence') || prev.confidence || '',
+            confidence: prev.confidence || '',
+            preferredCandidateId: paramVal(key, 'preferredCandidateId') || prev.preferredCandidateId || '',
+            candidates: Array.isArray(prev.candidates) ? prev.candidates : [],
             hint: {
               note: paramVal(key, 'note') || prevHint.note || '',
               api: {
@@ -1065,6 +1162,8 @@
           prev.valueKind = item.valueKind;
           prev.sourcePath = item.sourcePath;
           prev.confidence = item.confidence;
+          prev.preferredCandidateId = item.preferredCandidateId || prev.preferredCandidateId || '';
+          if (Array.isArray(item.candidates)) prev.candidates = item.candidates;
           prev.hint = prev.hint || {};
           prev.hint.note = item.hint.note;
           prev.hint.api = item.hint.api;
@@ -1173,12 +1272,85 @@
           '</select>';
       }
 
-      function confidenceSelect(key, conf) {
-        return '<select class="fld-sel" data-param="' + esc(key) + '" data-pf="confidence">' +
-          ['', 'high', 'medium', 'low'].map(function (item) {
-            return '<option value="' + item + '"' + (conf === item ? ' selected' : '') + '>' + (item || '未标') + '</option>';
-          }).join('') +
-          '</select>';
+      var UNRESOLVED_CODE_LABELS = {
+        PARAM_SOURCE_UNKNOWN: '未找到可用的参数来源',
+        PARAM_SEMANTIC_AMBIGUOUS: '同档多个来源语义无法区分',
+        ACQUISITION_PATH_UNKNOWN: '取值路径无法从源码追通',
+        ACQUISITION_NOT_UNIQUE: '取值路径不唯一',
+        SHARED_COMPONENT_IMPACT: '改公共组件可能影响多个调用方',
+        SOURCE_CONFLICT: '同优先级存在多个合法来源',
+        URL_SEMANTIC_UNKNOWN: 'URL 字段缺少业务语义闭环',
+        NEW_DATA_SOURCE_REQUIRED: '需要新的数据来源',
+        REACHABILITY_UNKNOWN: '当前作用域无法证明可达',
+        SCAN_CANDIDATE_DROPPED: '扫描候选被丢弃，完整性无效',
+        MULTIPLE_REUSABLE_COMPONENT_CALLERS: '组件被多个页面复用，落点范围未确认'
+      };
+
+      function confidenceLabel(conf) {
+        if (conf === 'high') return '高可信';
+        if (conf === 'medium') return '中可信';
+        if (conf === 'low') return '低可信';
+        return '未标';
+      }
+
+      function sourcePathText(value) {
+        if (Array.isArray(value)) return value.filter(Boolean).join(' → ');
+        return String(value || '');
+      }
+
+      function evidenceLines(impl) {
+        var list = Array.isArray(impl && impl.evidence) ? impl.evidence : [];
+        return list.map(function (item) {
+          if (typeof item === 'string') return item;
+          return [item.type, item.from, item.to, item.expression, item.file].filter(Boolean).join(' · ');
+        }).filter(Boolean);
+      }
+
+      function unresolvedReasonLines(impl) {
+        var codes = Array.isArray(impl && impl.unresolvedCodes) ? impl.unresolvedCodes : [];
+        return codes.map(function (code) {
+          return UNRESOLVED_CODE_LABELS[code] || code;
+        });
+      }
+
+      function candidateListHtml(key, impl) {
+        var list = Array.isArray(impl && impl.candidates) ? impl.candidates : [];
+        var preferred = String((impl && impl.preferredCandidateId) || '');
+        var current = String((impl && impl.expression) || '').trim();
+        if (!list.length) return '';
+        var items = list.map(function (item, idx) {
+          var id = String(item.id || idx);
+          var expr = String(item.expression || '').trim();
+          var selected = preferred ? preferred === id : (!!expr && expr === current);
+          return '<label class="candidate-item' + (selected ? ' selected' : '') + '">' +
+            '<input type="radio" name="cand-' + esc(key) + '" data-cand-key="' + esc(key) + '" data-cand-id="' + esc(id) +
+            '" data-cand-expr="' + esc(expr) + '" data-cand-path="' + esc(item.file || '') + '"' +
+            (selected ? ' checked' : '') + ' />' +
+            '<span><code>' + esc(expr || '(无表达式)') + '</code>' +
+            (item.file ? '<div class="note">' + esc(item.file) + '</div>' : '') +
+            (item.rejectedReason ? '<div class="note">' + esc(item.rejectedReason) + '</div>' : '') +
+            '</span></label>';
+        }).join('');
+        return '<div class="field-label">从候选中选择</div><div class="candidate-list">' + items + '</div>';
+      }
+
+      function reviewMetaHtml(impl) {
+        var reasons = unresolvedReasonLines(impl);
+        var evidence = evidenceLines(impl);
+        var html = '';
+        if (reasons.length) {
+          html += '<ul class="reason-list">' + reasons.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ul>';
+        }
+        if (evidence.length) {
+          html += '<ul class="evidence-list">' + evidence.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ul>';
+        }
+        return html;
+      }
+
+      function confidenceBadge(conf) {
+        return '<span class="conf-label">' + esc(confidenceLabel(conf)) +
+          (conf ? ' <span class="conf ' + esc(conf) + '">' + esc(conf) + '</span>' : '') +
+          '</span>';
       }
 
       function paramRows(event, which) {
@@ -1203,18 +1375,29 @@
             var impl = byKey[key] || {};
             var conf = impl.confidence || '';
             var desc = doc.desc || impl.docDesc || '-';
+            var hasExpr = !!String(impl.expression || '').trim();
+            var hasCands = Array.isArray(impl.candidates) && impl.candidates.length;
+            var placeholder = hasCands && !hasExpr
+              ? '请从下方候选中选择，或修改表达式'
+              : (hasExpr ? '确认或修改该候选' : '源码中未找到候选，请补充表达式或备注');
             return '<article class="param-card hint-row' + (paramNeedsConfirm(impl) ? ' needs-confirm' : '') + '">' +
               '<header><code>' + esc(key) + '</code><span class="desc">' + esc(desc) + '</span>' +
-              confidenceSelect(key, conf) + '</header>' +
+              (hasExpr ? '<span class="ai-guess">AI 推测</span>' : '') +
+              confidenceBadge(conf) + '</header>' +
               enumBlock(doc.enumText) +
               memoryNote(impl) +
+              reviewMetaHtml(impl) +
+              candidateListHtml(key, impl) +
+              '<input type="hidden" data-param="' + esc(key) + '" data-pf="preferredCandidateId" value="' +
+              esc(impl.preferredCandidateId || '') + '" />' +
               '<label class="field-label expr-head">表达式或备注' +
               valueKindSelect(key, inferValueKind(impl.expression, impl.valueKind)) +
-              '<textarea class="fld-ta fld-expr expr-ph" data-param="' + esc(key) + '" data-pf="expression" placeholder="可填 JS 表达式，或用一句话说明取值（写码时作为提示词）">' +
+              '<textarea class="fld-ta fld-expr expr-ph" data-param="' + esc(key) + '" data-pf="expression" placeholder="' +
+              esc(placeholder) + '">' +
               esc(impl.expression || '') + '</textarea></label>' +
               '<label class="field-label">来源路径' +
               '<input class="fld" data-param="' + esc(key) + '" data-pf="sourcePath" value="' +
-              esc(impl.sourcePath || '') + '" /></label>' +
+              esc(sourcePathText(impl.sourcePath)) + '" /></label>' +
               hintEditBlock(key, impl) +
               '</article>';
           }).join('');
@@ -1234,9 +1417,9 @@
             '</td><td class="code-expr">' + exprHtml + kindTag +
             (impl.fromMemory ? '<div class="memory-tip">已回填上次确认值' + (impl.fromEvtId ? '（来自 ' + esc(impl.fromEvtId) + '）' : '') + '</div>' : '') +
             '</td>' +
-            '<td class="source-path">' + esc(impl.sourcePath || '-') + '</td>' +
+            '<td class="source-path">' + esc(sourcePathText(impl.sourcePath) || '-') + '</td>' +
             '<td class="conf-cell">' +
-            (conf ? '<span class="conf ' + esc(conf) + '">' + esc(conf) + '</span>' : '-') +
+            (conf ? '<span class="conf ' + esc(conf) + '">' + esc(confidenceLabel(conf)) + '</span>' : '-') +
             '</td></tr>' + hintReadBlock(key, impl);
         }).join('');
         return datalist +
@@ -1274,7 +1457,7 @@
           : '';
         var focusBlock =
           '<div class="focus-block">' +
-          '<h3>待确认</h3>' +
+          '<h3>待审核</h3>' +
           focusReasons +
           uicodeField +
           '<div class="read-only">' + (isConfirmed(impl) ? '已确认' : '未确认') + '</div>' +
@@ -1293,11 +1476,18 @@
           '<div class="block-title">' + (needLocation ? '请确认埋点位置' : '落点') + '</div>' +
           '<dl class="kv">' +
           '<dt>落点文件</dt><dd><span class="read-only">' + esc(impl.targetFile || '待定位') + '</span>' +
-          '<input class="fld edit-only" data-field="targetFile" value="' + esc(impl.targetFile || '') + '" /></dd>' +
+          (impl.targetFile ? '<span class="edit-only ai-guess">AI 推测，请确认或修改</span>' : '') +
+          '<input class="fld edit-only" data-field="targetFile" placeholder="' +
+          (impl.targetFile ? '确认或修改落点文件' : '源码中未找到落点，请补充文件路径') +
+          '" value="' + esc(impl.targetFile || '') + '" /></dd>' +
           '<dt>函数 / 时机</dt><dd><span class="read-only">' + esc(impl.functionName || '-') + (impl.lifecycle ? ' · ' + esc(impl.lifecycle) : '') + '</span>' +
           '<div class="edit-only" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-          '<input class="fld" data-field="functionName" placeholder="函数名" value="' + esc(impl.functionName || '') + '" />' +
-          '<input class="fld" data-field="lifecycle" placeholder="onClick / useEffect" value="' + esc(impl.lifecycle || '') + '" /></div></dd>' +
+          '<input class="fld" data-field="functionName" placeholder="' +
+          (impl.functionName ? '确认或修改函数名' : '无候选时再填写函数名') +
+          '" value="' + esc(impl.functionName || '') + '" />' +
+          '<input class="fld" data-field="lifecycle" placeholder="' +
+          (impl.lifecycle ? '确认或修改 lifecycle' : 'onClick / useEffect / IntersectionObserver / pageLoad') +
+          '" value="' + esc(impl.lifecycle || '') + '" /></div></dd>' +
           insertHintRow +
           '</dl></div>');
         var auxBlock =
@@ -1346,6 +1536,7 @@
           '</div></div></article>';
         bindAcceptedToggle();
         bindConfirmedToggle();
+        bindCandidatePicks();
         updateInterruptBanner();
         renderWizard();
         var activeBtn = document.querySelector('#nav button.active');
@@ -1369,6 +1560,28 @@
         var confirmedBox = document.querySelector('[data-field="confirmed"]');
         if (!confirmedBox) return;
         confirmedBox.addEventListener('change', updateWizardConfirmBtn);
+      }
+
+      function bindCandidatePicks() {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-cand-key]'), function (input) {
+          input.addEventListener('change', function () {
+            if (!input.checked) return;
+            var key = input.getAttribute('data-cand-key');
+            var expr = input.getAttribute('data-cand-expr') || '';
+            var file = input.getAttribute('data-cand-path') || '';
+            var id = input.getAttribute('data-cand-id') || '';
+            var exprEl = document.querySelector('[data-param="' + key.replace(/"/g, '\\"') + '"][data-pf="expression"]');
+            var pathEl = document.querySelector('[data-param="' + key.replace(/"/g, '\\"') + '"][data-pf="sourcePath"]');
+            var prefEl = document.querySelector('[data-param="' + key.replace(/"/g, '\\"') + '"][data-pf="preferredCandidateId"]');
+            if (exprEl) exprEl.value = expr;
+            if (pathEl && file && !String(pathEl.value || '').trim()) pathEl.value = file;
+            if (prefEl) prefEl.value = id;
+            Array.prototype.forEach.call(document.querySelectorAll('[data-cand-key="' + key.replace(/"/g, '\\"') + '"]'), function (row) {
+              var wrap = row.closest('.candidate-item');
+              if (wrap) wrap.classList.toggle('selected', row === input);
+            });
+          });
+        });
       }
 
       function setFilter(next) {
@@ -1432,13 +1645,19 @@
         if (wizardAction) patch.wizardAction = wizardAction;
         return postJson('/api/save-impl', patch).then(function (data) {
           applyReport(data.report);
-          if (data.wizard && (data.wizard.action === 'confirm' || data.wizard.action === 'skip')) {
-            if (data.wizard.action === 'confirm') {
-              toast('已确认，进入下一条');
-            } else {
-              toast('已跳过，进入下一条');
+          if (data.wizard && data.wizard.action === 'skip') {
+            closeWizardPage('已跳过，本页将关闭');
+            return data;
+          }
+          if (data.wizard && data.wizard.action === 'confirm') {
+            if (data.pending || (data.blockingReasons && data.blockingReasons.length)) {
+              var reasons = (data.blockingReasons || []).slice(0, 4);
+              toast(reasons.length ? ('仍待确认：' + reasons.join('；')) : '参数门禁未过，请补全取值后再确认');
+              fetchConfirmQueue();
+              renderMain();
+              return data;
             }
-            navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
+            closeWizardPage('已确认，本页将关闭');
             return data;
           }
           var saved = currentEvent();
@@ -1584,12 +1803,27 @@
       document.getElementById('nav').addEventListener('click', function (e) {
         var btn = e.target.closest('button');
         if (!btn) return;
+        var nextId = btn.getAttribute('data-id');
+        if (confirmMode) {
+          var target = (report.events || []).find(function (item) {
+            return String(item.evtId) === String(nextId);
+          });
+          var status = String(((target && target.impl) || {}).status || 'pending');
+          var ready = status === 'located' || status === 'existing' || status === 'unresolved';
+          if (!ready) {
+            toast('该条尚未分析，请等待');
+            return;
+          }
+        }
         stashForm();
-        currentId = btn.getAttribute('data-id');
+        waitingForAnalysis = false;
+        stopAnalysisWaitPoll();
+        currentId = nextId;
         pasteTarget = '';
         syncUrl(currentId);
         renderNav();
         renderMain();
+        fetchConfirmQueue();
       });
       document.getElementById('btn-edit').addEventListener('click', function () {
         if (!serving) {

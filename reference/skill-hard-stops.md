@@ -7,9 +7,9 @@
 - 把某个项目的封装名（如 `sendLog`）写进 Skill 或当成全公司标准
 - 在没有该封装的仓里发明封装；为了统一把旧页 SDK 直调改成封装
 - 改写文档 `uicode`：只从 Excel → `events.json` 读取；禁止写入 `impl.json`、禁止落库页编辑、禁止用现网旧值覆盖。不一致只填 `uicodeConflict`
-- 不确定时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`
+- 不确定且无真实证据时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`。有证据的候选必须保留，禁止因 `medium` / `low` 清空
 - 打断确认时向用户输出与「埋点位置 / 参数取值 / uicode」无关的说明
-- 未给埋点文档路径时不打印 `prompts.ASK_EXCEL`（请输入本次埋点需求Excel）就开跑或编造路径
+- 未给埋点文档路径时不打印 `prompts.ASK_EXCEL` 就开跑、编造路径，或扫描 `docs/` 列出 xlsx 代选
 - 埋点文档路径无效时不打印 `prompts.ASK_EXCEL_INVALID` 就继续 dump / 选入口 / 写码
 - 未明确入口时不列完整选项（8 项：全流程 / A→B→C / 只 A / D / E / F / 缺失列表 / 补全历史缺失）就自行开跑，或替用户选择默认跑 A
 - 选 7 或 8 且无可用埋点 Excel、也无 `{文档名}-缺失埋点.json` 时不打印 `prompts.ASK_HISTORY_EXCEL` 就开跑 dump/扫描/对账/写码
@@ -19,7 +19,7 @@
 - 入口 8 / 路径 H 自动进入 D/E
 - dump 示意图失败、缺 URL、或下载文件为空后，继续 render / 逐条分析 / 写码 / 验收
 - 无落库产物（`inspectLanding.needA`，含缺示意图 png）时直接写业务源码，或「只跑 C」时只 dump 不分析就改 `adaptor.sourceRoots`
-- 矫正 / 确认参数时整轮 `--no-open`，或不调浏览器只贴 URL / 本地 HTML。同 slug 服务已在跑时，后续 `confirm-event` 不再新开 tab 是允许的；`--wait` 超时须 `--force-open`
+- 矫正 / 确认参数时整轮 `--no-open`，或不调浏览器只贴 URL / 本地 HTML。每条 `needsConfirm` 都必须 `open` 确认页；确认后关页再分析下一条。`--wait` 超时须再 `open` / `--force-open`
 - D 验收失败后未经用户选择进入 E，或 E 超过 1 轮自修复
 - D 验收失败后不问二选一（自修复 / 直接人工矫正），或把选项写成单一是否自动修复
 - 真实验收（非 plan-only）未得到用户设备选择就启动 Playwright，或自行默认 iPhone 13

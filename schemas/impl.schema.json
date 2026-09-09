@@ -44,7 +44,8 @@
         "unresolved": {
           "type": "array",
           "items": { "type": "string", "pattern": "^(请确认埋点位置|请确认参数 .+ 的取值)$" }
-        }
+        },
+        "resolution": { "$ref": "#/$defs/reservedResolution" }
       }
     },
     "parameter": {
@@ -56,8 +57,23 @@
         "required": { "type": "boolean" },
         "expression": { "type": "string" },
         "valueKind": { "enum": ["expression", "prompt", ""] },
-        "sourcePath": { "type": "string" },
+        "sourcePath": {
+          "type": ["string", "array"],
+          "items": { "type": "string" }
+        },
         "confidence": { "enum": ["high", "medium", "low", ""] },
+        "sourceUniqueness": { "enum": ["unique", "multiple", "unknown"] },
+        "pathUniqueness": { "enum": ["unique", "multiple", "unknown"] },
+        "parameterImplementable": { "type": "boolean" },
+        "selectedBand": { "type": ["number", "null"] },
+        "preferredCandidateId": { "type": "string" },
+        "scanIntegrity": { "enum": ["ok", "invalid"] },
+        "unresolvedCodes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "candidates": { "type": "array" },
+        "acquisition": { "type": "object" },
         "legacyUnverified": { "type": "boolean" },
         "unresolved": {
           "type": "array",
@@ -99,8 +115,14 @@
             }
           }
         },
-        "confirmation": { "$ref": "#/$defs/parameterConfirmation" }
+        "confirmation": { "$ref": "#/$defs/parameterConfirmation" },
+        "resolution": { "$ref": "#/$defs/reservedResolution" }
       }
+    },
+    "reservedResolution": {
+      "type": "object",
+      "description": "Reserved for a later resolution model. Fixbug1 MVP does not require or consume this object.",
+      "additionalProperties": true
     },
     "parameterConfirmation": {
       "type": "object",
@@ -167,7 +189,12 @@
             "user-context",
             "field-memory",
             "repository-convention",
-            "manual-confirm"
+            "manual-confirm",
+            "local-binding",
+            "component-reference",
+            "ui-object-match",
+            "variable-name-similarity",
+            "historical-pattern"
           ]
         },
         "file": { "type": "string" },
@@ -235,11 +262,20 @@
         "why": { "type": "string" }
       }
     },
+    "runtimeSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "enum": ["windowPath"] },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
     "dataDep": {
       "type": "object",
-      "required": ["paramKey", "from"],
+      "required": ["paramKey", "from", "status", "unresolved"],
       "properties": {
-        "paramKey": { "type": "string" },
+        "paramKey": { "type": "string", "minLength": 1 },
         "from": { "enum": ["api", "url", "user", "page"] },
         "queryKey": { "type": "string" },
         "expression": { "type": "string" },
@@ -248,7 +284,44 @@
           "type": "object",
           "properties": {
             "urlIncludes": { "type": "string" },
-            "field": { "type": "string" }
+            "field": { "type": "string" },
+            "map": {
+              "type": "object",
+              "description": "Map API leaf values to reported enum values. Keys are matched case-insensitively."
+            },
+            "default": {
+              "description": "Used when the leaf is empty or not present in map."
+            }
+          }
+        },
+        "user": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "runtime": { "$ref": "#/$defs/runtimeSelector" }
+          }
+        },
+        "page": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "runtime": { "$ref": "#/$defs/runtimeSelector" }
+          }
+        },
+        "status": { "enum": ["resolved", "needsConfirm"] },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "MISSING_QUERY_KEY",
+              "MISSING_API_URL",
+              "MISSING_API_FIELD",
+              "MISSING_USER_RUNTIME_SELECTOR",
+              "MISSING_PAGE_RUNTIME_SELECTOR",
+              "UNSUPPORTED_RUNTIME_SELECTOR",
+              "SOURCE_UNRESOLVED",
+              "PAGE_SOURCE_UNRESOLVED"
+            ]
           }
         }
       }

@@ -43,6 +43,15 @@
     }
   },
   "$defs": {
+    "runtimeSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "enum": ["windowPath"] },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
     "locator": {
       "type": "object",
       "required": ["by", "value"],
@@ -153,9 +162,9 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["paramKey", "from"],
+            "required": ["paramKey", "from", "status", "unresolved"],
             "properties": {
-              "paramKey": { "type": "string" },
+              "paramKey": { "type": "string", "minLength": 1 },
               "from": { "enum": ["api", "url", "user", "page"] },
               "queryKey": { "type": "string" },
               "expression": { "type": "string" },
@@ -164,7 +173,39 @@
                 "type": "object",
                 "properties": {
                   "urlIncludes": { "type": "string" },
-                  "field": { "type": "string" }
+                  "field": { "type": "string" },
+                  "map": { "type": "object" },
+                  "default": {}
+                }
+              },
+              "user": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "runtime": { "$ref": "#/$defs/runtimeSelector" }
+                }
+              },
+              "page": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "runtime": { "$ref": "#/$defs/runtimeSelector" }
+                }
+              },
+              "status": { "enum": ["resolved", "needsConfirm"] },
+              "unresolved": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "MISSING_QUERY_KEY",
+                    "MISSING_API_URL",
+                    "MISSING_API_FIELD",
+                    "MISSING_USER_RUNTIME_SELECTOR",
+                    "MISSING_PAGE_RUNTIME_SELECTOR",
+                    "UNSUPPORTED_RUNTIME_SELECTOR",
+                    "SOURCE_UNRESOLVED",
+                    "PAGE_SOURCE_UNRESOLVED"
+                  ]
                 }
               }
             }

@@ -3,9 +3,10 @@ const {
   calculateParameterConfidence,
   hasStrongEvidence,
   isLegacyParameter,
-  isParameterUnresolved
+  isParameterUnresolved,
+  parameterImplementable
 } = require('./calculate-confidence')
-const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
+const { confirmationStatus, validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
 const GATE_STATUS = ['READY', 'NEEDS_CONFIRM', 'INVALID']
 const ISSUE_LEVEL = { error: 'error', confirm: 'confirm', info: 'info' }
@@ -113,6 +114,12 @@ function isOptionalOmitted(parameter) {
   return !isRequiredParameter(parameter) && !hasExpression(parameter)
 }
 
+function isHumanAccepted(parameter) {
+  if (!hasExpression(parameter)) return false
+  const status = confirmationStatus(parameter)
+  return status === 'confirmed' || status === 'reused'
+}
+
 function isLegacyGateSkip(parameter) {
   return !!(parameter && (parameter.legacyUnverified === true || isLegacyParameter(parameter)))
 }
@@ -174,7 +181,8 @@ function validateScopeReachability(parameter, issues) {
     return
   }
   if (parameter.scopeReachable === false) {
-    issues.push(issue('PARAM_SCOPE_UNREACHABLE', ISSUE_LEVEL.error, 'scopeReachable', 'expression is not reachable at the insertion point'))
+    if (parameterImplementable(parameter)) return
+    issues.push(issue('PARAM_SCOPE_UNREACHABLE', ISSUE_LEVEL.confirm, 'scopeReachable', 'expression is not reachable at the insertion point'))
     return
   }
   if (parameter.scopeReachable !== true) {
@@ -223,6 +231,12 @@ function validateConfirmation(parameter, eventContext, issues) {
   })
 }
 
+function validateScanIntegrity(parameter, issues) {
+  if (parameter && parameter.scanIntegrity === 'invalid') {
+    issues.push(issue('SCAN_CANDIDATE_DROPPED', ISSUE_LEVEL.error, 'candidates', 'scan candidates were dropped'))
+  }
+}
+
 function validateUnresolved(parameter, eventContext, issues) {
   if (isOptionalOmitted(parameter)) return
   if (!isParameterUnresolved(parameter, eventContext)) return
@@ -253,8 +267,7 @@ function isParameterReady(parameter, eventContext) {
     && hasSourcePath(parameter)
     && hasValidEvidence(parameter)
     && hasStrongEvidence(parameter)
-    && parameter
-    && parameter.scopeReachable === true
+    && parameterImplementable(parameter)
     && str(parameter.confidence) === 'high'
     && !isParameterUnresolved(parameter, eventContext)
     && (!looksLikeTransform(parameter.expression) || hasTransformEvidence(parameter))
@@ -262,6 +275,9 @@ function isParameterReady(parameter, eventContext) {
 }
 
 function legacyParameterResult(parameter) {
+  if (isHumanAccepted(parameter)) {
+    return { status: 'READY', issues: [] }
+  }
   const expr = str(parameter && parameter.expression)
   const confidence = str(parameter && parameter.confidence)
   if (!expr || confidence === 'low' || confidence === 'medium') {
@@ -292,11 +308,15 @@ function validateParameter(parameter, eventContext) {
   validateExpression(parameter, eventContext, issues)
   validateTransform(parameter, issues)
   validateConfirmation(parameter, eventContext, issues)
+  validateScanIntegrity(parameter, issues)
   validateConfidenceConsistency(parameter, eventContext, issues)
   validateUnresolved(parameter, eventContext, issues)
 
   if (hasError(issues)) {
     return { status: 'INVALID', issues }
+  }
+  if (isHumanAccepted(parameter)) {
+    return { status: 'READY', issues }
   }
   if (hasConfirmIssue(issues)) {
     return { status: 'NEEDS_CONFIRM', issues }
@@ -333,6 +353,7 @@ module.exports = {
   GATE_STATUS,
   validateParameter,
   eventParameterGate,
+  isHumanAccepted,
   isParameterReady,
   isRequiredParameter,
   looksLikeTransform,

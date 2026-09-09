@@ -2,24 +2,37 @@
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
 const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
+const { dataDepConfirmReasons, dataDepGate } = require('../accept/validate-data-dep')
 
 function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'
+}
+
+function eventAnalysisReady(event) {
+  if (!event || typeof event !== 'object') {
+    return false
+  }
+  const status = String(event.status || 'pending').trim()
+  return status === 'located' || status === 'existing' || status === 'unresolved'
 }
 
 function eventNeedsConfirm(event) {
   if (!event || typeof event !== 'object') {
     return true
   }
-  const paramGate = eventParameterGate(event)
-  if (paramGate.status === 'INVALID') {
+  if (!eventAnalysisReady(event)) {
     return false
   }
-  if (paramGate.status === 'NEEDS_CONFIRM') {
+  const paramGate = eventParameterGate(event)
+  const depGate = dataDepGate(event)
+  if (paramGate.status === 'INVALID' || depGate.status === 'INVALID') {
+    return false
+  }
+  if (paramGate.status === 'NEEDS_CONFIRM' || depGate.status === 'NEEDS_CONFIRM') {
     return true
   }
   const status = event.status || 'pending'
-  if (status === 'unresolved' || status === 'pending') {
+  if (status === 'unresolved') {
     return true
   }
   if (Array.isArray(event.unresolved) && event.unresolved.length) {
@@ -81,7 +94,14 @@ function getConfirmReasons(event) {
   if (pathRes && pathRes.status === 'needsConfirm') {
     reasons.push('请确认验收入口路径')
   }
+  dataDepConfirmReasons(event).forEach(reason => reasons.push(reason))
   return reasons
+}
+
+function isConfirmQueuePending(item) {
+  if (!item || !item.needsConfirm) return false
+  if (item.event && item.event.deferred) return false
+  return true
 }
 
 function implById(implPayload) {
@@ -121,18 +141,26 @@ function buildConfirmQueue(eventsPayload, implPayload, options) {
     }
   }).sort((a, b) => (a.docIndex || 0) - (b.docIndex || 0))
 
-  const pending = items.filter(item => item.needsConfirm && !item.confirmed && !item.event.deferred)
+  const pending = items.filter(item => isConfirmQueuePending(item))
   const deferredCount = items.filter(item => item.needsConfirm && !item.confirmed && item.event.deferred).length
+  const unanalyzed = items.filter(item => {
+    if (item.confirmed) return false
+    if (item.event && item.event.deferred) return false
+    return !eventAnalysisReady(item.event)
+  })
   const queue = onlyPending ? pending : items
+  const waitingForAnalysis = pending.length === 0 && unanalyzed.length > 0
   return {
     total: docEvents.length,
     needsConfirmCount: items.filter(item => item.needsConfirm).length,
     confirmedCount: items.filter(item => item.confirmed).length,
     pendingCount: pending.length,
     deferredCount,
+    unanalyzedCount: unanalyzed.length,
+    waitingForAnalysis,
     items,
     queue,
-    done: pending.length === 0
+    done: pending.length === 0 && unanalyzed.length === 0
   }
 }
 
@@ -155,7 +183,7 @@ function findNextPending(queueInfo, afterEvtId) {
     return list[0] ? list[0].evtId : ''
   }
   for (let i = idx + 1; i < list.length; i += 1) {
-    if (list[i].needsConfirm && !list[i].confirmed && !(list[i].event && list[i].event.deferred)) {
+    if (isConfirmQueuePending(list[i])) {
       return list[i].evtId
     }
   }
@@ -254,6 +282,7 @@ if (require.main === module) {
 
 module.exports = {
   paramNeedsConfirm,
+  eventAnalysisReady,
   eventNeedsConfirm,
   locationNeedsConfirm,
   paramKeysNeedingConfirm,
@@ -261,5 +290,6 @@ module.exports = {
   buildConfirmQueue,
   loadConfirmQueue,
   findNextPending,
-  queueProgress
+  queueProgress,
+  isConfirmQueuePending
 }

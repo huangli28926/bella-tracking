@@ -5,6 +5,7 @@ const test = require('node:test')
 const { eventNeedsConfirm } = require('../confirm/needs-confirm')
 const { collectImplGates, validateImpl } = require('./validate-impl')
 const { eventParameterGate, validateParameter } = require('./validate-parameter')
+const { stampHumanConfirmation } = require('./validate-confirmation-reuse')
 
 function highParam(overrides) {
   return Object.assign({
@@ -44,6 +45,22 @@ test('case 2 medium confidence → NEEDS_CONFIRM', () => {
   assert.ok(codes(result).includes('PARAM_STRONG_EVIDENCE_MISSING'))
 })
 
+test('human confirmed medium candidate is READY', () => {
+  const event = {
+    evtId: '1',
+    targetFile: 'src/pages/detail/index.tsx',
+    functionName: 'handleClick',
+    lifecycle: 'onClick',
+    parameters: [highParam({
+      evidence: [{ type: 'field-memory' }],
+      confidence: 'medium'
+    })]
+  }
+  const stamped = stampHumanConfirmation(event)
+  const result = validateParameter(stamped.parameters[0], stamped)
+  assert.equal(result.status, 'READY')
+})
+
 test('case 3 high + unresolved conflict → INVALID', () => {
   const result = validateParameter(highParam({
     unresolved: ['请确认参数 house_id 的取值'],
@@ -63,12 +80,12 @@ test('case 3b medium + unresolved → NEEDS_CONFIRM', () => {
   assert.ok(codes(result).includes('PARAM_UNRESOLVED_REMAINING'))
 })
 
-test('case 4 scopeReachable=false → INVALID', () => {
+test('case 4 scopeReachable=false without acquisition → NEEDS_CONFIRM', () => {
   const result = validateParameter(highParam({
     scopeReachable: false,
     confidence: 'low'
   }))
-  assert.equal(result.status, 'INVALID')
+  assert.equal(result.status, 'NEEDS_CONFIRM')
   assert.ok(codes(result).includes('PARAM_SCOPE_UNREACHABLE'))
 })
 
@@ -203,7 +220,7 @@ test('validate-impl fixture INVALID fails and is not human-confirmable', () => {
   const impl = loadFixture('impl-invalid.json')
   const issues = validateImpl(impl, loadFixture('events.json'), loadFixture('adaptor.json'))
   const errors = issues.filter(item => item.severity === 'error')
-  assert.ok(errors.some(item => /PARAM_SCOPE_UNREACHABLE/.test(item.message)))
+  assert.ok(errors.some(item => /invalid evidence type/.test(item.message)))
   const gate = collectImplGates(impl)[0]
   assert.equal(gate.status, 'INVALID')
   assert.equal(gate.needsConfirm, false)

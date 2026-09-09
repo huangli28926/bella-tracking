@@ -201,7 +201,8 @@ test('same facts twice keep nextTask including command and prompt', () => {
   assert.strictEqual(getNextTask(first).id, 'A_ANALYZE_EVENT')
   assert.strictEqual(getNextTask(first).executor, 'agent')
   assert.strictEqual(getNextTask(first).subject.evtId, '1001')
-  assert.match(getNextTask(first).command, /^node scripts\/workflow\/tracking-workflow\.js --excel=docs\/stable-cmd\.xlsx --status --json$/)
+  assert.ok(getNextTask(first).command.indexOf(JSON.stringify(path.join(__dirname, 'tracking-workflow.js'))) !== -1)
+  assert.match(getNextTask(first).command, /--excel=docs\/stable-cmd\.xlsx --status --json$/)
   assert.strictEqual(getNextTask(first).prompt, null)
 })
 
@@ -306,7 +307,7 @@ test('stage C collectImplGates INVALID is blocked', () => {
       status: 'existing',
       targetFile: 'src/foo.js',
       confirmed: true,
-      parameters: [structuredParam({ scopeReachable: false, confidence: 'low' })]
+      parameters: [structuredParam({ evidence: [{ type: 'agent-guess' }], confidence: 'low' })]
     }]
   })
   const gate = gateStage(fixture.paths, 'C')
@@ -417,6 +418,7 @@ test('no excel returns ASK_EXCEL', () => {
   assert.strictEqual(payload.nextTask.id, 'ASK_EXCEL')
   assert.strictEqual(payload.prompt, ASK_EXCEL)
   assert.strictEqual(payload.nextAction, 'ask_excel')
+  assert.ok(result.stdout.indexOf('埋点需求文档.xlsx') === -1)
 })
 
 test('invalid excel returns ASK_EXCEL_INVALID', () => {
@@ -468,7 +470,7 @@ test('shared prompts stay single-sourced', () => {
 1. 移动端（iPhone 13）
 2. PC 端（桌面视口）
 未选择前不启动浏览器、不跑验收。`)
-  assert.strictEqual(ASK_EXCEL, '请输入本次埋点需求Excel')
+  assert.strictEqual(ASK_EXCEL, '请输入本次埋点需求Excel路径（例如 docs/xxx.xlsx）。未给出路径前禁止扫描仓库代选。')
   assert.strictEqual(ASK_EXCEL_INVALID, '当前埋点文档路径无效，请核实后，重新输入')
   assert.strictEqual(ASK_HISTORY_EXCEL, '需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel')
   assert.ok(formatDeleteOldTracking('95936').indexOf(DELETE_OLD_TRACKING.split('\n')[0]) === 0)
@@ -515,5 +517,24 @@ test('SKILL.md stays a short router without prompt copies', () => {
   ].forEach(banned => {
     assert.ok(skill.indexOf(banned) === -1, banned)
   })
+  assert.ok(skill.indexOf('列出 `docs/`') !== -1)
+  assert.ok(skill.indexOf('{skillRoot}/scripts/workflow/tracking-workflow.js --status --json') !== -1)
+  assert.ok(skill.indexOf('当前打开的业务仓不必有 `scripts/`') !== -1)
+})
+
+test('status works when project cwd has no tracking scripts', () => {
+  const { spawnSync } = require('child_process')
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bt-skill-cwd-'))
+  fs.mkdirSync(path.join(tmp, 'docs'))
+  fs.writeFileSync(path.join(tmp, 'package.json'), '{}\n')
+  const result = spawnSync(process.execPath, [
+    path.join(__dirname, 'tracking-workflow.js'),
+    '--status',
+    '--json'
+  ], { encoding: 'utf8', cwd: tmp })
+  assert.ok(!result.error, result.error && result.error.message)
+  const payload = JSON.parse(result.stdout)
+  assert.strictEqual(payload.nextTask.id, 'ASK_EXCEL')
+  assert.ok(!fs.existsSync(path.join(tmp, 'scripts', 'workflow', 'tracking-workflow.js')))
 })
 

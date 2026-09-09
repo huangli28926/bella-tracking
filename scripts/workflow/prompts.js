@@ -1,3 +1,5 @@
+const { nodeCommand } = require('../lib/skill-paths')
+
 const ENTRY_MENU = `请选择本次入口（回复字母或序号）：
 1. 验收全流程 A→B→C→D【强烈推荐】（E 仅在 D 失败且你同意后才跑）
 2. 落库到写码 A→B→C
@@ -8,7 +10,7 @@ const ENTRY_MENU = `请选择本次入口（回复字母或序号）：
 7. 文档 vs 代码：缺失埋点列表
 8. 补全历史缺失埋点（依赖入口 7 的缺失表；只写 missing，不改 found）`
 
-const ASK_EXCEL = '请输入本次埋点需求Excel'
+const ASK_EXCEL = '请输入本次埋点需求Excel路径（例如 docs/xxx.xlsx）。未给出路径前禁止扫描仓库代选。'
 const ASK_EXCEL_INVALID = '当前埋点文档路径无效，请核实后，重新输入'
 const ASK_HISTORY_EXCEL = '需要梳理哪个历史埋点文档的数据，请给出该历史埋点 excel'
 
@@ -26,7 +28,7 @@ const D_FAIL_CHOICE = `请选择下一步（回复 1 或 2）：
 2. 直接重新进入人工矫正页面
 未选择前不改代码、不进 E、不打开 B。`
 
-const F_SCAN_CONFIRM = `node scripts/history/scan-history-tracking.js`
+const F_SCAN_CONFIRM = nodeCommand('history/scan-history-tracking.js')
 
 const ENTRY_FROM_RUN = {
   A: 3,
