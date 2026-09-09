@@ -766,9 +766,12 @@
             ? ' 期望 ' + fmtVal(diff.expectedValue)
             : '';
           var src = row.dep ? ' ← ' + depText(row.dep) : '';
-          var extra = diff
-            ? '  · ' + (diff.reason || diff.code || diff.status || '不一致') + expected
-            : (empty ? '  · 未取到值，请确认' : '');
+          var extra = '';
+          if (diff && (diff.status === 'FAIL' || (diff.reason && diff.status !== 'PASS' && diff.status !== 'PENDING'))) {
+            extra = '  · ' + (diff.reason || diff.code || diff.status || '不一致') + expected;
+          } else if (pending || empty) {
+            extra = empty ? '  · 未取到值，请确认' : ('  · ' + ((diff && (diff.code || diff.status)) || '待确认'));
+          }
           return '<div class="' + cls + '"><code>' + esc(row.key) + '</code> = <span class="val">' +
             esc(actual) + '</span>' + esc(src) + esc(extra) + '</div>';
         }).join('');
@@ -816,8 +819,10 @@
           var required = !!assertSet[row.key];
           var result = '-';
           var cls = '';
-          if (diff) { result = '失败'; cls = 'fail'; }
-          else if (empty || (!has && pack.fired)) { result = '待确认'; cls = 'warn'; }
+          var diffFail = !!(diff && (diff.status === 'FAIL' || diff.reason));
+          var diffPending = !!(diff && diff.status === 'PENDING');
+          if (diffFail) { result = '失败'; cls = 'fail'; }
+          else if (diffPending || empty || (!has && pack.fired)) { result = '待确认'; cls = 'warn'; }
           else if (pack.fired) { result = '✓ 通过'; cls = 'ok'; }
           var desc = descByKey[row.key] || (row.dep ? depText(row.dep) : '-');
           return '<tr>' +
@@ -1064,7 +1069,9 @@
                   (depResult && depResult.status === 'resolved'
                     ? '\n  expected: ' + fmtVal(depResult.value)
                     : '') +
-                  (diff ? '\n  DIFF: ' + (diff.reason || diff.code || diff.status || '') : '') +
+                  (diff && (diff.status === 'FAIL' || diff.reason) && diff.status !== 'PASS'
+                    ? '\n  DIFF: ' + (diff.reason || diff.code || diff.status || '')
+                    : '') +
                   (empty && !diff ? '\n  未取到值，请人工确认' : ''));
               });
               Object.keys(action).forEach(function (k) {
