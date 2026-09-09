@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
 const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
-const { dataDepConfirmReasons, dataDepGate, eventDataDepNeedsConfirm } = require('../accept/validate-data-dep')
+const { dataDepConfirmReasons, dataDepGate } = require('../accept/validate-data-dep')
 
 function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'
@@ -90,8 +90,7 @@ function getConfirmReasons(event) {
 function isConfirmQueuePending(item) {
   if (!item || !item.needsConfirm) return false
   if (item.event && item.event.deferred) return false
-  if (eventDataDepNeedsConfirm(item.event)) return true
-  return !item.confirmed
+  return true
 }
 
 function implById(implPayload) {

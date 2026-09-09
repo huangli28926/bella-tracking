@@ -5,6 +5,7 @@ const test = require('node:test')
 const { eventNeedsConfirm } = require('../confirm/needs-confirm')
 const { collectImplGates, validateImpl } = require('./validate-impl')
 const { eventParameterGate, validateParameter } = require('./validate-parameter')
+const { stampHumanConfirmation } = require('./validate-confirmation-reuse')
 
 function highParam(overrides) {
   return Object.assign({
@@ -42,6 +43,22 @@ test('case 2 medium confidence → NEEDS_CONFIRM', () => {
   }))
   assert.equal(result.status, 'NEEDS_CONFIRM')
   assert.ok(codes(result).includes('PARAM_STRONG_EVIDENCE_MISSING'))
+})
+
+test('human confirmed medium candidate is READY', () => {
+  const event = {
+    evtId: '1',
+    targetFile: 'src/pages/detail/index.tsx',
+    functionName: 'handleClick',
+    lifecycle: 'onClick',
+    parameters: [highParam({
+      evidence: [{ type: 'field-memory' }],
+      confidence: 'medium'
+    })]
+  }
+  const stamped = stampHumanConfirmation(event)
+  const result = validateParameter(stamped.parameters[0], stamped)
+  assert.equal(result.status, 'READY')
 })
 
 test('case 3 high + unresolved conflict → INVALID', () => {

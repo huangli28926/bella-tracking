@@ -6,7 +6,7 @@ const {
   isParameterUnresolved,
   parameterImplementable
 } = require('./calculate-confidence')
-const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
+const { confirmationStatus, validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
 const GATE_STATUS = ['READY', 'NEEDS_CONFIRM', 'INVALID']
 const ISSUE_LEVEL = { error: 'error', confirm: 'confirm', info: 'info' }
@@ -112,6 +112,12 @@ function knownSymbolSet(context) {
 
 function isOptionalOmitted(parameter) {
   return !isRequiredParameter(parameter) && !hasExpression(parameter)
+}
+
+function isHumanAccepted(parameter) {
+  if (!hasExpression(parameter)) return false
+  const status = confirmationStatus(parameter)
+  return status === 'confirmed' || status === 'reused'
 }
 
 function isLegacyGateSkip(parameter) {
@@ -269,6 +275,9 @@ function isParameterReady(parameter, eventContext) {
 }
 
 function legacyParameterResult(parameter) {
+  if (isHumanAccepted(parameter)) {
+    return { status: 'READY', issues: [] }
+  }
   const expr = str(parameter && parameter.expression)
   const confidence = str(parameter && parameter.confidence)
   if (!expr || confidence === 'low' || confidence === 'medium') {
@@ -306,6 +315,9 @@ function validateParameter(parameter, eventContext) {
   if (hasError(issues)) {
     return { status: 'INVALID', issues }
   }
+  if (isHumanAccepted(parameter)) {
+    return { status: 'READY', issues }
+  }
   if (hasConfirmIssue(issues)) {
     return { status: 'NEEDS_CONFIRM', issues }
   }
@@ -341,6 +353,7 @@ module.exports = {
   GATE_STATUS,
   validateParameter,
   eventParameterGate,
+  isHumanAccepted,
   isParameterReady,
   isRequiredParameter,
   looksLikeTransform,

@@ -332,6 +332,7 @@ function stampHumanConfirmation(event, now) {
   const next = Object.assign({}, event)
   const stampedAt = now || new Date().toISOString()
   next.parameters = (Array.isArray(event && event.parameters) ? event.parameters : []).map(parameter => {
+    if (!str(parameter && parameter.expression)) return parameter
     return Object.assign({}, parameter, {
       confirmation: buildHumanConfirmation(next, parameter, stampedAt)
     })

@@ -31,7 +31,7 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 | 确认并继续 | 写回 `confirmed=true`，参数走现有 `confirmation.status=confirmed`，自动跳下一条；队列清空则跳转 `{文档名}-矫正.html` |
 | 跳过稍后处理 | 写回 `deferred=true`，自动跳下一条；该条暂不进入待确认队列 |
 
-**规则：未勾选「已确认」时，「确认并继续」不可点击。**
+**规则：未勾选「已确认」时，「确认并继续」不可点击。** 勾选只表示用户审核过本条；有表达式的参数会写成 `confirmation.status=confirmed` 并过参数门禁。仍为空、或 `INVALID` 的参数会停在本条并列出原因，不会把事件标成已完成。`event.confirmed=true` 不能清掉仍为 `NEEDS_CONFIRM` 的队列。
 
 向导只展示埋点待确认项（闭集），详细原因用 `unresolvedCodes` 翻译，不要写进事件级 `unresolved[]`：
 
@@ -104,7 +104,7 @@ docs/tracking/impl/{文档名}/
 
 ## 与路径 B 门禁
 
-`tracking-workflow --status` 的待确认队列以 `loadConfirmQueue().pendingCount === 0` 为准（仅统计需确认且未 confirmed、未 deferred 的条数）。
+`tracking-workflow --status` 的待确认队列以 `loadConfirmQueue().pendingCount === 0` 为准（`needsConfirm` 且未 `deferred`；`event.confirmed` 不能跳过仍未 READY 的参数 / dataDep）。
 
 **进 C 前必须整页确认**（与队列是否为空无关）：
 

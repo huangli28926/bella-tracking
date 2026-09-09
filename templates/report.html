@@ -1574,13 +1574,21 @@
         if (wizardAction) patch.wizardAction = wizardAction;
         return postJson('/api/save-impl', patch).then(function (data) {
           applyReport(data.report);
-          if (data.wizard && (data.wizard.action === 'confirm' || data.wizard.action === 'skip')) {
-            if (data.wizard.action === 'confirm') {
-              toast('已确认，进入下一条');
-            } else {
-              toast('已跳过，进入下一条');
-            }
+          if (data.wizard && data.wizard.action === 'skip') {
+            toast('已跳过，进入下一条');
             navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
+            return data;
+          }
+          if (data.wizard && data.wizard.action === 'confirm') {
+            if (data.wizard.nextEvtId || data.wizard.reviewUrl) {
+              toast('已确认，进入下一条');
+              navigateWizard(data.wizard.nextEvtId, data.wizard.reviewUrl);
+              return data;
+            }
+            var reasons = (data.blockingReasons || []).slice(0, 4);
+            toast(reasons.length ? ('仍待确认：' + reasons.join('；')) : '参数门禁未过，请补全取值后再确认');
+            fetchConfirmQueue();
+            renderMain();
             return data;
           }
           var saved = currentEvent();

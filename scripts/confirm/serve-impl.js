@@ -431,8 +431,8 @@ function createServer(paths) {
         const payload = loadImpl(paths)
         const existing = (payload.events || []).find(item => String(item.evtId) === evtId) || { evtId }
         const patch = Object.assign({}, body)
+        if (patch.confirmed === true) delete patch.confirmed
         if (wizardAction === 'confirm') {
-          delete patch.confirmed
           patch.deferred = false
         } else if (wizardAction === 'skip') {
           patch.confirmed = false
@@ -458,13 +458,12 @@ function createServer(paths) {
         const queueInfo = loadConfirmQueue(paths)
         let nextEvtId = ''
         let reviewUrl = ''
-        if (wizardAction === 'confirm' || wizardAction === 'skip') {
-          if (!confirmDecision || confirmDecision.confirmed) {
-            nextEvtId = findNextPending(queueInfo, evtId)
-            if (queueInfo.done) {
-              renderReviewToFile(paths)
-              reviewUrl = reviewPageUrl(req, paths)
-            }
+        const stillPending = (queueInfo.queue || []).some(item => String(item.evtId) === evtId)
+        if (wizardAction === 'skip' || (wizardAction === 'confirm' && confirmDecision && confirmDecision.ok && !stillPending)) {
+          nextEvtId = findNextPending(queueInfo, evtId)
+          if (queueInfo.done) {
+            renderReviewToFile(paths)
+            reviewUrl = reviewPageUrl(req, paths)
           }
         }
         if (confirmDecision && !confirmDecision.ok) {
@@ -473,6 +472,8 @@ function createServer(paths) {
             error: confirmDecision.error,
             gate: confirmDecision.gate,
             report,
+            blockingKeys: confirmDecision.blockingKeys || [],
+            blockingReasons: confirmDecision.blockingReasons || [],
             wizard: {
               action: 'confirm',
               nextEvtId: '',
@@ -486,6 +487,9 @@ function createServer(paths) {
         sendJson(res, 200, {
           ok: true,
           confirmed: !!saved.confirmed,
+          pending: !!(confirmDecision && confirmDecision.pending),
+          blockingKeys: confirmDecision ? (confirmDecision.blockingKeys || []) : undefined,
+          blockingReasons: confirmDecision ? (confirmDecision.blockingReasons || []) : undefined,
           gate: confirmDecision ? confirmDecision.gate : undefined,
           report,
           wizard: {
