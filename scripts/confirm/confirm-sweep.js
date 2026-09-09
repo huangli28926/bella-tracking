@@ -12,7 +12,7 @@ const SCRIPT_DIR = __dirname
 
 function printHelp() {
   console.log(`
-confirm-sweep — 按 docIndex 逐条打开待确认埋点，等待用户确认
+confirm-sweep — 按 docIndex 逐条打开待确认埋点，等待用户确认后关页，再开下一条
 
 Usage:
   node confirm-sweep.js --excel=docs/2.3埋点需求文档.xlsx --wait

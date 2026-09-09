@@ -19,7 +19,7 @@
 - 入口 8 / 路径 H 自动进入 D/E
 - dump 示意图失败、缺 URL、或下载文件为空后，继续 render / 逐条分析 / 写码 / 验收
 - 无落库产物（`inspectLanding.needA`，含缺示意图 png）时直接写业务源码，或「只跑 C」时只 dump 不分析就改 `adaptor.sourceRoots`
-- 矫正 / 确认参数时整轮 `--no-open`，或不调浏览器只贴 URL / 本地 HTML。同 slug 服务已在跑时，后续 `confirm-event` 不再新开 tab 是允许的；`--wait` 超时须 `--force-open`
+- 矫正 / 确认参数时整轮 `--no-open`，或不调浏览器只贴 URL / 本地 HTML。每条 `needsConfirm` 都必须 `open` 确认页；确认后关页再分析下一条。`--wait` 超时须再 `open` / `--force-open`
 - D 验收失败后未经用户选择进入 E，或 E 超过 1 轮自修复
 - D 验收失败后不问二选一（自修复 / 直接人工矫正），或把选项写成单一是否自动修复
 - 真实验收（非 plan-only）未得到用户设备选择就启动 Playwright，或自行默认 iPhone 13

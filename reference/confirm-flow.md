@@ -1,6 +1,6 @@
 # 矫正向导流程（confirm-flow）
 
-逐条定位埋点 → 有待确认项则**必须打开浏览器**确认 → 确认或跳过后下一条 → 全部处理完生成矫正汇总页 → **进 C 前再打开整份落库页**等用户确认。
+逐条定位埋点 → 有待确认项则**必须打开浏览器**确认 → 确认或跳过后**关闭当前确认页** → 再分析下一条；若下一条仍需确认则重新打开 → 全部处理完生成矫正汇总页 → **进 C 前再打开整份落库页**等用户确认。
 
 ## 入口
 
@@ -27,11 +27,11 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 
 | 操作 | 行为 |
 |---|---|
-| 勾选「已确认落库内容」 | 启用「确认并继续」按钮 |
-| 确认并继续 | 写回 `confirmed=true`，参数走现有 `confirmation.status=confirmed`，自动跳下一条；队列清空则跳转 `{文档名}-矫正.html` |
-| 跳过稍后处理 | 写回 `deferred=true`，自动跳下一条；该条暂不进入待确认队列 |
+| 勾选「已确认落库内容」 | 启用「确认并关闭」按钮 |
+| 确认并关闭 | 写回 `confirmed=true`，参数走现有 `confirmation.status=confirmed`，关闭当前确认页；不跳下一条 |
+| 跳过稍后处理 | 写 `deferred=true`，关闭当前确认页 |
 
-**规则：未勾选「已确认」时，「确认并继续」不可点击。** 勾选只表示用户审核过本条；有表达式的参数会写成 `confirmation.status=confirmed` 并过参数门禁。仍为空、或 `INVALID` 的参数会停在本条并列出原因，不会把事件标成已完成。`event.confirmed=true` 不能清掉仍为 `NEEDS_CONFIRM` 的队列。
+**规则：未勾选「已确认」时，「确认并关闭」不可点击。** 勾选只表示用户审核过本条；有表达式的参数会写成 `confirmation.status=confirmed` 并过参数门禁。仍为空、或 `INVALID` 的参数会停在本条并列出原因，不会把事件标成已完成，也**不关页**。`event.confirmed=true` 不能清掉仍为 `NEEDS_CONFIRM` 的队列。
 
 向导只展示埋点待确认项（闭集），详细原因用 `unresolvedCodes` 翻译，不要写进事件级 `unresolved[]`：
 
@@ -56,7 +56,7 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 - `confirm`：须 `confirmed=true`
 - `skip`：写 `deferred=true`
 
-响应 `wizard` 字段：
+响应 `wizard` 字段（`nextEvtId` 仅作进度信息，前端**不**用它跳转）：
 
 ```json
 {
@@ -91,10 +91,11 @@ docs/tracking/impl/{文档名}/
 
 ## 浏览器打开策略
 
-- 第一次打断：`confirm-event` 拉起 `serve-impl` 并 `open` 矫正向导。
-- 同一轮后续条：向导「确认并继续」已在当前 tab 切到 `nextEvtId`；`confirm-event` 发现同 slug 服务在跑则**不再** `open` 新 tab，只 `--wait`。
+- 每条需要确认：`confirm-event` 拉起或复用 `serve-impl`，并 **`open` 该条矫正向导**（即使服务已在跑）。
+- 用户确认或跳过：向导 `window.close()`；`confirm-event --wait` 成功后再关匹配该 `evt` 的 Chrome 确认 tab。
+- 再分析下一条；仅当该条 `needsConfirm` 时重新 `open`。
 - `--wait` 超时：脚本再 `open` 一次该条 URL；Agent 也可 `--force-open`。
-- 进 C 前的整份落库页：`serve-impl` 无 `--evt`，即使服务已在跑也要打开（与向导 URL 不同）。
+- 进 C 前的整份落库页：`serve-impl` 无 `--evt`，即使服务已在跑也要打开（与向导 URL 不同），不因单条确认而关闭。
 
 ## confirm-event --wait 退出条件
 
@@ -116,6 +117,6 @@ node {skillRoot}/scripts/confirm/serve-impl.js --excel=docs/2.3埋点需求文�
 - 不要 `--no-open`（必须主动打开浏览器）
 - 把 Open URL 发给用户，等回复「进入 C」后再写业务源码
 
-有 `needsConfirm` 时先 `confirm-event` / `confirm-sweep`（禁止整轮 `--no-open`；服务已在跑则不新开 tab），队列清空后再走整页确认。
+有 `needsConfirm` 时先 `confirm-event` / `confirm-sweep`（禁止整轮 `--no-open`；**每条确认都要打开浏览器，确认后关页**），队列清空后再走整页确认。
 
 **只跑 C / 落库到写码**：先 `tracking-workflow --run=C --json`。`landing.needA` 时不要 `serve-impl` 空页，先完整路径 A 再本文件 B。`needB` 时从 `confirm-sweep` 开始。脚本 exit 3 = 补 A，exit 4 = 补 B。

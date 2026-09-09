@@ -13,6 +13,7 @@ const {
   shouldOpenBrowser,
   sleep
 } = require('./serve-impl')
+const { closeConfirmTab } = require('./close-confirm-tab')
 
 const SCRIPT_DIR = __dirname
 const DEFAULT_TIMEOUT_SEC = 600
@@ -33,7 +34,7 @@ Options:
   --timeout=600     --wait 超时秒数，默认 600
   --poll-ms=1000    轮询间隔
   --no-open         不打开浏览器（仍可 --wait）
-  --force-open      即使已复用 serve-impl 也再开一个 tab（超时重试用）
+  --force-open      超时重试时再开一次该条确认页
   --json            输出机器可读 JSON
   --port            矫正服务起始端口，默认 3920
 `)
@@ -123,12 +124,9 @@ async function main() {
   const serving = await ensureServing(paths, args)
   const htmlName = path.basename(paths.htmlPath)
   const openUrl = pageUrl(serving.port, htmlName, evtId, 'confirm')
-  const forceOpen = !!(args['force-open'] || args.forceOpen)
-  const openTab = shouldOpenBrowser(args) && (forceOpen || !serving.reused)
+  const openTab = shouldOpenBrowser(args)
   if (openTab) {
     openBrowser(openUrl)
-  } else if (shouldOpenBrowser(args) && serving.reused) {
-    console.log('复用已有矫正服务，不再新开浏览器 tab（当前向导页会切到下一条）')
   }
 
   const payload = {
@@ -153,7 +151,7 @@ async function main() {
 
   const timeoutSec = Number(args.timeout || DEFAULT_TIMEOUT_SEC) || DEFAULT_TIMEOUT_SEC
   const pollMs = Number(args['poll-ms'] || args.pollMs || DEFAULT_POLL_MS) || DEFAULT_POLL_MS
-  console.log(`等待页面「确认并继续」或「跳过稍后处理」（超时 ${timeoutSec}s）…`)
+  console.log(`等待页面「确认并关闭」或「跳过稍后处理」（超时 ${timeoutSec}s）…`)
   console.log(`Open: ${openUrl}`)
   const handledEvent = await waitHandled(paths, evtId, timeoutSec * 1000, pollMs)
   if (handledEvent) {
@@ -161,6 +159,11 @@ async function main() {
     payload.confirmed = !!handledEvent.confirmed
     payload.deferred = !!handledEvent.deferred
     payload.event = handledEvent
+    const closed = closeConfirmTab({ evtId, openUrl })
+    payload.closedTab = closed.closed || 0
+    if (closed.reason) {
+      payload.closeReason = closed.reason
+    }
     printResult(payload, args.json)
     return
   }
