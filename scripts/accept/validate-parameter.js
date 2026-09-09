@@ -3,7 +3,8 @@ const {
   calculateParameterConfidence,
   hasStrongEvidence,
   isLegacyParameter,
-  isParameterUnresolved
+  isParameterUnresolved,
+  parameterImplementable
 } = require('./calculate-confidence')
 const { validateConfirmationRecord } = require('./validate-confirmation-reuse')
 
@@ -174,7 +175,8 @@ function validateScopeReachability(parameter, issues) {
     return
   }
   if (parameter.scopeReachable === false) {
-    issues.push(issue('PARAM_SCOPE_UNREACHABLE', ISSUE_LEVEL.error, 'scopeReachable', 'expression is not reachable at the insertion point'))
+    if (parameterImplementable(parameter)) return
+    issues.push(issue('PARAM_SCOPE_UNREACHABLE', ISSUE_LEVEL.confirm, 'scopeReachable', 'expression is not reachable at the insertion point'))
     return
   }
   if (parameter.scopeReachable !== true) {
@@ -223,6 +225,12 @@ function validateConfirmation(parameter, eventContext, issues) {
   })
 }
 
+function validateScanIntegrity(parameter, issues) {
+  if (parameter && parameter.scanIntegrity === 'invalid') {
+    issues.push(issue('SCAN_CANDIDATE_DROPPED', ISSUE_LEVEL.error, 'candidates', 'scan candidates were dropped'))
+  }
+}
+
 function validateUnresolved(parameter, eventContext, issues) {
   if (isOptionalOmitted(parameter)) return
   if (!isParameterUnresolved(parameter, eventContext)) return
@@ -253,8 +261,7 @@ function isParameterReady(parameter, eventContext) {
     && hasSourcePath(parameter)
     && hasValidEvidence(parameter)
     && hasStrongEvidence(parameter)
-    && parameter
-    && parameter.scopeReachable === true
+    && parameterImplementable(parameter)
     && str(parameter.confidence) === 'high'
     && !isParameterUnresolved(parameter, eventContext)
     && (!looksLikeTransform(parameter.expression) || hasTransformEvidence(parameter))
@@ -292,6 +299,7 @@ function validateParameter(parameter, eventContext) {
   validateExpression(parameter, eventContext, issues)
   validateTransform(parameter, issues)
   validateConfirmation(parameter, eventContext, issues)
+  validateScanIntegrity(parameter, issues)
   validateConfidenceConsistency(parameter, eventContext, issues)
   validateUnresolved(parameter, eventContext, issues)
 

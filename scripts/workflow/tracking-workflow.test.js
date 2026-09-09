@@ -306,7 +306,7 @@ test('stage C collectImplGates INVALID is blocked', () => {
       status: 'existing',
       targetFile: 'src/foo.js',
       confirmed: true,
-      parameters: [structuredParam({ scopeReachable: false, confidence: 'low' })]
+      parameters: [structuredParam({ evidence: [{ type: 'agent-guess' }], confidence: 'low' })]
     }]
   })
   const gate = gateStage(fixture.paths, 'C')

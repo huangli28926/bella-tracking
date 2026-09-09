@@ -63,12 +63,12 @@ test('case 3b medium + unresolved → NEEDS_CONFIRM', () => {
   assert.ok(codes(result).includes('PARAM_UNRESOLVED_REMAINING'))
 })
 
-test('case 4 scopeReachable=false → INVALID', () => {
+test('case 4 scopeReachable=false without acquisition → NEEDS_CONFIRM', () => {
   const result = validateParameter(highParam({
     scopeReachable: false,
     confidence: 'low'
   }))
-  assert.equal(result.status, 'INVALID')
+  assert.equal(result.status, 'NEEDS_CONFIRM')
   assert.ok(codes(result).includes('PARAM_SCOPE_UNREACHABLE'))
 })
 
@@ -203,7 +203,7 @@ test('validate-impl fixture INVALID fails and is not human-confirmable', () => {
   const impl = loadFixture('impl-invalid.json')
   const issues = validateImpl(impl, loadFixture('events.json'), loadFixture('adaptor.json'))
   const errors = issues.filter(item => item.severity === 'error')
-  assert.ok(errors.some(item => /PARAM_SCOPE_UNREACHABLE/.test(item.message)))
+  assert.ok(errors.some(item => /invalid evidence type/.test(item.message)))
   const gate = collectImplGates(impl)[0]
   assert.equal(gate.status, 'INVALID')
   assert.equal(gate.needsConfirm, false)

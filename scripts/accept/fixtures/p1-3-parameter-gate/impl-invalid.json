@@ -10,8 +10,8 @@
           "key": "house_id",
           "expression": "houseInfo.id",
           "sourcePath": "api.house.id -> props.houseInfo -> handleClick",
-          "evidence": [{ "type": "same-component-tracking" }],
-          "scopeReachable": false,
+          "evidence": [{ "type": "agent-guess" }],
+          "scopeReachable": true,
           "confidence": "low",
           "unresolved": [],
           "conflicts": []

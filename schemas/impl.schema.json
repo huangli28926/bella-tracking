@@ -56,8 +56,23 @@
         "required": { "type": "boolean" },
         "expression": { "type": "string" },
         "valueKind": { "enum": ["expression", "prompt", ""] },
-        "sourcePath": { "type": "string" },
+        "sourcePath": {
+          "type": ["string", "array"],
+          "items": { "type": "string" }
+        },
         "confidence": { "enum": ["high", "medium", "low", ""] },
+        "sourceUniqueness": { "enum": ["unique", "multiple", "unknown"] },
+        "pathUniqueness": { "enum": ["unique", "multiple", "unknown"] },
+        "parameterImplementable": { "type": "boolean" },
+        "selectedBand": { "type": ["number", "null"] },
+        "preferredCandidateId": { "type": "string" },
+        "scanIntegrity": { "enum": ["ok", "invalid"] },
+        "unresolvedCodes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "candidates": { "type": "array" },
+        "acquisition": { "type": "object" },
         "legacyUnverified": { "type": "boolean" },
         "unresolved": {
           "type": "array",
@@ -167,7 +182,12 @@
             "user-context",
             "field-memory",
             "repository-convention",
-            "manual-confirm"
+            "manual-confirm",
+            "local-binding",
+            "component-reference",
+            "ui-object-match",
+            "variable-name-similarity",
+            "historical-pattern"
           ]
         },
         "file": { "type": "string" },

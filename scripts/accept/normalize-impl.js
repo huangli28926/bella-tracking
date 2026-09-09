@@ -6,6 +6,7 @@ const { findRepoRoot, parseArgs, readJson } = require('../lib/lib')
 const { defaultPaths } = require('../extract/report')
 const { calculateParameterConfidence, isLegacyParameter } = require('./calculate-confidence')
 const { applyConfirmationReuseToEvent } = require('./validate-confirmation-reuse')
+const { materializeParameter } = require('../params/normalize-parameter-facts')
 
 const SCRIPT_DIR = __dirname
 const STATUS = new Set(['pending', 'existing', 'located', 'unresolved'])
@@ -98,6 +99,7 @@ function normalizeImpl(payload) {
     event.parameters = withReuse.parameters
     event.parameters.forEach(p => {
       if (!p.legacyUnverified) {
+        materializeParameter(p, event, { computeReachability: false })
         p.confidence = calculateParameterConfidence(p, event)
       }
     })

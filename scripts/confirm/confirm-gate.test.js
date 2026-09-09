@@ -59,7 +59,7 @@ test('confirm INVALID rejects confirmed', () => {
   const event = {
     evtId: '1',
     parameters: [highParam({
-      scopeReachable: false,
+      evidence: [{ type: 'agent-guess' }],
       confidence: 'low'
     })]
   }
@@ -92,7 +92,7 @@ test('summarizeImplGates distinguishes INVALID vs NEEDS_CONFIRM vs READY', () =>
   }
   const invalid = {
     evtId: 'i',
-    parameters: [highParam({ scopeReachable: false, confidence: 'low' })]
+    parameters: [highParam({ evidence: [{ type: 'agent-guess' }], confidence: 'low' })]
   }
   assert.equal(collectImplGates({ events: [ready] })[0].status, 'READY')
   assert.equal(summarizeImplGates({ events: [confirm] }).needsConfirmCount, 1)
