@@ -5,11 +5,11 @@
 ## 入口
 
 ```bash
-# 逐条扫待确认队列（推荐）
-node scripts/confirm/confirm-sweep.js --excel=docs/2.3埋点需求文档.xlsx --wait
+# 逐条扫待确认队列（推荐）；cwd = 项目根
+node {skillRoot}/scripts/confirm/confirm-sweep.js --excel=docs/2.3埋点需求文档.xlsx --wait
 
 # 单条打开矫正向导
-node scripts/confirm/confirm-event.js --excel=docs/2.3埋点需求文档.xlsx --evt=95936 --if-needed --wait
+node {skillRoot}/scripts/confirm/confirm-event.js --excel=docs/2.3埋点需求文档.xlsx --evt=95936 --if-needed --wait
 ```
 
 ## URL 形态
@@ -107,7 +107,7 @@ docs/tracking/impl/{文档名}/
 **进 C 前必须整页确认**（与队列是否为空无关）：
 
 ```bash
-node <skillDir>/scripts/confirm/serve-impl.js --excel=docs/2.3埋点需求文档.xlsx
+node {skillRoot}/scripts/confirm/serve-impl.js --excel=docs/2.3埋点需求文档.xlsx
 ```
 
 - 不要 `--evt`（打开整份 `{文档名}-落库.html`，不是单条向导）

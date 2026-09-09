@@ -4,7 +4,7 @@
 
 **触发**：用户说「梳理历史埋点 / 历史埋点关系 / 扫描已有埋点」，或 Agent 判断需要扫历史。先输出上面的扫描命令，等用户确认后再执行；未确认则跳过 F。
 
-1. 仓库根执行 `scan-history-tracking.js`。**不读** `.env` seedUrl。
+1. cwd = 项目根，执行 skill 内 `scan-history-tracking.js`。**不读** `.env` seedUrl。
 2. 探测 adaptor → 扫路由表 + 封装/`$ULOG.send` + `history.push`。规则见 `reference/history-tracking.md`。
 3. 写出 `docs/historyTracking/YYYY/MMDD_HHmmss.html`（另存同名 `_raw/*.json`）。
 4. 把绝对路径和 `file://` URL 发给用户。`--open` 可用系统浏览器打开。
@@ -18,13 +18,13 @@
 **触发**：用户回复 **7**，或说「缺失埋点列表 / 文档 vs 代码 / 哪些埋点没落地」。不跑 A–F，不对业务源码改写。
 
 1. 取 `--excel=` / 用户给出的 xlsx。无可用文件则**原样询问**「`prompts.ASK_HISTORY_EXCEL`（`diff-doc-vs-history` / `--entry=7|8` 无 xlsx 时 stdout）」，未回复不继续。
-2. 仓库根执行 `diff-doc-vs-history.js --excel=docs/{文件名}.xlsx`。缺 `events.json` 时脚本会 `--skip-images` dump；缺扫描 JSON 时会先 `scan-history-tracking`。
+2. cwd = 项目根，执行 skill 内 `diff-doc-vs-history.js --excel=docs/{文件名}.xlsx`。缺 `events.json` 时脚本会 `--skip-images` dump；缺扫描 JSON 时会先 `scan-history-tracking`。
 3. 只比 **evtId 字面量**：文档有、历史扫描无 → 缺失。动态拼接 / 注释掉的调用会误报缺失。
 4. 把缺失表交给用户（控制台 + `{文档名}-缺失埋点.html` / `.json`）。完整则说明文档 evtId 均已出现在扫描结果中。缺失表**不是**写码许可；要补全走入口 8 / 路径 H。
 
 ```bash
-node <skillDir>/scripts/history/diff-doc-vs-history.js --excel=docs/2.6埋点需求文档.xlsx
-node <skillDir>/scripts/history/diff-doc-vs-history.js --excel=docs/2.6埋点需求文档.xlsx --scan-json=docs/historyTracking/2026/_raw/0831_165400.json
+node {skillRoot}/scripts/history/diff-doc-vs-history.js --excel=docs/2.6埋点需求文档.xlsx
+node {skillRoot}/scripts/history/diff-doc-vs-history.js --excel=docs/2.6埋点需求文档.xlsx --scan-json=docs/historyTracking/2026/_raw/0831_165400.json
 ```
 
 ---

@@ -201,7 +201,8 @@ test('same facts twice keep nextTask including command and prompt', () => {
   assert.strictEqual(getNextTask(first).id, 'A_ANALYZE_EVENT')
   assert.strictEqual(getNextTask(first).executor, 'agent')
   assert.strictEqual(getNextTask(first).subject.evtId, '1001')
-  assert.match(getNextTask(first).command, /^node scripts\/workflow\/tracking-workflow\.js --excel=docs\/stable-cmd\.xlsx --status --json$/)
+  assert.ok(getNextTask(first).command.indexOf(JSON.stringify(path.join(__dirname, 'tracking-workflow.js'))) !== -1)
+  assert.match(getNextTask(first).command, /--excel=docs\/stable-cmd\.xlsx --status --json$/)
   assert.strictEqual(getNextTask(first).prompt, null)
 })
 
@@ -517,6 +518,23 @@ test('SKILL.md stays a short router without prompt copies', () => {
     assert.ok(skill.indexOf(banned) === -1, banned)
   })
   assert.ok(skill.indexOf('列出 `docs/`') !== -1)
-  assert.ok(skill.indexOf('tracking-workflow.js --status --json') !== -1)
+  assert.ok(skill.indexOf('{skillRoot}/scripts/workflow/tracking-workflow.js --status --json') !== -1)
+  assert.ok(skill.indexOf('当前打开的业务仓不必有 `scripts/`') !== -1)
+})
+
+test('status works when project cwd has no tracking scripts', () => {
+  const { spawnSync } = require('child_process')
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bt-skill-cwd-'))
+  fs.mkdirSync(path.join(tmp, 'docs'))
+  fs.writeFileSync(path.join(tmp, 'package.json'), '{}\n')
+  const result = spawnSync(process.execPath, [
+    path.join(__dirname, 'tracking-workflow.js'),
+    '--status',
+    '--json'
+  ], { encoding: 'utf8', cwd: tmp })
+  assert.ok(!result.error, result.error && result.error.message)
+  const payload = JSON.parse(result.stdout)
+  assert.strictEqual(payload.nextTask.id, 'ASK_EXCEL')
+  assert.ok(!fs.existsSync(path.join(tmp, 'scripts', 'workflow', 'tracking-workflow.js')))
 })
 

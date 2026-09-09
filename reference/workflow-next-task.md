@@ -3,9 +3,10 @@
 初始化只允许先跑（用户消息里已有路径再带 `--excel=`，没有路径不要编造、不要列出 `docs/`）：
 
 ```bash
-node scripts/workflow/tracking-workflow.js --status --json
+# skill 根 = SKILL.md 所在目录；cwd = 用户当前项目根
+node {skillRoot}/scripts/workflow/tracking-workflow.js --status --json
 # 或
-node scripts/workflow/tracking-workflow.js --excel=docs/{文档名}.xlsx --status --json
+node {skillRoot}/scripts/workflow/tracking-workflow.js --excel=docs/{文档名}.xlsx --status --json
 ```
 
 Excel 门禁（先于入口）：
@@ -27,6 +28,6 @@ exit 10
 
 然后：
 
-- 只执行返回的 `nextTask.command`（仓库相对 `node scripts/...`）。
+- 只执行返回的 `nextTask.command`（skill 内脚本绝对路径；cwd 为项目根）。当前仓没有 `scripts/` 不是错误。
 - `executor=agent` 时按对应 `reference/path-*.md` 做 HOW，做完再 `--status --json`。
 - `--run=A` 只 dump+render，不等于路径 A 完成，不要 `completeStage(A)`。

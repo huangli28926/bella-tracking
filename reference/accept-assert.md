@@ -78,7 +78,7 @@ D 失败时的顺序：按 `accept-fail-explain.md` 输出总览（失败 / 通�
 ### 诊断（无模型）
 
 ```bash
-node <skillDir>/scripts/accept/diagnose-empty.js --excel=docs/xxx.xlsx
+node {skillRoot}/scripts/accept/diagnose-empty.js --excel=docs/xxx.xlsx
 # 可选：--include-fail 一并收录 fail（paramDiffs / not_fired）
 ```
 

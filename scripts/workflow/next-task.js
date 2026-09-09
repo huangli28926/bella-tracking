@@ -1,5 +1,6 @@
 const path = require('path')
 const { readDotEnv, readJson, toPosix } = require('../lib/lib')
+const { nodeAndCommand, nodeCommand } = require('../lib/skill-paths')
 const { getConfirmReasons } = require('../confirm/needs-confirm')
 const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/accept-device')
 const {
@@ -114,7 +115,7 @@ function taskBase(partial) {
 }
 
 function statusCommand(excel) {
-  return `node scripts/workflow/tracking-workflow.js --excel=${excel} --status --json`
+  return nodeCommand('workflow/tracking-workflow.js', `--excel=${excel} --status --json`)
 }
 
 function fillContract(task, ctx) {
@@ -127,22 +128,25 @@ function fillContract(task, ctx) {
 
   switch (task.id) {
     case 'A_DUMP':
-      command = `node scripts/extract/dump-excel.js --excel=${excel}`
+      command = nodeCommand('extract/dump-excel.js', `--excel=${excel}`)
       break
     case 'A_RENDER':
-      command = `node scripts/extract/render-html.js --excel=${excel}`
+      command = nodeCommand('extract/render-html.js', `--excel=${excel}`)
       break
     case 'A_PREPARE_IMAGES':
-      command = `node scripts/extract/dump-excel.js --excel=${excel}`
+      command = nodeCommand('extract/dump-excel.js', `--excel=${excel}`)
       break
     case 'A_ANALYZE_EVENT':
       command = statusCommand(excel)
       break
     case 'A_NORMALIZE_IMPL':
-      command = `node scripts/accept/normalize-impl.js --excel=${excel}`
+      command = nodeCommand('accept/normalize-impl.js', `--excel=${excel}`)
       break
     case 'A_VALIDATE_IMPL':
-      command = `node scripts/accept/normalize-impl.js --excel=${excel} && node scripts/accept/validate-impl.js --excel=${excel} --json`
+      command = nodeAndCommand([
+        { script: 'accept/normalize-impl.js', args: `--excel=${excel}` },
+        { script: 'accept/validate-impl.js', args: `--excel=${excel} --json` }
+      ])
       nextAction = 'fix_validation'
       break
     case 'CHOOSE_ENTRY':
@@ -166,7 +170,7 @@ function fillContract(task, ctx) {
       nextAction = 'ask_excel'
       break
     case 'C_CONFIRM_DELETE_OLD':
-      command = `node scripts/accept/check-old-tracking.js --json`
+      command = nodeCommand('accept/check-old-tracking.js', '--json')
       prompt = formatDeleteOldTracking((ctx.deleteEvtIds || []).length ? ctx.deleteEvtIds : ['{evtId 列表}'])
       nextAction = 'confirm_delete_old'
       break
@@ -176,7 +180,7 @@ function fillContract(task, ctx) {
       nextAction = 'choose_repair_mode'
       break
     case 'B_CONFIRM_EVENT': {
-      command = `node scripts/confirm/confirm-event.js --excel=${excel} --evt=${evtId} --if-needed --wait`
+      command = nodeCommand('confirm/confirm-event.js', `--excel=${excel} --evt=${evtId} --if-needed --wait`)
       const event = ctx.pendingConfirm && ctx.pendingConfirm.event
       const reasons = (ctx.pendingConfirm && ctx.pendingConfirm.reasons) || getConfirmReasons(event)
       prompt = formatConfirmEvent(evtId, reasons)
@@ -184,7 +188,7 @@ function fillContract(task, ctx) {
       break
     }
     case 'B_CONFIRM_FULL_PAGE':
-      command = `node scripts/confirm/serve-impl.js --excel=${excel}`
+      command = nodeCommand('confirm/serve-impl.js', `--excel=${excel}`)
       prompt = FULL_PAGE_PROMPT
       nextAction = 'confirm_full_page'
       break
@@ -198,11 +202,11 @@ function fillContract(task, ctx) {
       break
     case 'D_RUN_ACCEPT':
       command = device
-        ? `node scripts/accept/run-accept.js --excel=${excel} --device=${device}`
-        : `node scripts/accept/run-accept.js --excel=${excel} --plan-only`
+        ? nodeCommand('accept/run-accept.js', `--excel=${excel} --device=${device}`)
+        : nodeCommand('accept/run-accept.js', `--excel=${excel} --plan-only`)
       break
     case 'H_NEED_MISSING_LIST':
-      command = `node scripts/history/diff-doc-vs-history.js --excel=${excel}`
+      command = nodeCommand('history/diff-doc-vs-history.js', `--excel=${excel}`)
       break
     default:
       break

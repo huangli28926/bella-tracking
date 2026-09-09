@@ -1,3 +1,5 @@
+const { nodeCommand } = require('../lib/skill-paths')
+
 const ENTRY_MENU = `请选择本次入口（回复字母或序号）：
 1. 验收全流程 A→B→C→D【强烈推荐】（E 仅在 D 失败且你同意后才跑）
 2. 落库到写码 A→B→C
@@ -26,7 +28,7 @@ const D_FAIL_CHOICE = `请选择下一步（回复 1 或 2）：
 2. 直接重新进入人工矫正页面
 未选择前不改代码、不进 E、不打开 B。`
 
-const F_SCAN_CONFIRM = `node scripts/history/scan-history-tracking.js`
+const F_SCAN_CONFIRM = nodeCommand('history/scan-history-tracking.js')
 
 const ENTRY_FROM_RUN = {
   A: 3,
