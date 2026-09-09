@@ -63,6 +63,36 @@ test('confirm medium candidate with expression stamps and READY', () => {
   assert.deepEqual(result.event.unresolved, [])
 })
 
+test('confirm prompt without sourcePath stays confirmed', () => {
+  const event = {
+    evtId: '96793',
+    targetFile: 'src/pages/detail/index.tsx',
+    functionName: 'handleClick',
+    lifecycle: 'onClick',
+    componentBoundary: 'LocalCard',
+    unresolved: ['请确认参数 shop_leader_ucid 的取值'],
+    parameters: [{
+      key: 'shop_leader_ucid',
+      expression: 'brokerList.length > 0，则 shop_leader_ucid=window.__user.id;反之为空',
+      valueKind: 'prompt',
+      sourcePath: '',
+      evidence: [{ type: 'manual-confirm' }],
+      scopeReachable: false,
+      confidence: 'low',
+      unresolved: [],
+      conflicts: []
+    }]
+  }
+  const result = applyConfirmAction(event)
+  assert.equal(result.ok, true)
+  assert.equal(result.confirmed, true)
+  assert.equal(result.gate.status, 'READY')
+  const confirmation = result.event.parameters[0].confirmation
+  assert.equal(confirmation.status, 'confirmed')
+  assert.equal(confirmation.evidence.sourceRoot, '')
+  assert.deepEqual(result.event.unresolved, [])
+})
+
 test('confirm empty expression stays pending', () => {
   const event = {
     evtId: '1',

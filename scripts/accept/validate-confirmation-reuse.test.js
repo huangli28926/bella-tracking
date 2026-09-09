@@ -307,6 +307,60 @@ test('missing componentBoundary provenance cannot reuse', () => {
   assert.equal(result.checks.componentBoundaryCompatible, false)
 })
 
+test('prompt confirmation without sourceRoot is valid and kept', () => {
+  const impl = {
+    events: [{
+      evtId: '96793',
+      targetFile: 'src/pages/detail/index.tsx',
+      functionName: 'handleClick',
+      lifecycle: 'onClick',
+      parameters: [{
+        key: 'shop_leader_ucid',
+        expression: 'brokerList.length > 0 则用 window.__user.id',
+        valueKind: 'prompt',
+        sourcePath: '',
+        evidence: [{ type: 'manual-confirm' }],
+        scopeReachable: false,
+        confidence: 'low',
+        unresolved: [],
+        conflicts: [],
+        confirmation: {
+          status: 'confirmed',
+          source: 'human',
+          reuseScope: 'same-dataflow',
+          confirmedAt: '2026-09-09T10:00:00+08:00',
+          evidence: {
+            parameterKey: 'shop_leader_ucid',
+            sourceRoot: '',
+            targetFile: 'src/pages/detail/index.tsx',
+            targetSymbol: 'handleClick',
+            lifecycle: 'onClick',
+            componentBoundary: '',
+            transformKind: 'identity',
+            semanticFingerprint: 'identity'
+          }
+        }
+      }]
+    }]
+  }
+  const issues = validateImpl(impl, { events: [{ evtId: '96793' }] }, { styles: [], sourceRoots: [] })
+  const errors = issues.filter(item => item.severity === 'error')
+  assert.equal(errors.length, 0)
+  const { normalizeImpl } = require('./normalize-impl')
+  const after = normalizeImpl(impl)
+  assert.equal(after.events[0].parameters[0].confirmation.status, 'confirmed')
+})
+
+test('expression with sourcePath still requires stored sourceRoot', () => {
+  const issues = validateParameter(confirmedParam({
+    confirmation: Object.assign({}, confirmedParam().confirmation, {
+      evidence: Object.assign({}, confirmedParam().confirmation.evidence, { sourceRoot: '' })
+    })
+  }), eventBase())
+  assert.equal(issues.status, 'INVALID')
+  assert.ok(issues.issues.some(item => item.field === 'confirmation.evidence.sourceRoot'))
+})
+
 test('normalizeImpl applies confirmation reuse in official pipeline', () => {
   const { normalizeImpl } = require('./normalize-impl')
   const after = normalizeImpl({
