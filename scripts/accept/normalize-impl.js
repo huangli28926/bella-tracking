@@ -82,7 +82,11 @@ function normalizeImpl(payload) {
       const legacy = isLegacyParameter(p)
       p.key = str(p.key)
       if ('expression' in p) p.expression = str(p.expression)
-      if ('sourcePath' in p) p.sourcePath = str(p.sourcePath)
+      if ('sourcePath' in p) {
+        p.sourcePath = Array.isArray(p.sourcePath)
+          ? p.sourcePath.map(str).filter(Boolean)
+          : str(p.sourcePath)
+      }
       p.confidence = CONFIDENCE.has(str(p.confidence)) ? str(p.confidence) : ''
       if ('valueKind' in p) p.valueKind = ['expression', 'prompt', ''].includes(str(p.valueKind)) ? str(p.valueKind) : ''
       if (!Object.prototype.hasOwnProperty.call(p, 'evidence')) p.evidence = []

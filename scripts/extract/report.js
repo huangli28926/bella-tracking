@@ -362,6 +362,12 @@ function mergeImplEvent(existing, patch) {
       docDesc: incoming.docDesc !== undefined ? incoming.docDesc : before.docDesc,
       fromMemory: incoming.fromMemory !== undefined ? !!incoming.fromMemory : !!before.fromMemory,
       fromEvtId: incoming.fromEvtId !== undefined ? String(incoming.fromEvtId || '') : (before.fromEvtId || ''),
+      candidates: incoming.candidates !== undefined ? incoming.candidates : before.candidates,
+      preferredCandidateId: incoming.preferredCandidateId !== undefined
+        ? incoming.preferredCandidateId
+        : before.preferredCandidateId,
+      unresolvedCodes: incoming.unresolvedCodes !== undefined ? incoming.unresolvedCodes : before.unresolvedCodes,
+      confirmation: incoming.confirmation !== undefined ? incoming.confirmation : before.confirmation,
       hint: mergedHint
     }))
   })

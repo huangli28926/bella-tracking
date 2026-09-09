@@ -2,7 +2,7 @@ const { calculateParameterConfidence, isLegacyParameter } = require('./calculate
 const { mergeScanCandidates } = require('./scan-existing-tracking')
 const { computeScopeReachable } = require('./compute-scope-reachable')
 const { validateAcquisition } = require('./validate-acquisition')
-const { computeSourceUniqueness } = require('./uniqueness')
+const { applyPreferredCandidate, computeSourceUniqueness } = require('./uniqueness')
 const { mapUnresolvedCodes } = require('./map-unresolved-ui')
 
 function str(value) {
@@ -41,6 +41,7 @@ function materializeParameter(parameter, eventContext, context) {
         p.conflicts.push('multiple-valid-parameter-sources')
       }
     }
+    applyPreferredCandidate(p)
   }
 
   if (ctx.computeReachability) {

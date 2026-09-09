@@ -438,3 +438,30 @@ test('case 21 unresolved code maps to legacy phrase', () => {
   const phrases = mapUnresolvedCodes(['SHARED_COMPONENT_IMPACT'], 'house_id')
   assert.deepEqual(phrases, ['请确认参数 house_id 的取值'])
 })
+
+test('unique candidate prefills empty expression and keeps candidates', () => {
+  const scanned = [
+    { id: 'z', band: 1, expression: 'houseInfo.id', file: 'HouseCard.tsx', origin: 'scan', semanticCompatible: true }
+  ]
+  const { param } = gate(baseParam({
+    expression: '',
+    candidates: scanned
+  }), {}, { scanned })
+  assert.equal(param.expression, 'houseInfo.id')
+  assert.equal(param.preferredCandidateId, 'z')
+  assert.equal(param.candidates.length, 1)
+})
+
+test('tied same-band candidates do not invent preferred expression', () => {
+  const scanned = [
+    { id: 'a', band: 2, expression: 'houseInfo.id', file: 'A.tsx', origin: 'scan', semanticCompatible: true },
+    { id: 'b', band: 2, expression: 'detail.id', file: 'B.tsx', origin: 'scan', semanticCompatible: true }
+  ]
+  const { param } = gate(baseParam({
+    expression: '',
+    candidates: scanned
+  }), {}, { scanned })
+  assert.equal(param.expression, '')
+  assert.equal(param.candidates.length, 2)
+  assert.equal(param.sourceUniqueness, 'multiple')
+})

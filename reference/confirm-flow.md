@@ -23,18 +23,20 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 
 ## 向导 UI
 
+向导是 **AI 推断审核页**，不是空白表单。有候选时预填并展示证据 / 候选列表；用户确认、修改或从候选中选择。只有完全没有候选时才出现空输入框。
+
 | 操作 | 行为 |
 |---|---|
 | 勾选「已确认落库内容」 | 启用「确认并继续」按钮 |
-| 确认并继续 | 写回 `confirmed=true`，自动跳下一条；队列清空则跳转 `{文档名}-矫正.html` |
+| 确认并继续 | 写回 `confirmed=true`，参数走现有 `confirmation.status=confirmed`，自动跳下一条；队列清空则跳转 `{文档名}-矫正.html` |
 | 跳过稍后处理 | 写回 `deferred=true`，自动跳下一条；该条暂不进入待确认队列 |
 
 **规则：未勾选「已确认」时，「确认并继续」不可点击。**
 
-向导只展示埋点待确认项（闭集），不要渲染模型散文：
+向导只展示埋点待确认项（闭集），详细原因用 `unresolvedCodes` 翻译，不要写进事件级 `unresolved[]`：
 
-- `请确认埋点位置` → 高亮落点文件 / 函数 / 生命周期
-- `请确认参数 {key} 的取值` → 只高亮该参数（表达式为空，或 `confidence` 为 `low` / `medium`）
+- `请确认埋点位置` → 高亮落点文件 / 函数 / 生命周期（有值则预填）
+- `请确认参数 {key} 的取值` → 高亮该参数（表达式为空，或 `confidence` 为 `low` / `medium`）；有 `candidates[]` 时从中选择
 - `请确认 uicode（文档与落点不一致）` → 只展示冲突字段
 
 聊天超时提醒同样只列 `evtId`、事件名、上述短句、URL。
@@ -70,7 +72,7 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 
 ## 同名字段回填
 
-用户确认一条埋点后，其参数 `expression` / `valueKind` / `sourcePath` 按 **key** 写入 `_raw/field-memory.json`。后续未确认事件出现同一 key，且表达式为空或 confidence 为 `low`/`medium` 时，自动回填上次确认值（confidence 设为 `medium`），向导提示「已回填上次确认值」，**仍须勾选确认**。不覆盖 `high` 且非空的表达式；不回填落点文件 / uicode。跳过（deferred）不写入记忆。
+用户确认一条埋点后，其参数 `expression` / `valueKind` / `sourcePath` 按 **key** 写入 `_raw/field-memory.json`。后续未确认事件出现同一 key，且 **表达式为空** 时，自动回填上次确认值（confidence 设为 `medium`），向导提示「已回填上次确认值」，**仍须勾选确认**。不覆盖任何已有表达式（含 `medium` / `low` 的 AI 候选）；不回填落点文件 / uicode。跳过（deferred）不写入记忆。
 
 `field-memory` 只是跨事件同名 key 的提示回填，**不是** confirmation reuse。同一 `evtId`+`key` 的历史 `confirmation` 必须先按当前源码重建参数事实，再经 `validate-confirmation-reuse` 得到 `reused` 或 `stale`。不得只因为上一轮 `confirmed=true` 就跳过解析。`stale` 不等于 `needsConfirm=true`。
 

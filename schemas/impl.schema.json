@@ -44,7 +44,8 @@
         "unresolved": {
           "type": "array",
           "items": { "type": "string", "pattern": "^(请确认埋点位置|请确认参数 .+ 的取值)$" }
-        }
+        },
+        "resolution": { "$ref": "#/$defs/reservedResolution" }
       }
     },
     "parameter": {
@@ -114,8 +115,14 @@
             }
           }
         },
-        "confirmation": { "$ref": "#/$defs/parameterConfirmation" }
+        "confirmation": { "$ref": "#/$defs/parameterConfirmation" },
+        "resolution": { "$ref": "#/$defs/reservedResolution" }
       }
+    },
+    "reservedResolution": {
+      "type": "object",
+      "description": "Reserved for a later resolution model. Fixbug1 MVP does not require or consume this object.",
+      "additionalProperties": true
     },
     "parameterConfirmation": {
       "type": "object",

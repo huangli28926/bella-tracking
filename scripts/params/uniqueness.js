@@ -39,8 +39,24 @@ function computeSourceUniqueness(candidates) {
   return { sourceUniqueness, selectedBand, selected }
 }
 
+function applyPreferredCandidate(parameter) {
+  const p = parameter && typeof parameter === 'object' ? parameter : {}
+  const uniq = computeSourceUniqueness(p.candidates)
+  if (uniq.sourceUniqueness === 'unique' && uniq.selected[0]) {
+    const best = uniq.selected[0]
+    if (!str(p.preferredCandidateId) && best.id) {
+      p.preferredCandidateId = best.id
+    }
+    if (!str(p.expression) && str(best.expression)) {
+      p.expression = best.expression
+    }
+  }
+  return p
+}
+
 module.exports = {
   computeSourceUniqueness,
+  applyPreferredCandidate,
   isCompatible,
   bandOf
 }

@@ -7,7 +7,7 @@
 - 把某个项目的封装名（如 `sendLog`）写进 Skill 或当成全公司标准
 - 在没有该封装的仓里发明封装；为了统一把旧页 SDK 直调改成封装
 - 改写文档 `uicode`：只从 Excel → `events.json` 读取；禁止写入 `impl.json`、禁止落库页编辑、禁止用现网旧值覆盖。不一致只填 `uicodeConflict`
-- 不确定时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`
+- 不确定且无真实证据时编造 `code` / `insertHint` / `evidence` / 参数表达式，或把分析散文写入 `unresolved[]`。有证据的候选必须保留，禁止因 `medium` / `low` 清空
 - 打断确认时向用户输出与「埋点位置 / 参数取值 / uicode」无关的说明
 - 未给埋点文档路径时不打印 `prompts.ASK_EXCEL` 就开跑、编造路径，或扫描 `docs/` 列出 xlsx 代选
 - 埋点文档路径无效时不打印 `prompts.ASK_EXCEL_INVALID` 就继续 dump / 选入口 / 写码

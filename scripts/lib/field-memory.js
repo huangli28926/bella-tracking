@@ -38,9 +38,7 @@ function writeFieldMemory(paths, memory) {
 }
 
 function paramNeedsBackfill(param) {
-  const expr = String((param && param.expression) || '').trim()
-  const confidence = String((param && param.confidence) || '').trim()
-  return !expr || confidence === 'low' || confidence === 'medium'
+  return !String((param && param.expression) || '').trim()
 }
 
 function upsertFromConfirmedEvent(memory, event) {
@@ -149,6 +147,7 @@ module.exports = {
   applyFieldMemoryToImplFile,
   applyToEvent,
   applyToPayload,
+  paramNeedsBackfill,
   emptyMemory,
   fieldMemoryPath,
   loadFieldMemory,
