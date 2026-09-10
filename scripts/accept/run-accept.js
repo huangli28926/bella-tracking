@@ -84,6 +84,8 @@ function resolveAcceptHook(adaptorPath) {
 const REPORT_GIF_MISSED =
   '未捕获到埋点上报 GIF。引入 dig-log SDK 后 GIF 一定能捕获到，请确认页面是否已引入 lianjiaUlog.js，并排查脚本未加载、被拦截或未真正发出。'
 
+const REPORT_HTTP_TIMEOUT_MS = 3000
+
 function emptyHttp(error, reasonZh) {
   return {
     ok: false,
@@ -107,6 +109,20 @@ function httpRank(record) {
   if (source === 'request') return 20
   if (source === 'hook') return 10
   return 0
+}
+
+/** 最终结果：拿到 HTTP 状态码，或被浏览器判为失败。request / hook 只是「发出去了」，不算。 */
+function isDecisiveRecord(record) {
+  if (!record) {
+    return false
+  }
+  if ((Number(record.status) || 0) > 0) {
+    return true
+  }
+  if (record.source === 'requestfailed') {
+    return true
+  }
+  return /ERR_ABORTED|NS_BINDING_ABORTED|net::ERR|requestfailed/i.test(String(record.error || ''))
 }
 
 function explainHttp(record) {
@@ -244,8 +260,9 @@ async function readPageGifs(page) {
 }
 
 async function waitForReportHttp(records, since, evtId, timeoutMs, extra) {
-  const deadline = Date.now() + (timeoutMs || 2000)
-  while (Date.now() <= deadline) {
+  const deadline = Date.now() + (timeoutMs || REPORT_HTTP_TIMEOUT_MS)
+  let pending = null
+  for (;;) {
     let all = (records || []).slice()
     if (extra && extra.gifSink && extra.gifSink.logs) {
       all = all.concat(extra.gifSink.logs.map(normalizeGifRecord))
@@ -256,9 +273,18 @@ async function waitForReportHttp(records, since, evtId, timeoutMs, extra) {
     }
     const hit = pickHttp(all, since, evtId)
     if (hit) {
-      return toHttpResult(hit)
+      if (isDecisiveRecord(hit)) {
+        return toHttpResult(hit)
+      }
+      pending = hit
+    }
+    if (Date.now() > deadline) {
+      break
     }
     await sleep(100)
+  }
+  if (pending) {
+    return toHttpResult(pending)
   }
   return emptyHttp('no matching report request')
 }
@@ -1077,7 +1103,7 @@ async function runBrowser(chain, opts) {
             diagnosticsDir: opts.diagnosticsDir,
             acceptDir: opts.acceptDir,
             httpRecords,
-            reportTimeout: 2000,
+            reportTimeout: REPORT_HTTP_TIMEOUT_MS,
             logSink,
             gifSink
           })
@@ -1325,4 +1351,4 @@ if (require.main === module) {
   })
 }
 
-module.exports = { main }
+module.exports = { main, waitForReportHttp, REPORT_HTTP_TIMEOUT_MS }

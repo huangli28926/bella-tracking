@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const fs = require('fs')
 const http = require('http')
 const path = require('path')
@@ -35,6 +35,12 @@ const SCRIPT_DIR = __dirname
 const DEFAULT_PORT = 3920
 const PORT_ATTEMPTS = 11
 const MAX_BODY = 6 * 1024 * 1024
+const CHROME_BUNDLE_ID = 'com.google.Chrome'
+const CHROME_EXECUTABLES = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+  path.join(process.env.HOME || '', 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+]
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
@@ -115,42 +121,65 @@ function shouldOpenBrowser(args) {
   return true
 }
 
-function openBrowser(pageUrl) {
-  const platform = process.platform
-  let cmd = 'xdg-open'
-  let cmdArgs = [pageUrl]
-  if (platform === 'darwin') {
-    cmd = 'open'
-    cmdArgs = ['-a', 'Google Chrome', pageUrl]
-  } else if (platform === 'win32') {
-    cmd = 'cmd'
-    cmdArgs = ['/c', 'start', '', pageUrl]
-  }
+function spawnDetached(command, args, label) {
   try {
-    const child = spawn(cmd, cmdArgs, { detached: true, stdio: 'ignore' })
+    const child = spawn(command, args, { detached: true, stdio: 'ignore' })
     child.on('error', error => {
-      console.warn(`自动打开浏览器失败: ${error.message || error}`)
+      console.warn(`自动打开浏览器失败（${label}）: ${error.message || error}`)
     })
     child.unref()
-    if (platform === 'darwin') {
-      try {
-        const escapedUrl = String(pageUrl).replace(/"/g, '\\"')
-        const appleScript = [
-          'tell application "Google Chrome"',
-          `  open location "${escapedUrl}"`,
-          '  activate',
-          'end tell'
-        ].join('\n')
-        const chrome = spawn('osascript', ['-e', appleScript], { detached: true, stdio: 'ignore' })
-        chrome.on('error', () => {})
-        chrome.unref()
-      } catch (error) {
-        console.warn(`自动激活浏览器失败: ${error.message || error}`)
-      }
-    }
+    return { ok: true, command, method: label }
   } catch (error) {
-    console.warn(`自动打开浏览器失败: ${error.message || error}`)
+    return { ok: false, command, method: label, reason: String(error.message || error) }
   }
+}
+
+function chromeExecutable() {
+  const candidates = [
+    process.env.BELLA_TRACKING_CHROME,
+    ...CHROME_EXECUTABLES
+  ]
+  return candidates.find(candidate => {
+    if (!candidate || !fs.existsSync(candidate)) {
+      return false
+    }
+    try {
+      return fs.statSync(candidate).isFile()
+    } catch (error) {
+      return false
+    }
+  }) || ''
+}
+
+function openBrowser(pageUrl) {
+  const platform = process.platform
+  if (platform === 'darwin') {
+    const executable = chromeExecutable()
+    if (executable) {
+      return spawnDetached(executable, [pageUrl], 'Chrome executable')
+    }
+    const bundleResult = spawnSync('open', ['-b', CHROME_BUNDLE_ID, pageUrl], {
+      encoding: 'utf8'
+    })
+    if (bundleResult.status === 0) {
+      return { ok: true, command: 'open', method: 'Chrome bundle id' }
+    }
+    const systemResult = spawnSync('open', [pageUrl], {
+      encoding: 'utf8'
+    })
+    if (systemResult.status === 0) {
+      return { ok: true, command: 'open', method: 'system browser' }
+    }
+    const reason = String(
+      systemResult.stderr || bundleResult.stderr || systemResult.error || bundleResult.error || 'open failed'
+    ).trim()
+    console.warn(`自动打开浏览器失败: ${reason}`)
+    return { ok: false, command: 'open', method: 'system browser', reason }
+  }
+  if (platform === 'win32') {
+    return spawnDetached('cmd', ['/c', 'start', '', pageUrl], 'system browser')
+  }
+  return spawnDetached('xdg-open', [pageUrl], 'system browser')
 }
 
 function evtArg(args) {
@@ -600,8 +629,8 @@ function logOpen(paths, args, port, evtId, reused) {
   }
   console.log(`Open: ${openUrl}`)
   if (shouldOpenBrowser(args)) {
-    openBrowser(openUrl)
-    console.log(reused ? '已尝试打开浏览器矫正页（复用已有服务）' : '已尝试自动打开浏览器矫正页')
+    const launch = openBrowser(openUrl)
+    console.log(`${reused ? '已尝试打开浏览器矫正页（复用已有服务）' : '已尝试自动打开浏览器矫正页'}${launch && launch.method ? `（${launch.method}）` : ''}`)
   }
   return openUrl
 }
@@ -657,6 +686,7 @@ module.exports = {
   main,
   DEFAULT_PORT,
   PORT_ATTEMPTS,
+  chromeExecutable,
   openBrowser,
   pageUrl,
   evtArg,

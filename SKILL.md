@@ -29,7 +29,7 @@ description: >-
 
 不要因为当前仓缺少 `scripts/workflow/tracking-workflow.js` 就停。发出 `prompt` 之前禁止：列出 `docs/`、猜测 xlsx、读 `scripts/` 或 `reference/`、自己生成选项、执行任何阶段。
 
-`prompt` 非空或 `nextAction` 为 `choose_*` / `confirm_*` / `ask_excel`：把 `prompt` **原样**发给用户后**本轮结束**。禁止从记忆或本文件补菜单，禁止再加解释或「先看脚本」。exit 10 = 未选入口。用户下一条消息再带路径或入口，重新 `--status`。
+仅当 `nextTask.command` 为空时，才把 `prompt` **原样**发给用户后**本轮结束**（例如 `choose_*` / `ask_excel`，或确实需要用户先做选择的动作）。如果 `nextTask.command` 非空，必须先执行该命令，不能因为 `prompt` 非空而提前结束；其中 `confirm-event --wait` / `serve-impl` 负责实际打开浏览器并等待用户操作，命令完成后再重新 `--status --json`。禁止从记忆或本文件补菜单，禁止再加解释或「先看脚本」。exit 10 = 未选入口。用户下一条消息再带路径或入口，重新 `--status`。
 
 其后：`executor=script` 只跑返回的 `nextTask.command`（已指向 skill 内脚本绝对路径，cwd 仍是项目根）。`executor=agent` 只读 `nextTask.inputs` + 下表对应 reference，写 `outputs`。写入 `impl.json` 后立刻跑 status 给出的 `normalize-impl` + `validate-impl`。error / `status=blocked` 则停。成功后再 `--status --json`。聊天解释不是下一跳输入。`confirm-event --wait` 会阻塞，超时 exit 2。
 
