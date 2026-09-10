@@ -309,7 +309,9 @@ function validateParameter(parameter, eventContext) {
   validateTransform(parameter, issues)
   validateConfirmation(parameter, eventContext, issues)
   validateScanIntegrity(parameter, issues)
-  validateConfidenceConsistency(parameter, eventContext, issues)
+  if (!isHumanAccepted(parameter)) {
+    validateConfidenceConsistency(parameter, eventContext, issues)
+  }
   validateUnresolved(parameter, eventContext, issues)
 
   if (hasError(issues)) {

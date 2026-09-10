@@ -2,7 +2,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const test = require('node:test')
-const { eventNeedsConfirm } = require('../confirm/needs-confirm')
+const { eventNeedsConfirm } = require('../../confirm/needs-confirm')
 const { collectImplGates, validateImpl } = require('./validate-impl')
 const { eventParameterGate, validateParameter } = require('./validate-parameter')
 const { stampHumanConfirmation } = require('./validate-confirmation-reuse')
@@ -25,7 +25,7 @@ function codes(result) {
 }
 
 const EVENTS = { events: [{ evtId: '1001' }] }
-const FIXTURE_DIR = path.join(__dirname, 'fixtures/p1-3-parameter-gate')
+const FIXTURE_DIR = path.join(__dirname, '../fixtures/p1-3-parameter-gate')
 
 function loadFixture(name) {
   return JSON.parse(fs.readFileSync(path.join(FIXTURE_DIR, name), 'utf8'))

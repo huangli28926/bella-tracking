@@ -3,11 +3,11 @@
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
-const { defaultAcceptPaths } = require('../accept/accept-chain')
+const { defaultAcceptPaths } = require('../accept/chain/accept-chain')
 const { loadConfirmQueue } = require('../confirm/needs-confirm')
 const { ensureExcelInDocs, findRepoRoot, parseArgs, readJson, resolveExcel, toPosix, writeJson } = require('../lib/lib')
 const { fileOk, inspectLanding } = require('../lib/landing-ready')
-const { summarizeImplGates, validateFiles } = require('../accept/validate-impl')
+const { summarizeImplGates, validateFiles } = require('../accept/impl/validate-impl')
 const { scriptPath } = require('../lib/skill-paths')
 const { resolveTrackingMode } = require('../lib/period-diff')
 const {

@@ -1,8 +1,8 @@
 const assert = require('assert')
 const test = require('node:test')
 const { applyConfirmAction } = require('./confirm-gate')
-const { collectImplGates, summarizeImplGates } = require('../accept/validate-impl')
-const { normalizeImpl } = require('../accept/normalize-impl')
+const { collectImplGates, summarizeImplGates } = require('../accept/impl/validate-impl')
+const { normalizeImpl } = require('../accept/impl/normalize-impl')
 
 function highParam(overrides) {
   return Object.assign({
@@ -60,6 +60,38 @@ test('confirm medium candidate with expression stamps and READY', () => {
   assert.equal(result.event.confirmed, true)
   assert.equal(result.gate.status, 'READY')
   assert.equal(result.event.parameters[0].confirmation.status, 'confirmed')
+  assert.deepEqual(result.event.unresolved, [])
+})
+
+test('confirm prompt without sourcePath stays confirmed', () => {
+  const event = {
+    evtId: '96793',
+    targetFile: 'src/pages/detail/index.tsx',
+    functionName: 'handleClick',
+    lifecycle: 'onClick',
+    componentBoundary: 'LocalCard',
+    status: 'unresolved',
+    unresolved: ['请确认埋点位置', '请确认参数 shop_leader_ucid 的取值'],
+    parameters: [{
+      key: 'shop_leader_ucid',
+      expression: 'brokerList.length > 0，则 shop_leader_ucid=window.__user.id;反之为空',
+      valueKind: 'prompt',
+      sourcePath: '',
+      evidence: [{ type: 'manual-confirm' }],
+      scopeReachable: false,
+      confidence: 'low',
+      unresolved: [],
+      conflicts: []
+    }]
+  }
+  const result = applyConfirmAction(event)
+  assert.equal(result.ok, true)
+  assert.equal(result.confirmed, true)
+  assert.equal(result.gate.status, 'READY')
+  const confirmation = result.event.parameters[0].confirmation
+  assert.equal(confirmation.status, 'confirmed')
+  assert.equal(confirmation.evidence.sourceRoot, '')
+  assert.equal(result.event.status, 'located')
   assert.deepEqual(result.event.unresolved, [])
 })
 

@@ -307,6 +307,99 @@ test('missing componentBoundary provenance cannot reuse', () => {
   assert.equal(result.checks.componentBoundaryCompatible, false)
 })
 
+test('normalizeImpl does not reopen confirmed prompt unresolved', () => {
+  const { normalizeImpl } = require('./normalize-impl')
+  const after = normalizeImpl({
+    events: [{
+      evtId: '96793',
+      status: 'unresolved',
+      confirmed: true,
+      targetFile: 'src/pages/detail/index.tsx',
+      unresolved: ['请确认埋点位置', '请确认参数 shop_leader_ucid 的取值'],
+      parameters: [{
+        key: 'shop_leader_ucid',
+        expression: 'brokerList.length > 0 则用 window.__user.id',
+        valueKind: 'prompt',
+        sourcePath: '',
+        evidence: [{ type: 'manual-confirm' }],
+        scopeReachable: false,
+        confidence: 'low',
+        unresolved: [],
+        conflicts: [],
+        confirmation: {
+          status: 'confirmed',
+          source: 'human',
+          reuseScope: 'same-dataflow',
+          confirmedAt: '2026-09-09T10:00:00+08:00',
+          evidence: {
+            parameterKey: 'shop_leader_ucid',
+            sourceRoot: '',
+            targetFile: 'src/pages/detail/index.tsx',
+            targetSymbol: 'handleClick',
+            lifecycle: 'onClick'
+          }
+        }
+      }]
+    }]
+  })
+  assert.equal(after.events[0].status, 'located')
+  assert.deepEqual(after.events[0].unresolved, [])
+})
+
+test('prompt confirmation without sourceRoot is valid and kept', () => {
+  const impl = {
+    events: [{
+      evtId: '96793',
+      targetFile: 'src/pages/detail/index.tsx',
+      functionName: 'handleClick',
+      lifecycle: 'onClick',
+      parameters: [{
+        key: 'shop_leader_ucid',
+        expression: 'brokerList.length > 0 则用 window.__user.id',
+        valueKind: 'prompt',
+        sourcePath: '',
+        evidence: [{ type: 'manual-confirm' }],
+        scopeReachable: false,
+        confidence: 'low',
+        unresolved: [],
+        conflicts: [],
+        confirmation: {
+          status: 'confirmed',
+          source: 'human',
+          reuseScope: 'same-dataflow',
+          confirmedAt: '2026-09-09T10:00:00+08:00',
+          evidence: {
+            parameterKey: 'shop_leader_ucid',
+            sourceRoot: '',
+            targetFile: 'src/pages/detail/index.tsx',
+            targetSymbol: 'handleClick',
+            lifecycle: 'onClick',
+            componentBoundary: '',
+            transformKind: 'identity',
+            semanticFingerprint: 'identity'
+          }
+        }
+      }]
+    }]
+  }
+  const issues = validateImpl(impl, { events: [{ evtId: '96793' }] }, { styles: [], sourceRoots: [] })
+  const errors = issues.filter(item => item.severity === 'error')
+  assert.equal(errors.length, 0)
+  const { normalizeImpl } = require('./normalize-impl')
+  const after = normalizeImpl(impl)
+  assert.equal(after.events[0].parameters[0].confirmation.status, 'confirmed')
+})
+
+test('expression with sourcePath still requires stored sourceRoot', () => {
+  const issues = validateParameter(confirmedParam({
+    confirmation: Object.assign({}, confirmedParam().confirmation, {
+      evidence: Object.assign({}, confirmedParam().confirmation.evidence, { sourceRoot: '' })
+    })
+  }), eventBase())
+  assert.equal(issues.status, 'INVALID')
+  assert.ok(issues.issues.some(item => item.field === 'confirmation.evidence.sourceRoot'))
+})
+
 test('normalizeImpl applies confirmation reuse in official pipeline', () => {
   const { normalizeImpl } = require('./normalize-impl')
   const after = normalizeImpl({

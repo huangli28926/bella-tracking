@@ -26,7 +26,7 @@ SDK `$ULOG.send` 只证明本地调用了。真正发出看埋点像素：
 - 测试：`http://dig.lianjia.com/check.gif`
 - 线上：`https://dig.lianjia.com/alliance.gif`
 
-Playwright 监听匹配 URL（档案 `reportUrlIncludes`），按 query `evt` / `evtid` 对上当前 evtId。采集窗口：trigger 之后约 2s。
+Playwright 监听匹配 URL（档案 `reportUrlIncludes`），按 query `evt` / `evtid` 对上当前 evtId。采集窗口：trigger 之后最多约 3s，且**只认最终结果**——2xx / 非 2xx / `requestfailed` 一到就收工；只见到 `request` / `hook`（请求已发出、还没结果）不算结论，继续等到超时。
 
 采集挂在 **BrowserContext**（`request` / `response` / `requestfailed`），不挂在单页 `page`：点击后立刻跳转时，旧文档的 GIF 请求仍能记下来。请求一旦发出即算捕获（`matched=true`）；响应被导航打断、HTTP 非 2xx 只展示、不改 pass/fail。
 

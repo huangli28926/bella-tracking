@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const { readJson, safeEvtFileName } = require('./lib')
 const { loadConfirmQueue } = require('../confirm/needs-confirm')
-const { summarizeImplGates } = require('../accept/validate-impl')
+const { summarizeImplGates } = require('../accept/impl/validate-impl')
 
 function fileOk(filePath) {
   try {

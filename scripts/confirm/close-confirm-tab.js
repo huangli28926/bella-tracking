@@ -3,6 +3,8 @@
 const { spawnSync } = require('child_process')
 const { parseArgs } = require('../lib/lib')
 
+const CHROME_BUNDLE_ID = 'com.google.Chrome'
+
 function needleFor(evtId, openUrl) {
   const id = String(evtId || '').trim()
   if (id) {
@@ -14,7 +16,7 @@ function needleFor(evtId, openUrl) {
 function appleScriptClose(needle) {
   const escaped = String(needle).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   return [
-    'tell application "Google Chrome"',
+    `tell application id "${CHROME_BUNDLE_ID}"`,
     '  set closedCount to 0',
     '  repeat with w in windows',
     '    set tabList to tabs of w',

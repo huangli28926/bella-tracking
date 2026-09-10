@@ -1,5 +1,5 @@
-const { eventParameterGate } = require('../accept/validate-parameter')
-const { stampHumanConfirmation } = require('../accept/validate-confirmation-reuse')
+const { eventParameterGate } = require('../accept/impl/validate-parameter')
+const { stampHumanConfirmation } = require('../accept/impl/validate-confirmation-reuse')
 const { getConfirmReasons, paramKeysNeedingConfirm } = require('./needs-confirm')
 
 function flattenGateIssues(gate) {
@@ -35,6 +35,7 @@ function clearAcceptedParamUnresolved(event) {
   })
   next.unresolved = (Array.isArray(next.unresolved) ? next.unresolved : []).filter(item => {
     const text = String(item || '').trim()
+    if (text === '请确认埋点位置' && String(next.targetFile || '').trim()) return false
     for (const key of accepted) {
       if (text === paramUnresolvedPhrase(key)) return false
     }
@@ -60,6 +61,9 @@ function applyConfirmAction(event) {
   if (gate.status === 'READY') {
     next.confirmed = true
     next.deferred = false
+    if (String(next.targetFile || '').trim() && (next.status === 'unresolved' || next.status === 'pending')) {
+      next.status = 'located'
+    }
     return {
       ok: true,
       confirmed: true,

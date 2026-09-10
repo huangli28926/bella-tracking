@@ -1,3 +1,5 @@
+const { normalizeValueKind } = require('../../lib/value-kind')
+
 const CONFIRMATION_STATUS = ['unconfirmed', 'confirmed', 'reused', 'stale']
 const REUSE_SCOPES = ['exact-target', 'same-dataflow', 'none']
 const CONFIRMATION_SOURCE = ['human', '']
@@ -65,6 +67,21 @@ function sourceRootOf(parameter, confirmation) {
 
 function currentSourceRoot(parameter) {
   return sourcePathNodes(parameter)[0] || ''
+}
+
+function requiresStoredSourceRoot(parameter) {
+  return sourcePathNodes(parameter).length > 0
+}
+
+function keepHumanConfirmation(parameter, confirmation) {
+  const status = str(confirmation && confirmation.status) || confirmationStatus(parameter)
+  if (status !== 'confirmed' && status !== 'reused') return false
+  if (normalizeValueKind(parameter) === 'prompt') return true
+  if (!requiresStoredSourceRoot(parameter) && !str(confirmation && confirmation.evidence && confirmation.evidence.sourceRoot)) {
+    return true
+  }
+  if (parameter.scopeReachable !== true) return true
+  return false
 }
 
 function parameterKeyOf(parameter, confirmation) {
@@ -215,6 +232,16 @@ function validateConfirmationReuse(previousFact, currentFact) {
     }
   }
 
+  if (keepHumanConfirmation(prevParam, prevConf)) {
+    return {
+      status: str(prevConf && prevConf.status) || 'confirmed',
+      valid: true,
+      skip: true,
+      checks,
+      invalidReason: null
+    }
+  }
+
   const scope = reuseScopeOf(prevConf)
   if (scope === 'none' || !REUSE_SCOPES.includes(scope)) {
     return {
@@ -287,6 +314,9 @@ function applyConfirmationReuse(previousFact, currentFact) {
   const currParam = (currentFact && currentFact.parameter) || {}
   const currConf = confirmationOf(currParam) || {}
   if (result.skip) {
+    if (historicalReusable(previousFact && previousFact.parameter)) {
+      return Object.assign({}, prevConf)
+    }
     return Object.assign({}, currConf, {
       status: currConf.status || 'unconfirmed'
     })
@@ -452,7 +482,7 @@ function validateConfirmationRecord(parameter, event) {
         message: 'confirmed/reused requires stored parameterKey'
       })
     }
-    if (!str(evidence.sourceRoot)) {
+    if (requiresStoredSourceRoot(parameter) && !str(evidence.sourceRoot)) {
       issues.push({
         code: 'PARAM_CONFIRMATION_PROVENANCE_MISSING',
         field: 'confirmation.evidence.sourceRoot',

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
-const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
-const { dataDepConfirmReasons, dataDepGate } = require('../accept/validate-data-dep')
+const { eventParameterGate, validateParameter } = require('../accept/impl/validate-parameter')
+const { dataDepConfirmReasons, dataDepGate } = require('../accept/impl/validate-data-dep')
 
 function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'
@@ -32,7 +32,7 @@ function eventNeedsConfirm(event) {
     return true
   }
   const status = event.status || 'pending'
-  if (status === 'unresolved') {
+  if (status === 'unresolved' && !String(event.targetFile || '').trim()) {
     return true
   }
   if (Array.isArray(event.unresolved) && event.unresolved.length) {
@@ -53,10 +53,6 @@ function eventNeedsConfirm(event) {
 
 function locationNeedsConfirm(event) {
   if (!event || typeof event !== 'object') {
-    return true
-  }
-  const status = event.status || 'pending'
-  if (status === 'unresolved' || status === 'pending') {
     return true
   }
   return !String(event.targetFile || '').trim()

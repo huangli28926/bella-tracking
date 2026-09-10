@@ -2,7 +2,7 @@ const assert = require('assert')
 const test = require('node:test')
 const { materializeParameter } = require('./normalize-parameter-facts')
 const { scanExistingTracking } = require('./scan-existing-tracking')
-const { validateParameter } = require('../accept/validate-parameter')
+const { validateParameter } = require('../accept/impl/validate-parameter')
 const { mapUnresolvedCodes } = require('./map-unresolved-ui')
 
 function gate(parameter, event, context) {

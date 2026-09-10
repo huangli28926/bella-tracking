@@ -4,9 +4,9 @@ const os = require('os')
 const path = require('path')
 const test = require('node:test')
 
-const { defaultAcceptPaths } = require('../accept/accept-chain')
+const { defaultAcceptPaths } = require('../accept/chain/accept-chain')
 const { buildStatus, gateStage, loadState, runStage, workflowPath } = require('./tracking-workflow')
-const { DEVICE_PROMPT } = require('../accept/accept-device')
+const { DEVICE_PROMPT } = require('../accept/runtime/accept-device')
 const {
   ASK_EXCEL,
   ASK_EXCEL_INVALID,
@@ -17,7 +17,7 @@ const {
   formatDeleteOldTracking
 } = require('./prompts')
 const { readJson, writeJson } = require('../lib/lib')
-const { D_FAIL_CHOICE: FAIL_FROM_FORMAT } = require('../accept/format-fail-explain')
+const { D_FAIL_CHOICE: FAIL_FROM_FORMAT } = require('../accept/report/format-fail-explain')
 
 function makeDir(dir) {
   fs.mkdirSync(dir, { recursive: true })

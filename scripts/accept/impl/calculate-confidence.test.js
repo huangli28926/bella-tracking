@@ -277,7 +277,7 @@ test('validate errors when structured stored confidence mismatches derived', () 
 })
 
 test('schema evidence enum matches JS constants', () => {
-  const schemaPath = path.join(__dirname, '../../schemas/impl.schema.json')
+  const schemaPath = path.join(__dirname, '../../../schemas/impl.schema.json')
   const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'))
   const schemaTypes = schema.$defs.parameterEvidence.properties.type.enum
   assert.deepEqual(schemaTypes, PARAMETER_EVIDENCE_TYPES)

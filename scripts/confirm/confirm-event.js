@@ -125,8 +125,9 @@ async function main() {
   const htmlName = path.basename(paths.htmlPath)
   const openUrl = pageUrl(serving.port, htmlName, evtId, 'confirm')
   const openTab = shouldOpenBrowser(args)
+  let browserLaunch = null
   if (openTab) {
-    openBrowser(openUrl)
+    browserLaunch = openBrowser(openUrl)
   }
 
   const payload = {
@@ -138,6 +139,7 @@ async function main() {
     reasons: getConfirmReasons(event),
     reused: !!serving.reused,
     openedTab: !!openTab,
+    browserLaunch,
     port: serving.port,
     openUrl
   }
@@ -170,7 +172,7 @@ async function main() {
   payload.status = 'timeout'
   payload.confirmed = false
   if (shouldOpenBrowser(args)) {
-    openBrowser(openUrl)
+    payload.browserLaunch = openBrowser(openUrl)
     payload.openedTab = true
     console.log('等待超时，已重新打开矫正向导')
   }
