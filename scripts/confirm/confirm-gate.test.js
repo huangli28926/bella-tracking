@@ -1,8 +1,8 @@
 const assert = require('assert')
 const test = require('node:test')
 const { applyConfirmAction } = require('./confirm-gate')
-const { collectImplGates, summarizeImplGates } = require('../accept/validate-impl')
-const { normalizeImpl } = require('../accept/normalize-impl')
+const { collectImplGates, summarizeImplGates } = require('../accept/impl/validate-impl')
+const { normalizeImpl } = require('../accept/impl/normalize-impl')
 
 function highParam(overrides) {
   return Object.assign({

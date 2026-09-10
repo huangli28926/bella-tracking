@@ -1,5 +1,5 @@
-const { eventParameterGate } = require('../accept/validate-parameter')
-const { stampHumanConfirmation } = require('../accept/validate-confirmation-reuse')
+const { eventParameterGate } = require('../accept/impl/validate-parameter')
+const { stampHumanConfirmation } = require('../accept/impl/validate-confirmation-reuse')
 const { getConfirmReasons, paramKeysNeedingConfirm } = require('./needs-confirm')
 
 function flattenGateIssues(gate) {

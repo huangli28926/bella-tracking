@@ -1,4 +1,4 @@
-const { DEVICE_PROMPT } = require('../workflow/prompts')
+const { DEVICE_PROMPT } = require('../../workflow/prompts')
 
 const MOBILE_FALLBACK = {
   viewport: { width: 390, height: 844 },

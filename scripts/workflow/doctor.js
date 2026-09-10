@@ -4,10 +4,10 @@ const fs = require('fs')
 const net = require('net')
 const path = require('path')
 const { spawnSync } = require('child_process')
-const { defaultAcceptPaths } = require('../accept/accept-chain')
+const { defaultAcceptPaths } = require('../accept/chain/accept-chain')
 const { envAcceptUrls, findRepoRoot, parseArgs, readJson } = require('../lib/lib')
 const { inspectLanding } = require('../lib/landing-ready')
-const { validateFiles } = require('../accept/validate-impl')
+const { validateFiles } = require('../accept/impl/validate-impl')
 const { SKILL_ROOT } = require('../lib/skill-paths')
 
 const SCRIPT_DIR = __dirname

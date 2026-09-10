@@ -1,10 +1,10 @@
 const fs = require('fs')
 const path = require('path')
-const { readJson, relFrom, toPosix } = require('../lib/lib')
-const { defaultPaths, mergeReport, normalizeParam } = require('../extract/report')
-const { defaultAcceptPaths } = require('./accept-chain')
+const { readJson, relFrom, toPosix } = require('../../lib/lib')
+const { defaultPaths, mergeReport, normalizeParam } = require('../../extract/report')
+const { defaultAcceptPaths } = require('../chain/accept-chain')
 const { enrichReportMedia, isEmptyParamValue } = require('./accept-report')
-const { templatePath } = require('../lib/skill-paths')
+const { templatePath } = require('../../lib/skill-paths')
 
 const TEMPLATE = templatePath('final-report.html')
 

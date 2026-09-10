@@ -1,4 +1,4 @@
-const { normalizeValueKind } = require('../lib/value-kind')
+const { normalizeValueKind } = require('../../lib/value-kind')
 
 const CONFIRMATION_STATUS = ['unconfirmed', 'confirmed', 'reused', 'stale']
 const REUSE_SCOPES = ['exact-target', 'same-dataflow', 'none']

@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 const { findRepoRoot, parseArgs } = require('../lib/lib')
 const { defaultPaths, renderReviewToFile } = require('./report')
-const { assertValidImpl } = require('../accept/validate-impl')
+const { assertValidImpl } = require('../accept/impl/validate-impl')
 
 const SCRIPT_DIR = __dirname
 

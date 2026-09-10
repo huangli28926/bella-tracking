@@ -15,7 +15,7 @@ const {
   toPosix,
   writeJson
 } = require('../lib/lib')
-const { normalizeImpl } = require('../accept/normalize-impl')
+const { normalizeImpl } = require('../accept/impl/normalize-impl')
 const { applyConfirmAction } = require('./confirm-gate')
 const { buildReport, defaultPaths, mergeImplEvent, renderReviewToFile, renderToFile } = require('../extract/report')
 const {

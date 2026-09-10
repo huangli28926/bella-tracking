@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 const { readJson } = require('../lib/lib')
-const { eventParameterGate, validateParameter } = require('../accept/validate-parameter')
-const { dataDepConfirmReasons, dataDepGate } = require('../accept/validate-data-dep')
+const { eventParameterGate, validateParameter } = require('../accept/impl/validate-parameter')
+const { dataDepConfirmReasons, dataDepGate } = require('../accept/impl/validate-data-dep')
 
 function paramNeedsConfirm(item, event) {
   return validateParameter(item, event).status === 'NEEDS_CONFIRM'

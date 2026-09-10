@@ -2,7 +2,7 @@ const path = require('path')
 const { readDotEnv, readJson, toPosix } = require('../lib/lib')
 const { nodeAndCommand, nodeCommand } = require('../lib/skill-paths')
 const { getConfirmReasons } = require('../confirm/needs-confirm')
-const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/accept-device')
+const { DEVICE_PROMPT, resolveAcceptDevice } = require('../accept/runtime/accept-device')
 const {
   ASK_EXCEL,
   ASK_EXCEL_INVALID,

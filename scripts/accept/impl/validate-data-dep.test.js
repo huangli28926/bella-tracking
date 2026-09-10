@@ -2,7 +2,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const test = require('node:test')
-const { buildAcceptChain, buildTarget } = require('./accept-chain')
+const { buildAcceptChain, buildTarget } = require('../chain/accept-chain')
 const { collectImplGates, validateImpl } = require('./validate-impl')
 const { normalizeImpl } = require('./normalize-impl')
 const {
@@ -10,8 +10,8 @@ const {
   dataDepGate,
   validateDataDep
 } = require('./validate-data-dep')
-const { buildConfirmQueue, eventNeedsConfirm } = require('../confirm/needs-confirm')
-const { applyConfirmAction } = require('../confirm/confirm-gate')
+const { buildConfirmQueue, eventNeedsConfirm } = require('../../confirm/needs-confirm')
+const { applyConfirmAction } = require('../../confirm/confirm-gate')
 
 function highParam(overrides) {
   return Object.assign({
@@ -404,8 +404,8 @@ test('confirm-gate does not auto-resolve dataDep', () => {
 })
 
 test('impl and accept-chain dataDep schemas stay aligned', () => {
-  const impl = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/impl.schema.json'), 'utf8'))
-  const chain = JSON.parse(fs.readFileSync(path.join(__dirname, '../../schemas/accept-chain.schema.json'), 'utf8'))
+  const impl = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../schemas/impl.schema.json'), 'utf8'))
+  const chain = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../schemas/accept-chain.schema.json'), 'utf8'))
   const implDep = impl.$defs.dataDep
   const chainDep = chain.$defs.target.properties.dataDeps.items
   assert.deepEqual(implDep.required, chainDep.required)

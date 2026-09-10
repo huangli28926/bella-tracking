@@ -1,9 +1,9 @@
 const path = require('path')
-const { defaultPaths } = require('../extract/report')
+const { defaultPaths } = require('../../extract/report')
 
-const { viewportForDevice } = require('./accept-device')
+const { viewportForDevice } = require('../runtime/accept-device')
 const { pathIdForCandidate } = require('./path-id')
-const { dataDepGate } = require('./validate-data-dep')
+const { dataDepGate } = require('../impl/validate-data-dep')
 
 const CHAIN_VERSION = 1
 const DEFAULT_VIEWPORT = viewportForDevice('mobile')

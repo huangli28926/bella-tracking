@@ -1,8 +1,8 @@
 const fs = require('fs')
 const path = require('path')
-const { describeSteps } = require('./accept-chain')
-const { relFrom, toPosix } = require('../lib/lib')
-const { templatePath } = require('../lib/skill-paths')
+const { describeSteps } = require('../chain/accept-chain')
+const { relFrom, toPosix } = require('../../lib/lib')
+const { templatePath } = require('../../lib/skill-paths')
 const { enrichFailExplain } = require('./format-fail-explain')
 
 const TEMPLATE = templatePath('accept-report.html')
