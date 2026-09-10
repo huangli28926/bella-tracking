@@ -33,6 +33,9 @@
       grid-template-columns: 280px minmax(0, 1fr);
       min-height: 100%;
     }
+    .app.side-collapsed {
+      grid-template-columns: 44px minmax(0, 1fr);
+    }
     .side {
       background: var(--sidebar);
       color: var(--ink);
@@ -45,6 +48,32 @@
       position: sticky;
       top: 0;
     }
+    .side-toggle {
+      display: none;
+      align-self: flex-start;
+      width: 32px;
+      height: 32px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      background: var(--paper-2);
+      color: var(--ink);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+    }
+    body.confirm-ui .side-toggle { display: inline-flex; }
+    .app.side-collapsed .side {
+      padding: 10px 6px;
+      align-items: center;
+    }
+    .app.side-collapsed .side-search,
+    .app.side-collapsed .filters,
+    .app.side-collapsed .nav,
+    .app.side-collapsed .nav-pager { display: none; }
+    body.confirm-ui.side-collapsed .wizard-footer { left: 44px; }
     .side-search { margin-bottom: 10px; }
     .side-search input {
       width: 100%;
@@ -703,6 +732,7 @@
     body.wizard-waiting .wizard-footer { display: none; }
     @media (max-width: 980px) {
       .app { grid-template-columns: 1fr; }
+      .app.side-collapsed { grid-template-columns: 1fr; }
       .side { position: relative; min-height: auto; max-height: none; }
       .wizard-footer { left: 0; }
       .grid { grid-template-columns: 1fr; }
@@ -715,6 +745,7 @@
 <body>
   <div class="app">
     <aside class="side">
+      <button type="button" class="side-toggle" id="side-toggle" aria-label="展开左侧菜单" title="展开左侧菜单">☰</button>
       <div class="side-search">
         <input id="nav-search" type="search" placeholder="搜索 事件/页面/evtId" autocomplete="off" />
       </div>
@@ -755,6 +786,7 @@
       var serving = false;
       var editing = false;
       var confirmMode = false;
+      var sideCollapsed = false;
       var confirmQueue = null;
       var waitingForAnalysis = false;
       var analysisWaitTimer = null;
@@ -796,6 +828,19 @@
           return String(params.get('evt') || params.get('evtId') || '').trim();
         } catch (error) {
           return '';
+        }
+      }
+
+      function setSideCollapsed(next) {
+        sideCollapsed = !!next;
+        var app = document.querySelector('.app');
+        if (app) app.classList.toggle('side-collapsed', sideCollapsed);
+        document.body.classList.toggle('side-collapsed', sideCollapsed);
+        var btn = document.getElementById('side-toggle');
+        if (btn) {
+          btn.textContent = sideCollapsed ? '☰' : '‹';
+          btn.setAttribute('aria-label', sideCollapsed ? '展开左侧菜单' : '折叠左侧菜单');
+          btn.title = sideCollapsed ? '展开左侧菜单' : '折叠左侧菜单';
         }
       }
 
@@ -2033,6 +2078,14 @@
       });
       var fromQuery = queryEvt();
       confirmMode = queryMode() === 'confirm';
+      document.body.classList.toggle('confirm-ui', confirmMode);
+      setSideCollapsed(confirmMode);
+      var sideToggle = document.getElementById('side-toggle');
+      if (sideToggle) {
+        sideToggle.addEventListener('click', function () {
+          setSideCollapsed(!sideCollapsed);
+        });
+      }
       var firstId = (report.events && report.events[0] && report.events[0].evtId) || '';
       currentId = fromQuery || firstId;
       if (fromQuery && !(report.events || []).some(function (item) { return String(item.evtId) === String(fromQuery); })) {
