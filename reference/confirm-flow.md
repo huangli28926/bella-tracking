@@ -72,7 +72,20 @@ http://127.0.0.1:3920/{文档名}-落库.html?evt={evtId}&mode=confirm
 
 ## 同名字段回填
 
-用户确认一条埋点后，其参数 `expression` / `valueKind` / `sourcePath` 按 **key** 写入 `_raw/field-memory.json`。后续未确认事件出现同一 key，且 **表达式为空** 时，自动回填上次确认值（confidence 设为 `medium`），向导提示「已回填上次确认值」，**仍须勾选确认**。不覆盖任何已有表达式（含 `medium` / `low` 的 AI 候选）；不回填落点文件 / uicode。跳过（deferred）不写入记忆。
+用户确认一条埋点后，其参数 `expression` / `valueKind` / `sourcePath` 按 **key + 文档说明指纹** 写入 `_raw/field-memory.json`。指纹由 `normalizeDesc` 归一化（NFKC 全角转半角、忽略大小写/空白/常见标点），保证「经纪人 UCID」与「经纪人ucid。」视为同一描述。
+
+后续未确认事件命中记忆时：
+
+- **key 与文档说明都一致** → 自动回填上次确认值，confidence 设为 `medium`；已有 `low` / `medium` AI 候选会被覆盖，原候选写入 `memoryReplaced` 并在向导里显示「原 AI 推测 xxx 已被上次确认值替换，如不符可改回」。
+- **只有 key 一致、文档说明不一致** → 不回填。
+- **任一侧没有文档说明** → 不回填（无法证明描述一致）。
+- 不回填 `high` 置信度、已人工确认的参数，也不回填落点文件 / uicode。跳过（deferred）不写入记忆。
+
+向导提示「key 与文档说明一致，已带入上次确认值（来自 {evtId}）」，**仍须勾选确认**。参数一旦人工确认，回填提示不再显示。
+
+旧版 `field-memory.json`（只有 key、没有描述指纹）兼容：仅当当前参数也没有文档说明、且表达式为空时才回填。
+
+`impl.json` 参数缺 `docDesc` 时，按 `evtId` + `key` 从 `events.json` 的 `params[].desc` 补齐后再匹配。
 
 `field-memory` 只是跨事件同名 key 的提示回填，**不是** confirmation reuse。同一 `evtId`+`key` 的历史 `confirmation` 必须先按当前源码重建参数事实，再经 `validate-confirmation-reuse` 得到 `reused` 或 `stale`。不得只因为上一轮 `confirmed=true` 就跳过解析。`stale` 不等于 `needsConfirm=true`。
 
@@ -86,7 +99,7 @@ docs/tracking/impl/{文档名}/
 ├── {文档名}-矫正.html      # 全部处理后的汇总页
 └── _raw/
     ├── {文档名}.impl.json  # confirmed / deferred 写回
-    └── field-memory.json   # 同 key 上次确认的 expression / valueKind / sourcePath
+    └── field-memory.json   # 同 key + 同文档说明上次确认的 expression / valueKind / sourcePath
 ```
 
 ## 浏览器打开策略

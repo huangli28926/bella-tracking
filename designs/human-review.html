@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bella-tracking · 人工校验（对齐现网合同）</title>
+  <style>
+    :root {
+      --ink: #1d2129;
+      --muted: #86909c;
+      --line: #e5e6eb;
+      --paper: #f7f8fa;
+      --white: #fff;
+      --orange: #ff6a00;
+      --orange-soft: #fff4ec;
+      --ok: #00b42a;
+      --ok-soft: #e8ffea;
+      --warn: #ff7d00;
+      --warn-soft: #fff7e8;
+      --danger: #f53f3f;
+      --danger-soft: #ffece8;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
+      --side: 268px;
+      --right: 300px;
+      --top: 52px;
+      --foot: 64px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { font-family: var(--sans); background: var(--paper); color: var(--ink); min-width: 1280px; }
+    .shell { height: 100%; display: grid; grid-template-rows: var(--top) 1fr; }
+    .topbar {
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 16px; background: var(--white); border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 14px; color: var(--orange); min-width: 168px; }
+    .brand .dot { width: 18px; height: 18px; border-radius: 6px; background: var(--orange); }
+    .steps { display: flex; align-items: center; gap: 0; flex: 1; justify-content: center; }
+    .step { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .step .n {
+      width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+      border: 1px solid var(--line); font-size: 11px; background: var(--white);
+    }
+    .step.done { color: var(--ok); }
+    .step.done .n { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .step.current { color: var(--orange); font-weight: 650; }
+    .step.current .n { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .step .line { width: 28px; height: 1px; background: var(--line); margin: 0 8px; }
+    .step.done + .step .line, .step.done .line { background: #c9f0d0; }
+    .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+    .layout {
+      display: grid;
+      grid-template-columns: var(--side) minmax(0, 1fr) var(--right);
+      min-height: 0;
+    }
+    .side, .right {
+      background: var(--white); border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .right { border-right: 0; border-left: 1px solid var(--line); }
+    .side-search { padding: 12px 12px 8px; }
+    .side-search input {
+      width: 100%; height: 32px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 0 10px; font-size: 12px; outline: none;
+    }
+    .filters { display: flex; gap: 4px; padding: 0 10px 8px; }
+    .filters button {
+      border: 0; background: transparent; color: var(--muted); border-radius: 6px;
+      padding: 4px 8px; font-size: 12px; cursor: pointer;
+    }
+    .filters button.active { background: var(--orange-soft); color: var(--orange); font-weight: 650; }
+    .filters .n { margin-left: 2px; }
+    .nav { overflow: auto; flex: 1; padding: 0 8px 8px; }
+    .nav-item {
+      display: flex; gap: 8px; padding: 8px; border-radius: 10px; border: 1px solid transparent; margin-bottom: 4px;
+    }
+    .nav-item.active { background: var(--orange-soft); border-color: #ffd0b0; }
+    .thumb { width: 42px; height: 56px; border-radius: 6px; background: #ececec; border: 1px solid var(--line); flex-shrink: 0; overflow: hidden; }
+    .thumb span { display: block; height: 100%; background: linear-gradient(#f2f3f5, #e5e6eb); }
+    .nav-name { font-size: 13px; font-weight: 650; }
+    .nav-id { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .chip { font-size: 10px; border-radius: 999px; padding: 1px 6px; }
+    .chip.open { background: var(--warn-soft); color: var(--warn); }
+    .chip.ok { background: var(--ok-soft); color: var(--ok); }
+    .pager { display: flex; justify-content: center; gap: 6px; padding: 8px; font-size: 12px; color: var(--muted); }
+    .main { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    .main-scroll { overflow: auto; padding: 16px 18px calc(var(--foot) + 16px); }
+    .evt-head h1 { margin: 0; font-size: 20px; }
+    .meta { margin-top: 6px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+    .note {
+      background: var(--warn-soft); border: 1px solid #ffe4ba; color: #ad5b00;
+      border-radius: 8px; padding: 8px 12px; font-size: 12px; margin: 10px 0 12px;
+    }
+    .cols { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .phone { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+    .tabs { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .tabs b { color: var(--ink); border-bottom: 2px solid var(--orange); padding-bottom: 4px; }
+    .device {
+      margin: 0 auto; width: 240px; height: 420px; border: 8px solid #111; border-radius: 28px;
+      background: #fafafa; position: relative; overflow: hidden;
+    }
+    .device .bar { height: 28px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 650; border-bottom: 1px solid var(--line); }
+    .hot { position: absolute; left: 16px; top: 86px; right: 16px; border: 2px solid var(--orange); border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; display: flex; justify-content: space-between; }
+    .shots { display: flex; gap: 8px; margin-top: 10px; }
+    .shots figure { margin: 0; width: 72px; }
+    .shots .box { height: 48px; border-radius: 6px; border: 1px dashed var(--line); background: #f2f3f5; }
+    .shots figcaption { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: center; }
+    .panel { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .panel h2 { margin: 0 0 10px; font-size: 13px; }
+    .cell-in {
+      width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent;
+      font-family: var(--mono); font-size: 11px; padding: 4px 6px; outline: none;
+    }
+    .cell-in:hover, .cell-in:focus { border-color: var(--line); background: #fff; }
+    .cell-in:focus { border-color: var(--orange); }
+    .cell-in.locked { color: var(--muted); cursor: not-allowed; }
+    .cell-row { display: flex; align-items: center; gap: 6px; }
+    .mini { width: auto; font-family: var(--sans); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; background: #fff; height: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 8px; border-bottom: 1px solid #f2f3f5; vertical-align: middle; }
+    tr.needs td { background: #fffaf5; }
+    tr.loc-row td { background: var(--orange-soft); }
+    .hint { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+    code { font-family: var(--mono); font-size: 11px; background: #f2f3f5; padding: 2px 4px; border-radius: 4px; }
+    .foot {
+      position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; padding: 10px 18px; background: rgba(255,255,255,.96); border-top: 1px solid var(--line);
+    }
+    .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 13px; }
+    .btn.ghost { color: var(--muted); }
+    .btn.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .btn.primary[disabled] { opacity: .45; }
+    .check { font-size: 13px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .foot > div { display: flex; gap: 8px; }
+    .right h3 { margin: 0; padding: 12px 12px 8px; font-size: 13px; border-bottom: 1px solid var(--line); }
+    .snippet { margin: 0; padding: 12px; font-family: var(--mono); font-size: 11px; line-height: 1.6; color: #4e5969; overflow: auto; white-space: pre; min-height: 220px; border: 0; border-radius: 0; width: 100%; }
+    .block { padding: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+    .block h4 { margin: 0 0 8px; font-size: 12px; }
+    .tree { color: var(--muted); line-height: 1.7; font-family: var(--mono); font-size: 11px; }
+    .muted { color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .toast {
+      position: fixed; right: 24px; bottom: 80px; background: #1d2129; color: #fff;
+      padding: 10px 14px; border-radius: 8px; font-size: 12px; display: none; z-index: 40;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="dot"></span>bella-tracking　人工校验</div>
+      <nav class="steps" aria-label="主链路">
+        <div class="step done"><span class="n">✓</span>需求解析<div class="line"></div></div>
+        <div class="step done"><span class="n">✓</span>定位分析<div class="line"></div></div>
+        <div class="step done"><span class="n">✓</span>参数推断<div class="line"></div></div>
+        <div class="step current"><span class="n">4</span>人工校验<div class="line"></div></div>
+        <div class="step"><span class="n">5</span>生成代码<div class="line"></div></div>
+        <div class="step"><span class="n">6</span>验收回归</div>
+      </nav>
+      <div class="top-right">项目: pricev2　帮助文档　lily</div>
+    </header>
+    <div class="layout">
+      <aside class="side">
+        <div class="side-search"><input id="nav-search" placeholder="搜索 事件/页面/evtId" /></div>
+        <div class="filters">
+          <button type="button">全部 <span class="n">24</span></button>
+          <button type="button" class="active">待确认 <span class="n">6</span></button>
+          <button type="button">已确认 <span class="n">12</span></button>
+          <button type="button">有问题 <span class="n">2</span></button>
+        </div>
+        <div class="nav">
+          <div class="nav-item active">
+            <div class="thumb"><span></span></div>
+            <div>
+              <div style="display:flex;justify-content:space-between;gap:6px"><span class="nav-name">成交参考点击</span><span class="chip open">待确认</span></div>
+              <span class="nav-id">evt: 96793</span>
+            </div>
+          </div>
+          <div class="nav-item">
+            <div class="thumb"><span></span></div>
+            <div>
+              <div style="display:flex;justify-content:space-between"><span class="nav-name">分享按钮点击</span><span class="chip open">待确认</span></div>
+              <span class="nav-id">evt: 96795</span>
+            </div>
+          </div>
+          <div class="nav-item">
+            <div class="thumb"><span></span></div>
+            <div>
+              <div style="display:flex;justify-content:space-between"><span class="nav-name">收藏按钮点击</span><span class="chip open">待确认</span></div>
+              <span class="nav-id">evt: 96796</span>
+            </div>
+          </div>
+          <div class="nav-item">
+            <div class="thumb"><span></span></div>
+            <div>
+              <div style="display:flex;justify-content:space-between"><span class="nav-name">房源卡片曝光</span><span class="chip open">待确认</span></div>
+              <span class="nav-id">evt: 96797</span></div>
+          </div>
+        </div>
+        <div class="pager">1 / 1　待处理 6</div>
+      </aside>
+      <section class="main">
+        <div class="main-scroll">
+          <div class="evt-head">
+            <h1>成交参考点击 <span class="chip open">待确认</span></h1>
+            <div class="meta">evtId 96793 · event Module_Click · 文档页面名（不可靠，不作为落点）估价结果页</div>
+          </div>
+          <div class="note">向导只审本条待确认项。确认后关页，脚本再分析下一条；未勾选「已确认落库内容」时不可提交。空表达式 / INVALID 不会把事件标成已完成。</div>
+          <div class="cols">
+            <div>
+              <div class="phone">
+                <div class="tabs"><b>示意图 (1)</b><span>提示图 (0)</span></div>
+                <div class="device">
+                  <div class="bar">估价结果</div>
+                  <div class="hot">成交参考 <span>›</span></div>
+                </div>
+                <div class="shots">
+                  <figure><div class="box"></div><figcaption>文档示意图</figcaption></figure>
+                  <figure>
+                    <label class="box" style="display:grid;place-items:center;cursor:pointer;font-size:11px;color:var(--muted)">
+                      上传提示图
+                      <input id="hint-file" type="file" accept="image/*" multiple hidden />
+                    </label>
+                    <figcaption>粘贴 / 本地上传</figcaption>
+                  </figure>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="panel">
+                <h2>参数信息 · 单元格内直接改</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>参数</th>
+                      <th>表达式或备注</th>
+                      <th>来源路径</th>
+                      <th>置信度</th>
+                      <th>确认态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="needs">
+                      <td><code>housedel_id</code><span class="hint">房源 id</span></td>
+                      <td>
+                        <div class="cell-row">
+                          <select class="mini" title="值类型">
+                            <option value="expression" selected>表达式</option>
+                            <option value="prompt">备注</option>
+                          </select>
+                          <select class="mini" id="cand-housedel_id" title="从候选中选择">
+                            <option value="query.houseDelCode|URL 参数" selected>候选: query.houseDelCode</option>
+                            <option value="houseInfo.housedelCode|组件数据">候选: houseInfo.housedelCode</option>
+                          </select>
+                        </div>
+                        <input class="cell-in" id="expr-housedel_id" value="query.houseDelCode" />
+                      </td>
+                      <td><input class="cell-in" id="path-housedel_id" value="URL 参数" /></td>
+                      <td>高</td>
+                      <td><span class="chip open">待确认</span></td>
+                    </tr>
+                    <tr>
+                      <td><code>page_from</code></td>
+                      <td><input class="cell-in" id="expr-page_from" value="'estimate_result'" /></td>
+                      <td><input class="cell-in" value="常量" /></td>
+                      <td>高</td>
+                      <td><span class="chip ok">已就绪</span></td>
+                    </tr>
+                    <tr>
+                      <td><code>position</code></td>
+                      <td><input class="cell-in" id="expr-position" value="'deal_range'" /></td>
+                      <td><input class="cell-in" value="常量" /></td>
+                      <td>高</td>
+                      <td><span class="chip ok">已就绪</span></td>
+                    </tr>
+                    <tr class="needs">
+                      <td><code>is_new_house</code><span class="hint">已回填 95936，仍须确认</span></td>
+                      <td><input class="cell-in" id="expr-is_new_house" value="houseInfo.type === 'new'" /></td>
+                      <td><input class="cell-in" value="组件数据" /></td>
+                      <td>中</td>
+                      <td><span class="chip open">待确认</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel" style="margin-top:12px">
+                <h2>定位信息 · 请确认埋点位置</h2>
+                <table>
+                  <thead>
+                    <tr><th>字段</th><th>预填（可改）</th><th>说明</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr class="loc-row">
+                      <td>落点文件</td>
+                      <td><input class="cell-in" id="targetFile" value="components/DealRangeCard/index.jsx" /></td>
+                      <td><span class="chip open">待确认</span></td>
+                    </tr>
+                    <tr class="loc-row">
+                      <td>函数</td>
+                      <td><input class="cell-in" id="functionName" value="handleViewRefClick" /></td>
+                      <td></td>
+                    </tr>
+                    <tr class="loc-row">
+                      <td>lifecycle</td>
+                      <td>
+                        <select class="cell-in" id="lifecycle">
+                          <option>onClick</option>
+                          <option>useEffect</option>
+                          <option>IntersectionObserver</option>
+                          <option>pageLoad</option>
+                        </select>
+                      </td>
+                      <td>闭集</td>
+                    </tr>
+                    <tr>
+                      <td>uicode</td>
+                      <td><input class="cell-in locked" value="pricev2/estimate" readonly /></td>
+                      <td>Excel 只读</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="foot">
+          <label class="check"><input type="checkbox" id="confirmed" /> 已确认落库内容</label>
+          <div>
+            <button class="btn ghost" type="button" id="btn-skip">跳过稍后处理</button>
+            <button class="btn primary" type="button" id="btn-confirm" disabled>确认并关闭</button>
+          </div>
+        </footer>
+      </section>
+      <aside class="right">
+        <h3>埋点写法（可改；保存时 uicode 强制回文档值）</h3>
+        <textarea class="snippet" id="snippet">$ULOG.send({
+  event: 'Module_Click',
+  evt: '96793',
+  pid: 'a_app',
+  uicode: 'pricev2/estimate',
+  action: {
+    housedel_id: query.houseDelCode,
+    page_from: 'estimate_result',
+    position: 'deal_range'
+  }
+})</textarea>
+        <div class="block">
+          <h4>定位依据</h4>
+          <div class="tree">pages/estimate/result.jsx<br />└ components<br />　└ DealRangeCard<br />　　└ onClick: handleViewRefClick</div>
+        </div>
+        <div class="block">
+          <h4>文档摘录（只读）</h4>
+          <p class="muted">页面名称不可靠，仅摘录：估价结果页。相关路由文案不作为落点，也不提供「打开业务页」操作。</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script>
+    (function () {
+      var box = document.getElementById('confirmed');
+      var btn = document.getElementById('btn-confirm');
+      var toastEl = document.getElementById('toast');
+      function toast(msg) {
+        toastEl.textContent = msg;
+        toastEl.style.display = 'block';
+        setTimeout(function () { toastEl.style.display = 'none'; }, 2200);
+      }
+      function syncSnippet() {
+        var house = document.getElementById('expr-housedel_id').value.trim() || '/* 待确认 */';
+        var page = document.getElementById('expr-page_from').value.trim();
+        var pos = document.getElementById('expr-position').value.trim();
+        var neu = document.getElementById('expr-is_new_house').value.trim();
+        document.getElementById('snippet').value =
+          '$ULOG.send({\n' +
+          "  event: 'Module_Click',\n" +
+          "  evt: '96793',\n" +
+          "  pid: 'a_app',\n" +
+          "  uicode: 'pricev2/estimate',\n" +
+          '  action: {\n' +
+          '    housedel_id: ' + house + ',\n' +
+          '    page_from: ' + page + ',\n' +
+          '    position: ' + pos + ',\n' +
+          '    is_new_house: ' + neu + '\n' +
+          '  }\n})';
+      }
+      box.addEventListener('change', function () { btn.disabled = !box.checked; });
+      document.getElementById('cand-housedel_id').addEventListener('change', function () {
+        var parts = this.value.split('|');
+        document.getElementById('expr-housedel_id').value = parts[0];
+        document.getElementById('path-housedel_id').value = parts[1] || '';
+        syncSnippet();
+      });
+      ['expr-housedel_id', 'expr-page_from', 'expr-position', 'expr-is_new_house'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', syncSnippet);
+      });
+      document.getElementById('btn-confirm').addEventListener('click', function () {
+        if (!box.checked) return;
+        var empty = !document.getElementById('expr-housedel_id').value.trim();
+        if (empty) { toast('仍待确认：请确认参数 housedel_id 的取值'); return; }
+        toast('已确认，本页将关闭（设计稿不关窗）');
+      });
+      document.getElementById('btn-skip').addEventListener('click', function () {
+        toast('已跳过，本页将关闭（设计稿不关窗）');
+      });
+      document.getElementById('hint-file').addEventListener('change', function () {
+        toast('已选择 ' + this.files.length + ' 张提示图（设计稿不写盘）');
+      });
+      document.getElementById('nav-search').addEventListener('input', function () {
+        var q = this.value.trim();
+        Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (item) {
+          item.style.display = !q || item.textContent.indexOf(q) !== -1 ? '' : 'none';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

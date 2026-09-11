@@ -74,6 +74,15 @@ function normalizeParam(param) {
     conflicts: Array.isArray(src.conflicts) ? src.conflicts : [],
     fromMemory: !!src.fromMemory,
     fromEvtId: src.fromEvtId ? String(src.fromEvtId) : '',
+    memoryDescMatched: !!src.memoryDescMatched,
+    memoryReplaced: src.memoryReplaced && typeof src.memoryReplaced === 'object'
+      ? {
+          expression: String(src.memoryReplaced.expression || ''),
+          valueKind: src.memoryReplaced.valueKind ? String(src.memoryReplaced.valueKind) : '',
+          sourcePath: String(src.memoryReplaced.sourcePath || ''),
+          confidence: String(src.memoryReplaced.confidence || '')
+        }
+      : null,
     hint: normalizeHint(src.hint)
   })
 }

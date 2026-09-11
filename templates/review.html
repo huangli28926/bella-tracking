@@ -14,7 +14,7 @@
       --ok: #2f6f62;
       --warn: #a15c12;
       --danger: #9b2c2c;
-      --sidebar: #161d1b;
+      --sidebar: #fff;
       --mono: Menlo, Consolas, monospace;
       --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
     }
@@ -23,13 +23,14 @@
     body { font-family: var(--sans); background: var(--paper); color: var(--ink); }
     .app {
       display: grid;
-      grid-template-columns: 300px minmax(0, 1fr);
+      grid-template-columns: 280px minmax(0, 1fr);
       min-height: 100%;
     }
     .side {
       background: var(--sidebar);
-      color: #e8e2d6;
-      padding: 22px 16px 28px;
+      color: var(--ink);
+      border-right: 1px solid var(--line);
+      padding: 14px 12px 12px;
       display: flex;
       flex-direction: column;
       min-height: 100vh;
@@ -37,101 +38,105 @@
       position: sticky;
       top: 0;
     }
-    .brand {
-      font-size: 12px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #b7c4be;
-      margin-bottom: 8px;
-    }
-    .side h1 {
-      font-size: 18px;
-      font-weight: 650;
-      margin: 0 0 6px;
-      line-height: 1.35;
-    }
-    .meta {
-      font-size: 11px;
-      color: #9aa89f;
-      line-height: 1.6;
-      margin-bottom: 14px;
-      word-break: break-all;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .stat {
-      background: #212926;
-      border: 1px solid #2c3833;
+    .side-search { margin-bottom: 10px; }
+    .side-search input {
+      width: 100%;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      color: var(--ink);
       border-radius: 10px;
-      padding: 10px 12px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: var(--sans);
+      outline: none;
     }
-    .stat b { display: block; font-size: 18px; color: #f4efe6; }
-    .stat span { font-size: 11px; color: #93a198; }
-    .stat.ok b { color: #9ed0c4; }
-    .stat.warn b { color: #efc37a; }
-    .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .side-search input::placeholder { color: #7d756a; }
+    .side-search input:focus { border-color: var(--accent); }
+    .filters {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 4px;
+      margin-bottom: 10px;
+      overflow-x: auto;
+    }
     .filters button {
-      border: 1px solid #3a4742;
+      border: 0;
       background: transparent;
-      color: #d7ddd8;
-      border-radius: 999px;
-      padding: 5px 10px;
+      color: #7d756a;
+      border-radius: 8px;
+      padding: 6px 8px;
       font-size: 12px;
       cursor: pointer;
+      white-space: nowrap;
     }
-    .filters button.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
+    .filters button .n { margin-left: 4px; color: #7d756a; }
+    .filters button.active { background: var(--paper); color: var(--accent); }
+    .filters button.active .n { color: var(--accent); }
     .nav {
       overflow: auto;
       flex: 1;
-      margin: 0 -8px;
-      padding: 0 8px;
+      margin: 0 -4px;
+      padding: 0 4px;
     }
     .nav-item {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       width: 100%;
       text-align: left;
-      border: 0;
+      border: 1px solid transparent;
       background: transparent;
-      color: #e8e2d6;
-      padding: 10px;
-      border-radius: 8px;
+      color: var(--ink);
+      padding: 8px;
+      border-radius: 10px;
       cursor: pointer;
       margin-bottom: 4px;
     }
-    .nav-item:hover, .nav-item.active { background: #2a3531; color: #fff; }
-    .nav-item .row1 {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--mono);
-      font-size: 12px;
+    .nav-item:hover { background: var(--paper); }
+    .nav-item.active { background: #fff8ee; border-color: var(--accent); }
+    .nav-thumb {
+      width: 48px;
+      height: 64px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--paper);
+      border: 1px solid var(--line);
     }
+    .nav-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .nav-body { min-width: 0; flex: 1; }
+    .nav-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
     .nav-item .name {
-      margin-top: 4px;
-      font-size: 12px;
-      color: #9aa89f;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      background: #2a2f2d;
+    .nav-item .evt { display: block; margin-top: 4px; font-family: var(--mono); font-size: 11px; color: #7d756a; }
+    .nav-pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      padding-top: 10px;
     }
-    .dot.ok { background: var(--ok); }
-    .dot.warn { background: var(--warn); }
-    .dot.pending { background: #6b736e; }
+    .nav-pager button {
+      min-width: 26px;
+      height: 26px;
+      border: 0;
+      background: transparent;
+      color: #7d756a;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .nav-pager button.active { background: var(--paper); color: var(--ink); }
+    .nav-pager button:disabled { opacity: 0.35; cursor: default; }
+    .nav-pager .gap { color: #7d756a; font-size: 12px; padding: 0 2px; }
     .main {
       padding: 24px 28px 64px;
       min-width: 0;
@@ -214,6 +219,10 @@
     .chip.ok { background: #e1f0eb; color: var(--ok); }
     .chip.warn { background: #fff4e5; color: var(--warn); }
     .chip.pending { background: #f0ece4; color: #7d756a; }
+    .nav .chip { flex-shrink: 0; font-size: 10px; }
+    .nav .chip.pending { background: #fff4e5; color: var(--warn); }
+    .nav .chip.ok { background: #e1f0eb; color: var(--ok); }
+    .nav .chip.problem { background: #f8eaea; color: var(--danger); }
     .reasons { margin: 0; padding-left: 18px; color: #7d756a; }
     code { font-family: var(--mono); font-size: 12px; }
     .empty {
@@ -233,12 +242,12 @@
 <body>
   <div class="app">
     <aside class="side">
-      <div class="brand">Tracking Review</div>
-      <h1 id="title">埋点矫正汇总</h1>
-      <div class="meta" id="meta"></div>
-      <div class="stats" id="stats"></div>
+      <div class="side-search">
+        <input id="nav-search" type="search" placeholder="搜索 事件/页面/evtId" autocomplete="off" />
+      </div>
       <div class="filters" id="filters"></div>
       <div class="nav" id="nav"></div>
+      <div class="nav-pager" id="nav-pager"></div>
     </aside>
     <main class="main">
       <div class="top">
@@ -281,21 +290,38 @@
       var events = report.events || [];
       var filter = 'all';
       var selectedId = '';
+      var navQuery = '';
+      var navPage = 1;
+      var NAV_PAGE_SIZE = 10;
 
       function esc(v) {
         return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       }
-      function statusOf(event) {
+      function navStatus(event) {
         var review = event.review || {};
+        var impl = event.impl || {};
         if (review.confirmed) return 'confirmed';
+        if (impl.uicodeConflict || (impl.unresolved && impl.unresolved.length)) return 'problem';
         if (review.needsConfirm) return 'pending';
-        return 'none';
+        return 'pending';
+      }
+      function navChip(status) {
+        if (status === 'confirmed') return { cls: 'ok', text: '已确认' };
+        if (status === 'problem') return { cls: 'problem', text: '有问题' };
+        return { cls: 'pending', text: '待确认' };
+      }
+      function matchQuery(event) {
+        var q = String(navQuery || '').trim().toLowerCase();
+        if (!q) return true;
+        return [event.evtId, event.eventName, event.pageName, event.event, event.uicode]
+          .join(' ').toLowerCase().indexOf(q) !== -1;
       }
       function matchFilter(event) {
-        var review = event.review || {};
-        if (filter === 'needs') return !!review.needsConfirm;
-        if (filter === 'confirmed') return !!review.confirmed;
-        if (filter === 'pending') return !!review.needsConfirm && !review.confirmed;
+        if (!matchQuery(event)) return false;
+        var st = navStatus(event);
+        if (filter === 'open') return st === 'pending';
+        if (filter === 'confirmed') return st === 'confirmed';
+        if (filter === 'problem') return st === 'problem';
         return true;
       }
       function chipHtml(event) {
@@ -311,14 +337,24 @@
           return '<li>' + esc(r) + '</li>';
         }).join('') + '</ul>';
       }
+      function searched() {
+        return events.filter(matchQuery);
+      }
       function visibleEvents() {
         return events.filter(matchFilter);
       }
+      function navCounts() {
+        var list = searched();
+        var counts = { all: list.length, open: 0, confirmed: 0, problem: 0 };
+        list.forEach(function (event) {
+          var st = navStatus(event);
+          if (st === 'pending') counts.open += 1;
+          else counts[st] += 1;
+        });
+        return counts;
+      }
 
-      document.getElementById('title').textContent = (report.slug || '埋点') + ' · 矫正汇总';
-      document.getElementById('meta').innerHTML =
-        esc(report.excelPath || '') + '<br/>生成时间 ' +
-        esc((report.generatedAt || '').replace('T', ' ').slice(0, 19));
+      document.title = (report.slug || '埋点') + ' · 矫正汇总';
       document.getElementById('subtitle').textContent =
         '共 ' + (summary.total || 0) + ' 条事件，曾需确认 ' + (summary.needsConfirmCount || 0) +
         ' 条，仍待处理 ' + (summary.pendingCount || 0) + ' 条';
@@ -332,13 +368,6 @@
         banner.textContent = '仍有 ' + (summary.pendingCount || 0) + ' 条待确认。可继续运行 confirm-sweep 或在落库页补确认。';
       }
 
-      document.getElementById('stats').innerHTML =
-        '<div class="stat"><b>' + (summary.total || 0) + '</b><span>全部事件</span></div>' +
-        '<div class="stat warn"><b>' + (summary.needsConfirmCount || 0) + '</b><span>曾需确认</span></div>' +
-        '<div class="stat ok"><b>' + (summary.confirmedCount || 0) + '</b><span>已确认</span></div>' +
-        '<div class="stat' + ((summary.pendingCount || 0) ? ' warn' : '') + '"><b>' +
-          (summary.pendingCount || 0) + '</b><span>仍待处理</span></div>';
-
       var implName = (report.htmlPath || '').split('/').pop() || '';
       document.getElementById('links').innerHTML =
         (implName ? '<a class="primary" href="./' + esc(implName) + '">打开落库页</a>' : '') +
@@ -351,33 +380,91 @@
       }
 
       function renderFilters() {
+        var counts = navCounts();
         var items = [
-          ['all', '全部'],
-          ['needs', '曾需确认'],
-          ['confirmed', '已确认'],
-          ['pending', '待处理']
+          ['all', '全部', counts.all],
+          ['open', '待确认', counts.open],
+          ['confirmed', '已确认', counts.confirmed],
+          ['problem', '有问题', counts.problem]
         ];
         document.getElementById('filters').innerHTML = items.map(function (item) {
           return '<button type="button" data-filter="' + item[0] + '"' +
-            (filter === item[0] ? ' class="active"' : '') + '>' + item[1] + '</button>';
+            (filter === item[0] ? ' class="active"' : '') + '>' +
+            item[1] + '<span class="n">' + item[2] + '</span></button>';
         }).join('');
         bindClicks(document.getElementById('filters'), 'data-filter', function (value) {
           filter = value;
+          navPage = 1;
+          renderList();
+        });
+      }
+
+      function pagerPages(totalPages, current) {
+        if (totalPages <= 7) {
+          return Array.apply(null, { length: totalPages }).map(function (_, i) { return i + 1; });
+        }
+        var pages = [1];
+        var start = Math.max(2, current - 1);
+        var end = Math.min(totalPages - 1, current + 1);
+        if (start > 2) pages.push('…');
+        for (var i = start; i <= end; i++) pages.push(i);
+        if (end < totalPages - 1) pages.push('…');
+        pages.push(totalPages);
+        return pages;
+      }
+
+      function renderPager(total, page, pages) {
+        var el = document.getElementById('nav-pager');
+        if (total <= NAV_PAGE_SIZE) {
+          el.innerHTML = '';
+          return;
+        }
+        var bits = ['<button type="button" data-page="prev"' + (page <= 1 ? ' disabled' : '') + '>&lt;</button>'];
+        pagerPages(pages, page).forEach(function (item) {
+          if (item === '…') {
+            bits.push('<span class="gap">…</span>');
+            return;
+          }
+          bits.push('<button type="button" data-page="' + item + '"' +
+            (item === page ? ' class="active"' : '') + '>' + item + '</button>');
+        });
+        bits.push('<button type="button" data-page="next"' + (page >= pages ? ' disabled' : '') + '>&gt;</button>');
+        el.innerHTML = bits.join('');
+        bindClicks(el, 'data-page', function (value) {
+          var nextPages = Math.max(1, Math.ceil(visibleEvents().length / NAV_PAGE_SIZE) || 1);
+          if (value === 'prev') navPage = Math.max(1, navPage - 1);
+          else if (value === 'next') navPage = Math.min(nextPages, navPage + 1);
+          else navPage = parseInt(value, 10) || navPage;
+          var list = visibleEvents();
+          var slice = list.slice((navPage - 1) * NAV_PAGE_SIZE, navPage * NAV_PAGE_SIZE);
+          if (slice.length && !slice.some(function (item) { return String(item.evtId) === selectedId; })) {
+            selectedId = String(slice[0].evtId);
+          }
           renderList();
         });
       }
 
       function renderList() {
+        renderFilters();
         var list = visibleEvents();
-        document.getElementById('nav').innerHTML = list.map(function (event) {
-          var status = statusOf(event);
-          var dot = status === 'confirmed' ? 'ok' : (status === 'pending' ? 'warn' : 'pending');
+        var pages = Math.max(1, Math.ceil(list.length / NAV_PAGE_SIZE) || 1);
+        var idx = list.findIndex(function (item) { return String(item.evtId) === String(selectedId); });
+        if (idx >= 0) navPage = Math.floor(idx / NAV_PAGE_SIZE) + 1;
+        if (navPage > pages) navPage = pages;
+        if (navPage < 1) navPage = 1;
+        var slice = list.slice((navPage - 1) * NAV_PAGE_SIZE, navPage * NAV_PAGE_SIZE);
+        document.getElementById('nav').innerHTML = slice.map(function (event) {
+          var chip = navChip(navStatus(event));
+          var thumb = event.diagramSrc ? '<img src="' + esc(event.diagramSrc) + '" alt="" />' : '';
           return '<button type="button" class="nav-item' + (selectedId === String(event.evtId) ? ' active' : '') +
             '" data-evt="' + esc(event.evtId) + '">' +
-            '<div class="row1"><span class="dot ' + dot + '"></span>' + esc(event.evtId) + '</div>' +
-            '<div class="name">' + esc(event.eventName || '-') + '</div>' +
-            '</button>';
+            '<span class="nav-thumb">' + thumb + '</span>' +
+            '<span class="nav-body"><span class="nav-top">' +
+            '<span class="name">' + esc(event.eventName || '-') + '</span>' +
+            '<span class="chip ' + chip.cls + '">' + chip.text + '</span>' +
+            '</span><span class="evt">evt: ' + esc(event.evtId) + '</span></span></button>';
         }).join('') || '<div class="empty">当前筛选下没有事件</div>';
+        renderPager(list.length, navPage, pages);
 
         document.getElementById('rows').innerHTML = list.map(function (event) {
           return '<tr id="row-' + esc(event.evtId) + '" data-evt="' + esc(event.evtId) + '"' +
@@ -405,6 +492,11 @@
         if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
 
+      document.getElementById('nav-search').addEventListener('input', function (e) {
+        navQuery = e.target.value || '';
+        navPage = 1;
+        renderList();
+      });
       renderFilters();
       renderList();
     }());
