@@ -472,6 +472,11 @@
       background: #e7f2ee;
       border-radius: 8px;
     }
+    .memory-tip-replaced {
+      color: var(--ink-soft);
+      background: #f4f1ea;
+    }
+    .memory-tip-replaced code { font-size: 11px; }
     .empty {
       border: 1px dashed var(--line);
       border-radius: 16px;
@@ -1432,8 +1437,19 @@
 
       function memoryNote(impl) {
         if (!impl || !impl.fromMemory) return '';
+        if (impl.confirmation && (impl.confirmation.status === 'confirmed' || impl.confirmation.status === 'reused')) return '';
         var from = impl.fromEvtId ? '（来自 ' + esc(impl.fromEvtId) + '）' : '';
-        return '<div class="memory-tip">已回填上次确认值' + from + '，请确认后保存</div>';
+        var html = '<div class="memory-tip">' +
+          (impl.memoryDescMatched
+            ? 'key 与文档说明一致，已带入上次确认值'
+            : '已带入上次同 key 确认值（文档未提供说明，请重点核对）') +
+          from + '，请确认后保存</div>';
+        var replaced = impl.memoryReplaced;
+        if (replaced && String(replaced.expression || '').trim()) {
+          html += '<div class="memory-tip memory-tip-replaced">原 AI 推测 <code>' + esc(replaced.expression) +
+            '</code> 已被上次确认值替换，如不符可改回</div>';
+        }
+        return html;
       }
 
       function inferValueKind(text, explicit) {
@@ -1597,7 +1613,7 @@
           return '<tr' + (paramNeedsConfirm(impl) ? ' class="needs-confirm"' : '') + '><td><code>' + esc(key) + '</code></td><td>' + esc(doc.desc || impl.docDesc || '-') +
             enumBlock(doc.enumText) +
             '</td><td class="code-expr">' + exprHtml + kindTag +
-            (impl.fromMemory ? '<div class="memory-tip">已回填上次确认值' + (impl.fromEvtId ? '（来自 ' + esc(impl.fromEvtId) + '）' : '') + '</div>' : '') +
+            memoryNote(impl) +
             '</td>' +
             '<td class="source-path">' + esc(sourcePathText(impl.sourcePath) || '-') + '</td>' +
             '<td class="conf-cell">' +
